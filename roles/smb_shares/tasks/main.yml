@@ -1,0 +1,69 @@
+---
+- name: install samba
+  apt:
+    name: samba
+    state: present
+
+- name: copy samba configs
+  become: true
+  template:
+    src: "{{ item }}"
+    dest: "/etc/samba/{{ item | basename | regex_replace('.j2$', '') }}"
+    mode: "0644"
+    force: yes
+  with_fileglob:
+    - templates/*.conf.j2
+  notify: "restart samba"
+
+- name: set passwords
+  debug:
+    msg: "Don't forget to run 'sudo smbpasswd -a $USER' for each user who should have access to the Samba shares."
+
+- name: copy avahi services
+  become: true
+  template:
+    src: "{{ item }}"
+    dest: "/etc/avahi/services/{{ item | basename | regex_replace('.j2$', '') }}"
+    mode: "0644"
+    force: yes
+  with_fileglob:
+    - templates/*.service.j2
+  notify: "restart avahi"
+
+- name: explain usb0 network interface
+  vars:
+    marker_begin_latin1: "MARKER_BEGIN"
+    marker_begin_unicode: "⸺̲͞ (((ꎤ ✧曲✧)—̠͞o"
+    marker_begin_escaped: '⸺̲͞\ \(\(\(ꎤ\ ✧曲✧\)—̠͞o'
+    marker_end_latin1: "MARKER_END"
+    marker_end_unicode: "​​​"
+    path: /etc/motd
+  block:
+    - name: convert markers to latin1
+      ansible.builtin.replace:
+        path: "{{ path }}"
+        regexp: "{{ item.regexp }}"
+        replace: "{{ item.replace }}"
+      with_items:
+        - { regexp: "{{ marker_begin_escaped }}", replace: "{{ marker_begin_latin1 }}" }
+        - { regexp: "{{ marker_end_unicode }}", replace: "{{ marker_end_latin1 }}" }
+    - name: update block
+      ansible.builtin.blockinfile:
+        path: /etc/motd
+        create: true
+        mode: "0644"
+        marker: "{mark}"
+        marker_begin: "{{ marker_begin_latin1 }} Samba"
+        block: |2
+            - /home/$USER shares: smb://$HOSTNAME/$USER
+            - / share: smb://$HOSTNAME/rootfs (read-only)
+            - To access the shares, run 'sudo smbpasswd -a $USER' to set the Samba password.
+        marker_end: "{{ marker_end_latin1 }}"
+    - name: convert markers to unicode
+      ansible.builtin.replace:
+        path: "{{ path }}"
+        regexp: "{{ item.regexp }}"
+        replace: "{{ item.replace }}"
+      with_items:
+        - { regexp: "{{ marker_begin_latin1 }}", replace: "{{ marker_begin_unicode }}" }
+        - { regexp: "{{ marker_end_latin1 }}", replace: "{{ marker_end_unicode }}" }

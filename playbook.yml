@@ -1,0 +1,9 @@
+---
+- hosts: '{{inventory}}'
+  max_fail_percentage: 0
+  serial: 1
+  become: yes
+  roles:
+    - device_info
+    - smb_shares
+    - usb_gadget

@@ -1,0 +1,232 @@
+---
+# Inspired by:
+# - https://github.com/bablokb/raspi2go
+# - https://github.com/ckuethe/usbarmory/wiki/USB-Gadgets
+# - https://github.com/zachthieme/config/blob/77cfa15f9c313ba6ee7b7e78e2a9267710ea657e/ansible/roles/usbNetwork/tasks/main.yml
+
+- name: set defaults
+  block:
+    - name: set usg_gadget_features
+      set_fact:
+        usg_gadget_features: "{{ usb_gadget.keys() | reject('in', ['product', 'manufacturer', 'serialnumber']) | list }}"
+
+    - name: set default usb_gadget.product
+      when: usb_gadget.product is undefined
+      block:
+        - name: compute usb_gadget.product
+          become: true
+          shell: cat /proc/device-tree/model
+          register: usb_gadget_product_result
+        - name: set usb_gadget.product
+          set_fact:
+            usb_gadget: "{{ usb_gadget | default({}) | combine({'product': (usb_gadget_product_result.stdout | replace('\x00', ''))}) }}"
+
+    - name: set default usb_gadget.manufacturer
+      when: usb_gadget.manufacturer is undefined
+      block:
+        - name: set usb_gadget.manufacturer
+          set_fact:
+            usb_gadget: "{{ usb_gadget | default({}) | combine({'manufacturer': 'Raspberry Pi Foundation'}) }}"
+
+    - name: set default usb_gadget.serialnumber
+      when: usb_gadget.serialnumber is undefined
+      block:
+        - name: compute usb_gadget.serialnumber
+          become: true
+          shell: grep 'Serial' /proc/cpuinfo | awk '{print $3}'
+          register: usb_gadget_serialnumber_result
+
+        - name: set usb_gadget.serialnumber
+          set_fact:
+            usb_gadget: "{{ usb_gadget | default({}) | combine({'serialnumber': (usb_gadget_serialnumber_result.stdout | hash('md5'))[:16]}) }}"
+
+
+- name: setup system
+  block:
+    - name: update /boot/config.txt
+      become: true
+      community.general.ini_file:
+        path: /boot/config.txt
+        no_extra_spaces: true
+        section: all
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+        mode: "0644"
+      with_items:
+        - option: dtoverlay
+          value: dwc2
+      notify: "reboot system"
+
+    - name: update /boot/cmdline.txt
+      become: true
+      block:
+        - name: set options in /boot/cmdline.txt
+          become: true
+          replace:
+            path: /boot/cmdline.txt
+            regexp: '^([\w](?!.*\b{{ item }}\b).*)$'
+            replace: '\1 {{ item }}'
+          with_items:
+            - "modules-load=dwc2"
+          notify: "reboot system"
+
+        - name: remove trailing line breaks from /boot/cmdline.txt
+          shell: "sed -i -e :a -e '/\\n*$/N;s/\\n*$//;ta' /boot/cmdline.txt"
+
+
+- name: install usb-gadget setup
+  become: true
+  block:
+    - name: copy usb-gadget setup script
+      template:
+        src: templates/usb-gadget-setup.sh.j2
+        dest: /usr/local/sbin/usb-gadget-setup
+        mode: "0755"
+        force: yes
+
+    - name: copy usb-gadget setup service
+      template:
+        src: templates/usb-gadget-setup.service.j2
+        dest: /etc/systemd/system/usb-gadget-setup.service
+        mode: "0644"
+        force: yes
+
+    - name: enable usb-gadget setup service
+      ansible.builtin.systemd_service:
+        name: usb-gadget-setup.service
+        enabled: yes
+      notify: "reboot system"
+
+    - name: copy usb-gadget diagnosis script
+      become: true
+      template:
+        src: templates/usb-gadget-diag.sh.j2
+        dest: /usr/local/sbin/usb-gadget-diag
+        mode: "0755"
+        force: yes
+
+    - name: explain usb-gadget
+      vars:
+        marker_begin_latin1: "MARKER_BEGIN"
+        marker_begin_unicode: "⸺̲͞ (((ꎤ ✧曲✧)—̠͞o"
+        marker_begin_escaped: '⸺̲͞\ \(\(\(ꎤ\ ✧曲✧\)—̠͞o'
+        marker_end_latin1: "MARKER_END"
+        marker_end_unicode: "​​​"
+        path: /etc/motd
+      block:
+        - name: convert markers to latin1
+          ansible.builtin.replace:
+            path: "{{ path }}"
+            regexp: "{{ item.regexp }}"
+            replace: "{{ item.replace }}"
+          with_items:
+            - { regexp: "{{ marker_begin_escaped }}", replace: "{{ marker_begin_latin1 }}" }
+            - { regexp: "{{ marker_end_unicode }}", replace: "{{ marker_end_latin1 }}" }
+        - name: update block
+          ansible.builtin.blockinfile:
+            path: /etc/motd
+            create: true
+            mode: "0644"
+            marker: "{mark}"
+            marker_begin: "{{ marker_begin_latin1 }} USB gadget"
+            block: |2
+                - Functions: {% if usg_gadget_features %}{{ usg_gadget_features | join(', ') }}{% else %}-{% endif %}
+                - To use the functions, connect to this machine by attaching the USB OTG port to a computer with a USB cable.
+                  If you run into issues, you can run: sudo usb-gadget-diag
+            marker_end: "{{ marker_end_latin1 }}"
+        - name: convert markers to unicode
+          ansible.builtin.replace:
+            path: "{{ path }}"
+            regexp: "{{ item.regexp }}"
+            replace: "{{ item.replace }}"
+          with_items:
+            - { regexp: "{{ marker_begin_latin1 }}", replace: "{{ marker_begin_unicode }}" }
+            - { regexp: "{{ marker_end_latin1 }}", replace: "{{ marker_end_unicode }}" }
+
+
+- name: setup usb0 network interface
+  become: true
+  when: usb_gadget.ethernet is defined
+  block:
+    # dhcpcd: DHCP Client Daemon
+    - name: prevent dhcpcd from configuring usb0 network interface
+      ansible.builtin.lineinfile:
+        path: /etc/dhcpcd.conf
+        line: denyinterfaces usb0
+
+    - name: install dnsmasq
+      apt:
+        name:
+          - dnsmasq
+        state: present
+
+    # Documentation: https://dnsmasq.org/docs/dnsmasq-man.html
+    - name: configure usb0 network interface for dnsmasq
+      block:
+        - name: set options with values
+          community.general.ini_file:
+            path: /etc/dnsmasq.d/usb0.conf
+            no_extra_spaces: true
+            section: ''
+            option: "{{ item.option }}"
+            value: "{{ item.value }}"
+            mode: "0644"
+          with_items:
+            - { option: interface, value: usb0 }
+            - { option: dhcp-range, value: "{{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('first_usable') }},{{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('last_usable') }},{{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('netmask') }},1h" }
+            - { option: dhcp-option, value: "3" }
+        - name: set options without values
+          ansible.builtin.lineinfile:
+            path: /etc/dnsmasq.d/usb0.conf
+            line: "{{ item.option }}"
+            state: present
+          with_items:
+            - { option: dhcp-authoritative }
+            - { option: dhcp-rapid-commit }
+            - { option: leasefile-ro }
+
+    - name: copy usb0 network interface config
+      template:
+        src: templates/usb0.network.j2
+        dest: /etc/network/interfaces.d/usb0
+        force: yes
+
+    - name: explain usb0 network interface
+      vars:
+        marker_begin_latin1: "MARKER_BEGIN"
+        marker_begin_unicode: "⸺̲͞ (((ꎤ ✧曲✧)—̠͞o"
+        marker_begin_escaped: '⸺̲͞\ \(\(\(ꎤ\ ✧曲✧\)—̠͞o'
+        marker_end_latin1: "MARKER_END"
+        marker_end_unicode: "​​​"
+        path: /etc/motd
+      block:
+        - name: convert markers to latin1
+          ansible.builtin.replace:
+            path: "{{ path }}"
+            regexp: "{{ item.regexp }}"
+            replace: "{{ item.replace }}"
+          with_items:
+            - { regexp: "{{ marker_begin_escaped }}", replace: "{{ marker_begin_latin1 }}" }
+            - { regexp: "{{ marker_end_unicode }}", replace: "{{ marker_end_latin1 }}" }
+        - name: update block
+          ansible.builtin.blockinfile:
+            path: /etc/motd
+            create: true
+            mode: "0644"
+            marker: "{mark}"
+            marker_begin: "{{ marker_begin_latin1 }} USB ethernet"
+            block: |2
+                - Interface: usb0 managed by dnsmasq (/etc/dnsmasq.d/usb0.conf)
+                - IP address: {{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('address') }} / {{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('netmask') }}
+                - DHCP range: {{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('first_usable') }} - {{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('last_usable') }}
+                - Use Google DNS: printf 'server=%s\n' '8.8.8.8' '8.8.4.4' | sudo tee /etc/dnsmasq.d/dns.conf >/dev/null; sudo systemctl restart dnsmasq
+                - Use host as gateway: sudo ip route add default via $HOST_IP
+            marker_end: "{{ marker_end_latin1 }}"
+        - name: convert markers to unicode
+          ansible.builtin.replace:
+            path: "{{ path }}"
+            regexp: "{{ item.regexp }}"
+            replace: "{{ item.replace }}"
+          with_items:
+            - { regexp: "{{ marker_begin_latin1 }}", replace: "{{ marker_begin_unicode }}" }
+            - { regexp: "{{ marker_end_latin1 }}", replace: "{{ marker_end_unicode }}" }

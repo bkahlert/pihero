@@ -1,0 +1,40 @@
+---
+- name: install avahi
+  become: true
+  apt:
+    name:
+      - avahi-daemon
+    state: present
+
+
+- name: set defaults
+  block:
+    - name: set default device_info.model
+      when: device_info.model is undefined
+      block:
+        - name: set device_info.model
+          set_fact:
+            device_info: "{{ device_info | default({}) | combine({'model': 'AirPortExtreme5'}) }}"
+
+    - name: set default device_info.machine
+      when: device_info.machine is undefined
+      block:
+        - name: compute device_info.machine
+          become: true
+          shell: cat /proc/device-tree/model
+          register: device_info_machine_result
+        - name: set device_info.machine
+          set_fact:
+            device_info: "{{ device_info | default({}) | combine({'machine': (device_info_machine_result.stdout | replace('\x00', ''))}) }}"
+
+
+- name: copy avahi services
+  become: true
+  template:
+    src: "{{ item }}"
+    dest: "/etc/avahi/services/{{ item | basename | regex_replace('.j2$', '') }}"
+    mode: "0644"
+    force: yes
+  with_fileglob:
+    - templates/*.service.j2
+  notify: "restart avahi"

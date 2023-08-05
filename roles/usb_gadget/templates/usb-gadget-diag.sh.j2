@@ -1,0 +1,65 @@
+#!/bin/bash
+
+declare -i failed=0
+
+check() {
+  local -r message=$1
+  shift
+
+  printf "Checking if \033[3m%s\033[23m... " "$message" >&2
+  if "$@"; then
+    printf "\033[32m✔︎\033[0m\n" >&2
+  else
+    printf "\033[31mERROR: \033[3m%s\033[23m failed.\033[0m\n" "$*" >&2
+    failed=$((failed + 1))
+  fi
+}
+
+check "/boot/config.txt contains dtoverlay=dwc2" grep -q "^dtoverlay=dwc2$" /boot/config.txt
+check "/boot/cmdline.txt contains modules-load=dwc2" grep -q "modules-load=dwc2" /boot/cmdline.txt
+check "/boot/cmdline.txt contains no line breaks" grep -q "\n" /boot/cmdline.txt
+
+check "libcomposite module is loaded" bash -c 'lsmod | grep -q "^libcomposite "'
+
+check "usb-gadget-setup service is active" systemctl -q is-active usb-gadget-setup.service
+check "usb-gadget's vendor ID is configured" grep -q "^0x1d6b$" /sys/kernel/config/usb_gadget/g1/idVendor
+check "usb-gadget's product ID is configured" grep -q "^0x0104$" /sys/kernel/config/usb_gadget/g1/idProduct
+check "usb-gadget's bcd device is configured" grep -q "^0x0100$" /sys/kernel/config/usb_gadget/g1/bcdDevice
+check "usb-gadget's bcd USB is configured" grep -q "^0x0200$" /sys/kernel/config/usb_gadget/g1/bcdUSB
+check "usb-gadget's device class is configured" grep -q "^0xef$" /sys/kernel/config/usb_gadget/g1/bDeviceClass
+check "usb-gadget's device subclass is configured" grep -q "^0x02$" /sys/kernel/config/usb_gadget/g1/bDeviceSubClass
+check "usb-gadget's device protocol is configured" grep -q "^0x01$" /sys/kernel/config/usb_gadget/g1/bDeviceProtocol
+check "usb-gadget's serial number is not empty" grep -v -q "^$" /sys/kernel/config/usb_gadget/g1/strings/0x409/serialnumber
+check "usb-gadget's manufacturer is not empty" grep -v -q "^$" /sys/kernel/config/usb_gadget/g1/strings/0x409/manufacturer
+check "usb-gadget's product is not empty" grep -v -q "^$" /sys/kernel/config/usb_gadget/g1/strings/0x409/product
+check "usb-gadget is running" grep -q "^$(ls /sys/class/udc)$" /sys/kernel/config/usb_gadget/g1/UDC
+
+check "dnsmasq is installed" which dnsmasq >/dev/null
+check "dnsmasq is running" systemctl -q is-active dnsmasq.service
+check "usb0 interface is configured" grep -q "^auto usb0$" /etc/network/interfaces.d/usb0
+check "usb0 interface is dhcpcd-excluded" grep -q "^denyinterfaces usb0$" /etc/dhcpcd.conf
+check "usb0 interface is configured for dnsmasq" grep -q "^interface=usb0$" /etc/dnsmasq.d/usb0.conf
+check "usb0 interface config is not malformed" grep -v -q "^interface$" /etc/dnsmasq.d/usb0.conf
+check "usb0 interface config is not malformed" grep -v -q "^leasefile-ro=" /etc/dnsmasq.d/usb0.conf
+check "usb0 interface exists" ip link show usb0 >/dev/null
+
+case $failed in
+0)
+  printf "\033[32mAll checks passed.\033[0m\n" >&2
+  ;;
+1)
+  printf "\033[31m1 check failed.\033[0m\n" >&2
+  ;;
+*)
+  printf "\033[31m%d checks failed.\033[0m\n" $failed >&2
+esac
+
+printf "\n\033[1mFurther debugging:\033[0m\n" >&2
+printf "  - check usb-gadget-setup service: \033[3m%s\033[23m\n" "systemctl status usb-gadget-setup.service; journalctl -f -u usb-gadget-setup.service" >&2
+printf "  - run usb-gadget-setup yourself: \033[3m%s\033[23m\n" "sudo usb-gadget-setup" >&2
+printf "  - scan for connected hosts: \033[3m%s\033[23m\n" "command -v nmap >/dev/null 2>&1 || sudo apt-get install -yqq nmap; nmap -sn 10.10.10.11-14" >&2
+printf "  - check networking: \033[3m%s\033[23m\n" "systemctl status networking" >&2
+printf "  - check dnsmasq service: \033[3m%s\033[23m\n" "systemctl status dnsmasq.service" >&2
+printf "  - check dnsmasq config: \033[3m%s\033[23m\n" "dnsmasq --test" >&2
+printf "  - stop dnsmasq service: \033[3m%s\033[23m\n" "sudo systemctl stop dnsmasq.service" >&2
+printf "  - start dnsmasq manually: \033[3m%s\033[23m\n" "dnsmasq --no-daemon --log-queries" >&2
