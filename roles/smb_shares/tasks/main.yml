@@ -44,7 +44,7 @@
         path: "{{ path }}"
         regexp: "{{ item.regexp }}"
         replace: "{{ item.replace }}"
-      with_items:
+      loop:
         - { regexp: "{{ marker_begin_escaped }}", replace: "{{ marker_begin_latin1 }}" }
         - { regexp: "{{ marker_end_unicode }}", replace: "{{ marker_end_latin1 }}" }
     - name: update block
@@ -64,6 +64,6 @@
         path: "{{ path }}"
         regexp: "{{ item.regexp }}"
         replace: "{{ item.replace }}"
-      with_items:
+      loop:
         - { regexp: "{{ marker_begin_latin1 }}", replace: "{{ marker_begin_unicode }}" }
         - { regexp: "{{ marker_end_latin1 }}", replace: "{{ marker_end_unicode }}" }

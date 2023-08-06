@@ -1,7 +1,7 @@
 ---
-- hosts: '{{inventory}}'
+- hosts: "{{ inventory if inventory is defined else 'all' }}"
+  gather_facts: false
   max_fail_percentage: 0
-  serial: 1
   become: yes
   roles:
     - device_info

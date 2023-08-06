@@ -8,5 +8,5 @@ allow-hotplug usb0
 
 # static IPv4 configuration
 iface usb0 inet static
-      address {{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('address') }}
-      netmask {{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('netmask') }}
+      address {{ cidr_address }}
+      netmask {{ cidr_netmask }}

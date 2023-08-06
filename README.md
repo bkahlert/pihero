@@ -17,13 +17,34 @@ discoverable, accessible, and fun to use.
     - Your computer is automatically configured with DHCP.
     - The default `10.10.10.10/29` assigns `10.10.10.10` to your Raspberry Pi
       and uses the remaining address `10.10.10.9` and `10.10.10.11-14` to configure connected devices.
-    - You can configure any IP address range you like, for example `10.10.20.10/29`,
+    - You can configure any IP address range you like, for example `10.10.20.20/29`,
       to allow for multiple Raspberry Pis to be connected at the same time.
-- Mass storage over USB
 - Serial port over USB
     - Connect with `screen $(ls /dev/tty.usbmodem* | head -n 1) 115200`, exit with `Ctrl+A` `K`
     - Connect with `cu -s 115200 -l $(ls /dev/tty.usbmodem* | head -n 1)`, exit with `~.`
     - Connect with `minicom -b 115200 -D $(ls /dev/tty.usbmodem* | head -n 1)`, exit with `Meta+Z` `X`
+- Support for custom gadgets
+    - Configure any function you like, for example, a USB keyboard or mass storage.
+    - Just add the following to your configuration, and your Raspberry Pi behaves like a 1 GB removable hard drive:
+      ```yaml
+      usb_gadget:
+        mass_storage: |
+          #!/bin/bash
+
+          # create disk image
+          if [ ! -f /data/hdd.img ]; then
+            mkdir -p /data
+            fallocate -l 1GB /data/hdd.img
+            mkfs.exfat -v -L 'RaspiDrive' -f /data/hdd.img
+          fi
+
+          # create mass storage gadget,
+          # see kernel.org/doc/html/latest/usb/gadget-testing.html
+          echo 1 >stall
+          echo /data/hdd.img                  > lun.0/file
+          echo 'SanDisk Cruzer Edge     1.20' > lun.0/inquiry_string
+          echo 1                              > lun.0/removable
+      ``` 
 
 # TODO add screenshots
 
@@ -44,14 +65,16 @@ discoverable, accessible, and fun to use.
         - scan your network with `nmap -sn nmap -sn 192.168.0.0/24` *(adapt to your network)*
     - If you can't, you can use `nmap` to scan your network for devices:
 
-- Once you located your Raspberry Pi, either by name or IP, run:
+- Once you located your Raspberry Pi, run:
   ```shell
-  pip install -r requirements.txt
-  ansible-galaxy collection install -r requirements.yml
-  ansible-playbook playbook.yml \
-    -e "inventory=raspberrypi" \
-    -i inventory/hosts.yml
+  # Setup all Raspberry Pis listed in your inventory
+  ansible-playbook playbook.yml
+  
+  # Setup foo.local only
+  ansible-playbook playbook.yml -l foo.local
   ```
+  If you use the provided [sample inventory](inventory/sample/hosts.yml) with two Raspberry Pis, the output should look like the one
+  in [sample-installation.md](sample-installation.md).
 
 - Wait for the playbook to finish and your Raspberry Pi to reboot.
 
@@ -76,7 +99,7 @@ Linux gadget 6.1.21-v8+ #1642 SMP PREEMPT aarch64
     to set the Samba password.
 
 ⸺̲͞ (((ꎤ ✧曲✧)—̠͞o USB gadget
-  - Functions: mass_storage, serial, ethernet
+  - Features: mass_storage, serial, ethernet
   - To use the functions, connect to this machine by attaching 
     the USB OTG port to a computer with a USB cable.
     If you run into issues, you can run: sudo usb-gadget-diag
@@ -114,7 +137,7 @@ Checking if usb0 interface exists... ✔︎
 All checks passed.
 
 Further debugging:
-  - check usb-gadget-setup service: systemctl status usb-gadget-setup.service; journalctl -f -u usb-gadget-setup.service
+  - check usb-gadget-setup service: systemctl status usb-gadget-setup.service; journalctl -b -u usb-gadget-setup.service
   - run usb-gadget-setup yourself: sudo usb-gadget-setup
   - scan for connected hosts: command -v nmap >/dev/null 2>&1 || sudo apt-get install -yqq nmap; nmap -sn 10.10.10.11-14
   - check networking: systemctl status networking
@@ -123,6 +146,54 @@ Further debugging:
   - stop dnsmasq service: sudo systemctl stop dnsmasq.service
   - start dnsmasq manually: dnsmasq --no-daemon --log-queries
 ```
+
+As advised by the diagnosis script, you can also try:
+
+```shell
+journalctl -b -u usb-gadget-setup.service
+```
+
+This prints something like the following, which is quite handy when debugging
+custom gadget functions:
+
+```text
+systemd[1]: Starting USB gadget setup...
+usb-gadget-setup[642]: Setting up USB gadget g1...
+usb-gadget-setup[642]: Creating gadget g1...
+usb-gadget-setup[642]: Creating configuration c.1...
+usb-gadget-setup[642]: Creating function ecm.usb0...
+usb-gadget-setup[642]: Associating function ecm.usb0 with configuration c.1...
+usb-gadget-setup[642]: Creating function acm.usb0...
+usb-gadget-setup[642]: Associating function acm.usb0 with configuration c.1...
+usb-gadget-setup[642]: Creating function mass_storage.usb0...
+usb-gadget-setup[642]: Delegating creation of function mass_storage.usb0 to usb-gadget-setup-custom...
+usb-gadget-setup[664]: Creating custom function mass_storage.usb0 using inline script...
+usb-gadget-setup[664]: Invoking /tmp/tmp.mrFN5Lqm7H mass_storage usb0 in functions/mass_storage.usb0...
+usb-gadget-setup[668]: /tmp/tmp.mrFN5Lqm7H: line 12: lun.1/removable: No such file or directory
+usb-gadget-setup[664]: ERROR: Invocation terminated with exit code 1.
+usb-gadget-setup[664]: ERROR: Failed to execute script /tmp/tmp.mrFN5Lqm7H for function mass_storage.usb0.
+usb-gadget-setup[642]: ERROR: The function mass_storage.usb0 failed to create. It won't be associated with configuration c.1.
+usb-gadget-setup[642]: This is what functions/mass_storage.usb0 looked like:
+usb-gadget-setup[642]:     Directory /sys/kernel/config/usb_gadget/g1/functions/mass_storage.usb0
+usb-gadget-setup[642]:     total 0
+usb-gadget-setup[642]:     drwxr-xr-x 2 root root    0 Aug  6 23:40 lun.0/
+usb-gadget-setup[642]:     -rw-r--r-- 1 root root 4.0K Aug  6 23:40 stall
+usb-gadget-setup[642]:
+usb-gadget-setup[642]:     functions/mass_storage.usb0/lun.0:
+usb-gadget-setup[642]:     total 0
+usb-gadget-setup[642]:     -rw-r--r-- 1 root root 4.0K Aug  6 23:40 cdrom
+usb-gadget-setup[642]:     -rw-r--r-- 1 root root 4.0K Aug  6 23:40 nofua
+usb-gadget-setup[642]:     -rw-r--r-- 1 root root 4.0K Aug  6 23:40 removable
+usb-gadget-setup[642]:     -rw-r--r-- 1 root root 4.0K Aug  6 23:40 ro
+usb-gadget-setup[642]:     --w------- 1 root root 4.0K Aug  6 23:40 forced_eject
+usb-gadget-setup[642]:     -rw-r--r-- 1 root root 4.0K Aug  6 23:40 inquiry_string
+usb-gadget-setup[642]:     -rw-r--r-- 1 root root 4.0K Aug  6 23:40 file
+usb-gadget-setup[642]: Enabling gadget in /sys/kernel/config/usb_gadget/g1... ✔︎
+systemd[1]: Finished USB gadget setup.
+```
+
+The relevant line here is `/tmp/tmp.mrFN5Lqm7H: line 12: lun.1/removable: No such file or directory`.
+When you look closely, you can see that `lun.1` was used instead of `lun.0`.
 
 ## Contributing
 

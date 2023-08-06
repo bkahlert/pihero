@@ -35,8 +35,11 @@ create_gadget() {
   mkdir -p "$gadget_dir" || { printf "\033[31mERROR: Failed to create directory \033[3m%s\033[23m.\033[0m\n" "$gadget_dir" >&2 && exit 1; }
   cd "$gadget_dir" || { printf "\033[31mERROR: Failed to change directory to \033[3m%s\033[23m.\033[0m\n" "$gadget_dir" >&2 && exit 1; }
 
-  echo '0x1d6b' >idVendor  # Linux Foundation
-  echo '0x0104' >idProduct # Multifunction Composite Gadget
+  echo '0x1d6b' >idVendor  # The Linux Foundation,
+                           # see https://www.usb.org/sites/default/files/usb_vids_080223.pdf
+                           # in "Vendor ID (Decimal Format)" column (0x1d6b = 7523)
+  echo '0x0104' >idProduct # Multifunction Composite Gadget,
+                           # see https://devicehunt.com/view/type/usb/vendor/1D6B/device/0104
   echo '0x0100' >bcdDevice # v1.0.0
   echo '0x0200' >bcdUSB    # USB2
   echo '0xef' >bDeviceClass
@@ -65,7 +68,7 @@ create_config() {
   *.*)
     mkdir -p "configs/$config"
     mkdir -p "configs/$config"/strings/0x409
-    echo 'USB gadget functions: {% if usg_gadget_features %}{{ usg_gadget_features | join(', ') }}{% else %}-{% endif %}' >"configs/$config"/strings/0x409/configuration
+    echo 'USB gadget features: {% if usb_gadget_features.keys() %}{{ usb_gadget_features.keys() | join(', ') }}{% else %}-{% endif %}' >"configs/$config"/strings/0x409/configuration
     echo '250' >configs/c.1/MaxPower
     ln -s "configs/$config" os_desc
     ;;
@@ -78,29 +81,31 @@ create_config() {
 
 # see https://www.kernel.org/doc/html/latest/usb/gadget_configfs.html#creating-the-functions
 create_function() {
-  # function names correspond to USB CDC: https://en.wikipedia.org/wiki/USB_communications_device_class
-  local -r function=${1?:function missing}
+  local -r function_name=${1?:function name missing}
+  local -r instance_name=${2?:instance name missing}
+  local -r function="$function_name.$instance_name"
 
   printf "\033[1mCreating function \033[3m%s\033[23m...\033[0m\n" "$function" >&2
 
-  case "$function" in
-  acm.*)
+  mkdir -p "functions/$function"
+
+  case "$function_name" in
+  acm)
     # see https://www.kernel.org/doc/html/latest/usb/gadget-testing.html#acm-function
-    mkdir -p "functions/$function"
+    # nothing to do
     ;;
-  ecm.*)
+  ecm)
     # Ethernet Control Model (ECM): ethernet over USB protocol by the USB Implementers Forum
     # see https://www.kernel.org/doc/html/latest/usb/gadget-testing.html#ecm-function
     # see https://en.wikipedia.org/wiki/Ethernet_over_USB
-    mkdir -p "functions/$function"
-    {% if usb_gadget.ethernet.device_mac is defined %}
-    echo '{{ usb_gadget.ethernet.device_mac }}' >"functions/$function"/dev_addr
+    {% if usb_gadget_features.ethernet.device_mac is defined %}
+    echo '{{ usb_gadget_features.ethernet.device_mac }}' >"functions/$function"/dev_addr
     {% endif %}
-    {% if usb_gadget.ethernet.host_mac is defined %}
-    echo '{{ usb_gadget.ethernet.host_mac }}' >"functions/$function"/host_addr
+    {% if usb_gadget_features.ethernet.host_mac is defined %}
+    echo '{{ usb_gadget_features.ethernet.host_mac }}' >"functions/$function"/host_addr
     {% endif %}
     ;;
-  rndis.*)
+  rndis)
     # Remote NDIS (RNDIS): proprietary ethernet over USB protocol by Microsoft
     # see https://en.wikipedia.org/wiki/RNDIS
     # see https://en.wikipedia.org/wiki/Ethernet_over_USB
@@ -109,46 +114,16 @@ create_function() {
     echo RNDIS >"functions/$function"/os_desc/interface.rndis/compatible_id
     echo 5162001 >"functions/$function"/os_desc/interface.rndis/sub_compatible_id
     ;;
-  mass_storage.*)
-    # see https://www.kernel.org/doc/html/latest/usb/mass-storage.html
-    # see https://www.kernel.org/doc/html/latest/usb/gadget-testing.html#mass-storage-function
-
-    # TODO parametrize
-    #USB_FILE=/data/usb-mass-storage.img
-    #USB_FILE_BLOCK_COUNT=2048
-    #USB_FS_TYPE=ext4
-
-    # create (sparse) backing-file if necessary
-    : "${USB_FILE:=/data/usb-mass-storage.img}"
-    if [ ! -f "$USB_FILE" ]; then
-      mkdir -p "${USB_FILE%/*}"
-      dd if=/dev/zero of="$USB_FILE" bs=64M \
-        seek="${USB_FILE_BLOCK_COUNT:-2048}" count=0
-      mkfs.${USB_FS_TYPE:-exfat} "$USB_FILE"
-    fi
-
-    # configure gadget
-    mkdir -p "functions/$function"
-    echo '1' >"functions/$function"/stall
-    echo '0' >"functions/$function"/lun.0/cdrom
-    echo '0' >"functions/$function"/lun.0/ro
-    echo '0' >"functions/$function"/lun.0/nofua
-    echo "$USB_FILE" >"functions/$function"/lun.0/file
-    ;;
-  *.*)
-    printf "\033[31mERROR: The function \033[3m%s\033[23m is not supported by this setup script.\033[0m\n" "${function/.*/}" >&2
-    exit 1
-    ;;
   *)
-    printf "\033[31mERROR: The configuration needs to have the format \033[3m<name>\033[23m.\033[3m<instance name>\033[23m.\033[0m\n" >&2
-    exit 1
+    printf "\033[1mDelegating creation of function \033[3m%s\033[23m to \033[3m%s\033[23m...\033[0m\n" "$function" 'usb-gadget-setup-custom' >&2
+    (usb-gadget-setup-custom create_custom_function "$@")
     ;;
   esac
 }
 
 assoc_function() {
-  local -r function=${1?:function missing}
-  local -r config=${2?:config missing}
+  local -r function=${1?:function name missing}.${2?:instance name missing}
+  local -r config=${3?:config missing}
 
   printf "\033[1mAssociating function \033[3m%s\033[23m with configuration \033[3m%s\033[23m...\033[0m\n" "$function" "$config" >&2
 
@@ -216,7 +191,7 @@ destroy_gadget() {
   printf "\033[1mRemoving functions from the gadget...\033[0m\n" >&2
   for function in "$gadget_dir"/functions/*; do
     printf "Removing function \033[3m%s\033[23m.\033[0m\n" "${function##*/}" >&2
-    rm "$function"
+    rmdir "$function"
   done
 
   printf "\033[1mRemoving strings directories from the gadget...\033[0m\n" >&2
@@ -233,27 +208,59 @@ destroy_gadget() {
 }
 
 main() {
-  printf "\033[1mSetting up USB gadget...\033[0m\n" >&2
+  local args=() destroy_only=0
+  while(($#)); do
+    case $1 in
+    --destroy-only)
+      destroy_only=1 && shift
+      ;;
+    *)
+      args+=("$1") && shift
+      ;;
+    esac
+  done
+  set -- "${args[@]}"
 
-  destroy_gadget g1
+  local -r gadget=g1
+  local -r config=c.1
+  local -r instance_name=usb0
 
-  create_gadget g1
-  create_config c.1
+  if [ $destroy_only -eq 1 ]; then
+    destroy_gadget "$gadget"
+    return 0
+  fi
 
-  {% if usb_gadget.mass_storage is defined %}
-  create_function mass_storage.usb0
-  assoc_function mass_storage.usb0 c.1
-  {% endif %}
+  printf "\033[1mSetting up USB gadget \033[3m%s\033[23m...\033[0m\n" "$gadget" >&2
 
-  {% if usb_gadget.serial is defined %}
-  create_function acm.usb0
-  assoc_function acm.usb0 c.1
-  {% endif %}
+  destroy_gadget "$gadget"
 
-  {% if usb_gadget.ethernet is defined %}
-  create_function ecm.usb0
-  assoc_function ecm.usb0 c.1
-  {% endif %}
+  create_gadget "$gadget"
+  create_config "$config"
+
+  {% set feature_mappings = { "ethernet": "ecm", "serial": "acm" } %}
+
+  {% for feature_name, function_parameters in usb_gadget_features.items() %}
+    {% set function_name = feature_mappings[feature_name] if feature_name in feature_mappings else feature_name %}
+
+    {% if function_parameters is none %}
+    create_function '{{ function_name }}' "$instance_name"
+    {% else %}
+    create_function '{{ function_name }}' "$instance_name" "$(printf %s '{{ function_parameters | b64encode }}' | base64 --decode)"
+    {% endif %}
+    if [ $? -eq 0 ]; then
+      assoc_function '{{ function_name }}' "$instance_name" "$config"
+    else
+      printf "\033[31mERROR: The function \033[3m%s.%s\033[23m failed to create. It won't be associated with configuration \033[3m%s\033[23m.\033[0m\n" \
+        '{{ function_name }}' "$instance_name" "$config" >&2
+      local -r indent='    '
+      local -r state=$(ls -1lAFhctR "functions/{{ function_name }}.$instance_name" | tail -n +2 | sed 's/^/'"$indent"'/')
+      printf "This is what \033[3m%s\033[23m looked like:\n%sDirectory %s\n%s\n" \
+        "functions/{{ function_name }}.$instance_name" \
+        "$indent" \
+        "$PWD/functions/{{ function_name }}.$instance_name" \
+        "${state:-$(printf '%s\033[3m%s\033[23m' "$indent" empty)}" >&2
+    fi
+  {% endfor %}
 
   # watch the udev event queue until all current events are handled
   # but no longer than 5 seconds
@@ -261,14 +268,15 @@ main() {
 
   enable_gadget
 
-  {% if usb_gadget.serial is defined %}
-  systemctl start serial-getty@ttyGS0.service
-  {% endif %}
-
-  {% if usb_gadget.ethernet is defined %}
-  ifup usb0
-  systemctl restart dnsmasq
-  {% endif %}
+  {% for feature_name in usb_gadget_features.keys() %}
+    {% if feature_name == "serial" %}
+    systemctl start serial-getty@ttyGS0.service
+    {% endif %}
+    {% if feature_name == "ethernet" %}
+    ifup usb0
+    systemctl restart dnsmasq
+    {% endif %}
+  {% endfor %}
 }
 
 main "$@"

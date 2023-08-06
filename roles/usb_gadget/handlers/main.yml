@@ -6,4 +6,3 @@
   ignore_errors: true
   become: yes
   async: 0
-  tags: [ reboot ]

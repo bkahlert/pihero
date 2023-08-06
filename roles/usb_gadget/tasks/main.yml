@@ -6,9 +6,9 @@
 
 - name: set defaults
   block:
-    - name: set usg_gadget_features
+    - name: set usb_gadget_features
       set_fact:
-        usg_gadget_features: "{{ usb_gadget.keys() | reject('in', ['product', 'manufacturer', 'serialnumber']) | list }}"
+        usb_gadget_features: "{{ usb_gadget | default({},true) | dict2items | rejectattr('key', 'in', ['product', 'manufacturer', 'serialnumber']) | list | items2dict }}"
 
     - name: set default usb_gadget.product
       when: usb_gadget.product is undefined
@@ -19,14 +19,14 @@
           register: usb_gadget_product_result
         - name: set usb_gadget.product
           set_fact:
-            usb_gadget: "{{ usb_gadget | default({}) | combine({'product': (usb_gadget_product_result.stdout | replace('\x00', ''))}) }}"
+            usb_gadget: "{{ usb_gadget | default({},true) | combine({'product': (usb_gadget_product_result.stdout | replace('\x00', ''))}) }}"
 
     - name: set default usb_gadget.manufacturer
       when: usb_gadget.manufacturer is undefined
       block:
         - name: set usb_gadget.manufacturer
           set_fact:
-            usb_gadget: "{{ usb_gadget | default({}) | combine({'manufacturer': 'Raspberry Pi Foundation'}) }}"
+            usb_gadget: "{{ usb_gadget | default({},true) | combine({'manufacturer': 'Raspberry Pi Foundation'}) }}"
 
     - name: set default usb_gadget.serialnumber
       when: usb_gadget.serialnumber is undefined
@@ -38,14 +38,7 @@
 
         - name: set usb_gadget.serialnumber
           set_fact:
-            usb_gadget: "{{ usb_gadget | default({}) | combine({'serialnumber': (usb_gadget_serialnumber_result.stdout | hash('md5'))[:16]}) }}"
-
-    - name: set default usb_gadget.ethernet.cidr
-      when: usb_gadget.ethernet is defined and usb_gadget.ethernet.cidr is undefined
-      block:
-        - name: set usb_gadget.ethernet.cidr
-          set_fact:
-            usb_gadget: "{{ usb_gadget | combine({'ethernet': usb_gadget.ethernet | default({}) | combine({'cidr': '10.10.10.10/29'})}) }}"
+            usb_gadget: "{{ usb_gadget | default({},true) | combine({'serialnumber': (usb_gadget_serialnumber_result.stdout | hash('md5'))[:16]}) }}"
 
 
 - name: setup system
@@ -59,9 +52,8 @@
         option: "{{ item.option }}"
         value: "{{ item.value }}"
         mode: "0644"
-      with_items:
-        - option: dtoverlay
-          value: dwc2
+      loop:
+        - { option: dtoverlay, value: dwc2 }
       notify: "reboot system"
 
     - name: update /boot/cmdline.txt
@@ -73,7 +65,7 @@
             path: /boot/cmdline.txt
             regexp: '^([\w](?!.*\b{{ item }}\b).*)$'
             replace: '\1 {{ item }}'
-          with_items:
+          loop:
             - "modules-load=dwc2"
           notify: "reboot system"
 
@@ -90,6 +82,14 @@
         dest: /usr/local/sbin/usb-gadget-setup
         mode: "0755"
         force: yes
+      notify: "reboot system"
+    - name: copy usb-gadget setup custom script
+      template:
+        src: templates/usb-gadget-setup-custom.sh
+        dest: /usr/local/sbin/usb-gadget-setup-custom
+        mode: "0755"
+        force: yes
+      notify: "reboot system"
 
     - name: copy usb-gadget setup service
       template:
@@ -126,7 +126,7 @@
             path: "{{ path }}"
             regexp: "{{ item.regexp }}"
             replace: "{{ item.replace }}"
-          with_items:
+          loop:
             - { regexp: "{{ marker_begin_escaped }}", replace: "{{ marker_begin_latin1 }}" }
             - { regexp: "{{ marker_end_unicode }}", replace: "{{ marker_end_latin1 }}" }
         - name: update block
@@ -137,7 +137,8 @@
             marker: "{mark}"
             marker_begin: "{{ marker_begin_latin1 }} USB gadget"
             block: |2
-                - Functions: {% if usg_gadget_features %}{{ usg_gadget_features | join(', ') }}{% else %}-{% endif %}
+                - Features: {% if usb_gadget_features.keys() %}{{ usb_gadget_features.keys() | join(', ') }}{% else %}-{% endif %}
+
                 - To use the functions, connect to this machine by attaching the USB OTG port to a computer with a USB cable.
                   If you run into issues, you can run: sudo usb-gadget-diag
             marker_end: "{{ marker_end_latin1 }}"
@@ -146,15 +147,24 @@
             path: "{{ path }}"
             regexp: "{{ item.regexp }}"
             replace: "{{ item.replace }}"
-          with_items:
+          loop:
             - { regexp: "{{ marker_begin_latin1 }}", replace: "{{ marker_begin_unicode }}" }
             - { regexp: "{{ marker_end_latin1 }}", replace: "{{ marker_end_unicode }}" }
 
 
 - name: setup usb0 network interface
   become: true
-  when: usb_gadget.ethernet is defined
+  when: usb_gadget_features.ethernet is defined
+  vars:
+    cidr: "{{ usb_gadget_features.ethernet.cidr if usb_gadget_features.ethernet.cidr is defined else '10.10.10.10/29' }}"
   block:
+    - name: compute IP settings
+      set_fact:
+        cidr_address: "{{ cidr | ansible.utils.ipaddr('address') }}"
+        cidr_netmask: "{{ cidr | ansible.utils.ipaddr('netmask') }}"
+        cidr_first_usable: "{{ cidr | ansible.utils.ipaddr('first_usable') }}"
+        cidr_last_usable: "{{ cidr | ansible.utils.ipaddr('last_usable') }}"
+
     # dhcpcd: DHCP Client Daemon
     - name: prevent dhcpcd from configuring usb0 network interface
       ansible.builtin.lineinfile:
@@ -178,16 +188,16 @@
             option: "{{ item.option }}"
             value: "{{ item.value }}"
             mode: "0644"
-          with_items:
+          loop:
             - { option: interface, value: usb0 }
-            - { option: dhcp-range, value: "{{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('first_usable') }},{{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('last_usable') }},{{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('netmask') }},1h" }
+            - { option: dhcp-range, value: "{{ cidr_first_usable }},{{ cidr_last_usable }},{{ cidr_netmask }},1h" }
             - { option: dhcp-option, value: "3" }
         - name: set options without values
           ansible.builtin.lineinfile:
             path: /etc/dnsmasq.d/usb0.conf
             line: "{{ item.option }}"
             state: present
-          with_items:
+          loop:
             - { option: dhcp-authoritative }
             - { option: dhcp-rapid-commit }
             - { option: leasefile-ro }
@@ -212,7 +222,7 @@
             path: "{{ path }}"
             regexp: "{{ item.regexp }}"
             replace: "{{ item.replace }}"
-          with_items:
+          loop:
             - { regexp: "{{ marker_begin_escaped }}", replace: "{{ marker_begin_latin1 }}" }
             - { regexp: "{{ marker_end_unicode }}", replace: "{{ marker_end_latin1 }}" }
         - name: update block
@@ -224,8 +234,8 @@
             marker_begin: "{{ marker_begin_latin1 }} USB ethernet"
             block: |2
                 - Interface: usb0 managed by dnsmasq (/etc/dnsmasq.d/usb0.conf)
-                - IP address: {{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('address') }} / {{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('netmask') }}
-                - DHCP range: {{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('first_usable') }} - {{ usb_gadget.ethernet.cidr | ansible.utils.ipaddr('last_usable') }}
+                - IP address: {{ cidr_address }} / {{ cidr_netmask }}
+                - DHCP range: {{ cidr_first_usable }} - {{ cidr_last_usable }}
                 - Use Google DNS: printf 'server=%s\n' '8.8.8.8' '8.8.4.4' | sudo tee /etc/dnsmasq.d/dns.conf >/dev/null; sudo systemctl restart dnsmasq
                 - Use host as gateway: sudo ip route add default via $HOST_IP
             marker_end: "{{ marker_end_latin1 }}"
@@ -234,6 +244,6 @@
             path: "{{ path }}"
             regexp: "{{ item.regexp }}"
             replace: "{{ item.replace }}"
-          with_items:
+          loop:
             - { regexp: "{{ marker_begin_latin1 }}", replace: "{{ marker_begin_unicode }}" }
             - { regexp: "{{ marker_end_latin1 }}", replace: "{{ marker_end_unicode }}" }
