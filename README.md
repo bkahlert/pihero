@@ -21,7 +21,9 @@ discoverable, accessible, and fun to use.
       to allow for multiple Raspberry Pis to be connected at the same time.
 - Mass storage over USB
 - Serial port over USB
-  of the Raspberry Pi on the local network.
+    - Connect with `screen $(ls /dev/tty.usbmodem* | head -n 1) 115200`, exit with `Ctrl+A` `K`
+    - Connect with `cu -s 115200 -l $(ls /dev/tty.usbmodem* | head -n 1)`, exit with `~.`
+    - Connect with `minicom -b 115200 -D $(ls /dev/tty.usbmodem* | head -n 1)`, exit with `Meta+Z` `X`
 
 # TODO add screenshots
 
@@ -121,3 +123,15 @@ Further debugging:
   - stop dnsmasq service: sudo systemctl stop dnsmasq.service
   - start dnsmasq manually: dnsmasq --no-daemon --log-queries
 ```
+
+## Contributing
+
+Want to contribute? Awesome! The most basic way to show your support is to star the project, or to raise issues. You
+can also support this project by making
+a [PayPal donation](https://www.paypal.me/bkahlert) to ensure this journey continues indefinitely!
+
+Thanks again for your support, it is much appreciated! :pray:
+
+## License
+
+MIT. See [LICENSE](LICENSE) for more details.

@@ -40,6 +40,13 @@
           set_fact:
             usb_gadget: "{{ usb_gadget | default({}) | combine({'serialnumber': (usb_gadget_serialnumber_result.stdout | hash('md5'))[:16]}) }}"
 
+    - name: set default usb_gadget.ethernet.cidr
+      when: usb_gadget.ethernet is defined and usb_gadget.ethernet.cidr is undefined
+      block:
+        - name: set usb_gadget.ethernet.cidr
+          set_fact:
+            usb_gadget: "{{ usb_gadget | combine({'ethernet': usb_gadget.ethernet | default({}) | combine({'cidr': '10.10.10.10/29'})}) }}"
+
 
 - name: setup system
   block:

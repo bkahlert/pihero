@@ -14,7 +14,7 @@
       block:
         - name: set device_info.model
           set_fact:
-            device_info: "{{ device_info | default({}) | combine({'model': 'AirPortExtreme5'}) }}"
+            device_info: "{{ device_info | default({}) | combine({'model': 'AirPort4'}) }}"
 
     - name: set default device_info.machine
       when: device_info.machine is undefined

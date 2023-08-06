@@ -34,6 +34,11 @@ check "usb-gadget's manufacturer is not empty" grep -v -q "^$" /sys/kernel/confi
 check "usb-gadget's product is not empty" grep -v -q "^$" /sys/kernel/config/usb_gadget/g1/strings/0x409/product
 check "usb-gadget is running" grep -q "^$(ls /sys/class/udc)$" /sys/kernel/config/usb_gadget/g1/UDC
 
+{% if usb_gadget.serial is defined %}
+check "usb-gadget's serial port is active" systemctl -q is-active serial-getty@ttyGS0.service
+{% endif %}
+
+{% if usb_gadget.ethernet is defined %}
 check "dnsmasq is installed" which dnsmasq >/dev/null
 check "dnsmasq is running" systemctl -q is-active dnsmasq.service
 check "usb0 interface is configured" grep -q "^auto usb0$" /etc/network/interfaces.d/usb0
@@ -42,6 +47,7 @@ check "usb0 interface is configured for dnsmasq" grep -q "^interface=usb0$" /etc
 check "usb0 interface config is not malformed" grep -v -q "^interface$" /etc/dnsmasq.d/usb0.conf
 check "usb0 interface config is not malformed" grep -v -q "^leasefile-ro=" /etc/dnsmasq.d/usb0.conf
 check "usb0 interface exists" ip link show usb0 >/dev/null
+{% endif %}
 
 case $failed in
 0)
@@ -57,9 +63,11 @@ esac
 printf "\n\033[1mFurther debugging:\033[0m\n" >&2
 printf "  - check usb-gadget-setup service: \033[3m%s\033[23m\n" "systemctl status usb-gadget-setup.service; journalctl -f -u usb-gadget-setup.service" >&2
 printf "  - run usb-gadget-setup yourself: \033[3m%s\033[23m\n" "sudo usb-gadget-setup" >&2
+{% if usb_gadget.ethernet is defined %}
 printf "  - scan for connected hosts: \033[3m%s\033[23m\n" "command -v nmap >/dev/null 2>&1 || sudo apt-get install -yqq nmap; nmap -sn 10.10.10.11-14" >&2
 printf "  - check networking: \033[3m%s\033[23m\n" "systemctl status networking" >&2
 printf "  - check dnsmasq service: \033[3m%s\033[23m\n" "systemctl status dnsmasq.service" >&2
 printf "  - check dnsmasq config: \033[3m%s\033[23m\n" "dnsmasq --test" >&2
 printf "  - stop dnsmasq service: \033[3m%s\033[23m\n" "sudo systemctl stop dnsmasq.service" >&2
 printf "  - start dnsmasq manually: \033[3m%s\033[23m\n" "dnsmasq --no-daemon --log-queries" >&2
+{% endif %}
