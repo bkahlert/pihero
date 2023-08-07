@@ -28,18 +28,18 @@ ok: [foo.local]
 ok: [bar.local]
 
 TASK [device_info : copy avahi services] **************************************************************
-changed: [foo.local] => (item=.../pi-polisher/roles/device_info/templates/device-info.service.j2)
-changed: [foo.local] => (item=.../pi-polisher/roles/device_info/templates/ssh.service.j2)
-changed: [bar.local] => (item=.../pi-polisher/roles/device_info/templates/device-info.service.j2)
-changed: [bar.local] => (item=.../pi-polisher/roles/device_info/templates/ssh.service.j2)
+changed: [foo.local] => (item=.../pihero/roles/device_info/templates/device-info.service.j2)
+changed: [foo.local] => (item=.../pihero/roles/device_info/templates/ssh.service.j2)
+changed: [bar.local] => (item=.../pihero/roles/device_info/templates/device-info.service.j2)
+changed: [bar.local] => (item=.../pihero/roles/device_info/templates/ssh.service.j2)
 
 TASK [smb_shares : install samba] *********************************************************************
 changed: [foo.local]
 changed: [bar.local]
 
 TASK [smb_shares : copy samba configs] ****************************************************************
-changed: [foo.local] => (item=.../pi-polisher/roles/smb_shares/templates/smb.conf.j2)
-changed: [bar.local] => (item=.../pi-polisher/roles/smb_shares/templates/smb.conf.j2)
+changed: [foo.local] => (item=.../pihero/roles/smb_shares/templates/smb.conf.j2)
+changed: [bar.local] => (item=.../pihero/roles/smb_shares/templates/smb.conf.j2)
 
 TASK [smb_shares : set passwords] *********************************************************************
 ok: [foo.local] => {}
@@ -54,8 +54,8 @@ MSG:
 Don't forget to run 'sudo smbpasswd -a $USER' for each user who should have access to the Samba shares.
 
 TASK [smb_shares : copy avahi services] ***************************************************************
-changed: [foo.local] => (item=.../pi-polisher/roles/smb_shares/templates/smb.service.j2)
-changed: [bar.local] => (item=.../pi-polisher/roles/smb_shares/templates/smb.service.j2)
+changed: [foo.local] => (item=.../pihero/roles/smb_shares/templates/smb.service.j2)
+changed: [bar.local] => (item=.../pihero/roles/smb_shares/templates/smb.service.j2)
 
 TASK [smb_shares : convert markers to latin1] *********************************************************
 ok: [foo.local] => (item={'regexp': '⸺̲͞\\ \\(\\(\\(ꎤ\\ ✧曲✧\\)—̠͞o', 'replace': 'MARKER_BEGIN'})
