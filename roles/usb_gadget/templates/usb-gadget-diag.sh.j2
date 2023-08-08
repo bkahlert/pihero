@@ -40,13 +40,13 @@ check "usb-gadget's serial port is active" systemctl -q is-active serial-getty@t
 
 {% if usb_gadget_features.ethernet is defined %}
 check "dnsmasq is installed" which dnsmasq >/dev/null
-check "dnsmasq is running" systemctl -q is-active dnsmasq.service
+check "dnsmasq is active" systemctl -q is-active dnsmasq.service
+check "usb0 interface exists" ip link show usb0 >/dev/null
 check "usb0 interface is configured" grep -q "^auto usb0$" /etc/network/interfaces.d/usb0
 check "usb0 interface is dhcpcd-excluded" grep -q "^denyinterfaces usb0$" /etc/dhcpcd.conf
 check "usb0 interface is configured for dnsmasq" grep -q "^interface=usb0$" /etc/dnsmasq.d/usb0.conf
-check "usb0 interface config is not malformed" grep -v -q "^interface$" /etc/dnsmasq.d/usb0.conf
-check "usb0 interface config is not malformed" grep -v -q "^leasefile-ro=" /etc/dnsmasq.d/usb0.conf
-check "usb0 interface exists" ip link show usb0 >/dev/null
+check "usb0 dnsmasq config is not malformed" grep -v -q "^interface$" /etc/dnsmasq.d/usb0.conf
+check "usb0 dnsmasq config is not malformed" grep -v -q "^leasefile-ro=" /etc/dnsmasq.d/usb0.conf
 {% endif %}
 
 case $failed in

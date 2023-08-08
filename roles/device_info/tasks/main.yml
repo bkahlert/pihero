@@ -28,13 +28,32 @@
             device_info: "{{ device_info | default({}) | combine({'machine': (device_info_machine_result.stdout | replace('\x00', ''))}) }}"
 
 
+- name: meta
+  block:
+    - name: set pretty hostname
+      when: device_info.pretty_hostname is defined
+      shell: hostnamectl --pretty set-hostname "{{ device_info.pretty_hostname }}"
+      notify: "restart avahi"
+
+    - name: get pretty hostname
+      register: device_info_pretty_hostname_result
+      shell: hostnamectl --pretty
+
+    - name: set pretty hostname fact
+      set_fact:
+        device_info: "{{ device_info | default({}) | combine({'pretty_hostname': device_info_pretty_hostname_result.stdout}) }}"
+
+    - name: set chassis
+      shell: hostnamectl set-chassis embedded
+
+
 - name: copy avahi services
   become: true
   template:
     src: "{{ item }}"
     dest: "/etc/avahi/services/{{ item | basename | regex_replace('.j2$', '') }}"
     mode: "0644"
-    force: yes
+    force: true
   with_fileglob:
     - templates/*.service.j2
   notify: "restart avahi"

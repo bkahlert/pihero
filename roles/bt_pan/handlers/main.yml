@@ -1,7 +1,7 @@
 ---
 - name: reboot system
   ansible.builtin.reboot:
-    msg: "Rebooting system to finalize USB gadget setup."
+    msg: "Rebooting system to finalize Bluetooth PAN setup."
     reboot_timeout: 0 # don't wait for reboot
   ignore_errors: true
   become: true

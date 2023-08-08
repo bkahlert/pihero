@@ -1,0 +1,13 @@
+{# Documentation: https://manpages.org/etc-network-interfaces/5 #}
+{# @formatter:off #}
+
+# bring interface up at boot time
+auto pan0
+
+# static IPv4 configuration
+iface pan0 inet static
+      address {{ pan0_cidr_address }}
+      netmask {{ pan0_cidr_netmask }}
+
+pre-up brctl addbr pan0
+post-down brctl delbr pan0

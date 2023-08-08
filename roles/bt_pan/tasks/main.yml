@@ -1,0 +1,203 @@
+---
+- name: check for bluetooth hardware
+  block:
+    - name: check if /sys/class/bluetooth exists
+      stat:
+        path: /sys/class/bluetooth
+      register: bluetooth_dir
+
+    - name: set has_bluetooth_hardware
+      set_fact:
+        has_bluetooth_hardware: "{{ bluetooth_dir.stat.exists }}"
+
+    - name: Display result
+      debug:
+        var: has_bluetooth_hardware
+
+
+- name: install bluetooth services
+  when: has_bluetooth_hardware and bt_pan is defined
+  become: true
+  vars:
+    pins_file: /etc/bluetooth/pins
+    pins: "{{ bt_pan.devices if bt_pan.devices is defined else [] }}"
+    trusted: "{{ bt_pan.devices if bt_pan.devices is defined else [] }}"
+  block:
+    - name: install dependencies
+      apt:
+        name:
+          - bluetooth
+          - bluez
+          - bluez-tools
+          - bridge-utils
+        state: present
+
+    - name: set-up bt-network
+      block:
+        - name: copy bt-network service
+          template:
+            src: templates/bt-network.service.j2
+            dest: /etc/systemd/system/bt-network.service
+            mode: "0644"
+            force: true
+
+        - name: enable bt-network service
+          ansible.builtin.systemd_service:
+            name: bt-network.service
+            daemon_reload: true
+            enabled: true
+
+    - name: set-up bt-agent
+      block:
+        - name: copy bt-agent service
+          template:
+            src: templates/bt-agent.service.j2
+            dest: /etc/systemd/system/bt-agent.service
+            mode: "0644"
+            force: true
+
+        - name: enable bt-agent service
+          ansible.builtin.systemd_service:
+            name: bt-agent.service
+            daemon_reload: true
+            enabled: true
+
+        - name: set PINs
+          ansible.builtin.lineinfile:
+            path: "{{ pins_file }}"
+            create: true
+            search_string: "{{ item.mac }}"
+            line: "{{ item.mac }}    {{ item.pin | default('*', true) }}"
+            state: present
+            mode: "0640"
+          loop: "{{ pins }}"
+
+
+    - name: set bluetooth options
+      community.general.ini_file:
+        path: /etc/bluetooth/main.conf
+        section: "{{ item.section }}"
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      loop:
+        # Class syntax: bytes 12-8: major class, bytes 7-2: minor class, bytes 1-0: always 00
+        # see https://www.ampedrftech.com/datasheets/cod_definition.pdf
+        # see https://bitbucket.org/bluetooth-SIG/public/src/main/assigned_numbers/assigned_numbers/core/class_of_device.yaml
+        # - { section: General, option: Class, value: "0x{{ '%0x' % ('00001 000001 00' | replace(' ', '') | int(0, 2)) }}" } # Computer
+        # - { section: General, option: Class, value: "0x{{ '%0x' % ('00001 000010 00' | replace(' ', '') | int(0, 2)) }}" } # Server
+        - { section: General, option: Class, value: "0x{{ '%0x' % ('00010 000011 00' | replace(' ', '') | int(0, 2)) }}" } # Smartphone
+        - { section: General, option: DiscoverableTimeout, value: '0' } # unit: seconds, 0 = always discoverable, default: 180
+
+
+    - name: copy bt-pan diagnosis script
+      become: true
+      template:
+        src: templates/bt-pan-diag.sh.j2
+        dest: /usr/local/sbin/bt-pan-diag
+        mode: "0755"
+        force: true
+
+    - name: restart services
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        state: restarted
+      loop:
+        - bluetooth.service
+        - bt-network.service
+        - bt-agent.service
+
+
+- name: set-up pan0 network interface
+  when: has_bluetooth_hardware and bt_pan is defined
+  become: true
+  vars:
+    pan0_cidr: "{{ bt_pan.cidr if usb_gadget_features.ethernet.cidr is defined else '10.11.10.10/29' }}"
+  block:
+    - name: compute IP settings
+      set_fact:
+        pan0_cidr_address: "{{ pan0_cidr | ansible.utils.ipaddr('address') }}"
+        pan0_cidr_netmask: "{{ pan0_cidr | ansible.utils.ipaddr('netmask') }}"
+        pan0_cidr_first_usable: "{{ pan0_cidr | ansible.utils.ipaddr('first_usable') }}"
+        pan0_cidr_last_usable: "{{ pan0_cidr | ansible.utils.ipaddr('last_usable') }}"
+
+    - name: install dependencies
+      apt:
+        name:
+          - dnsmasq
+        state: present
+
+    # Documentation: https://dnsmasq.org/docs/dnsmasq-man.html
+    - name: configure pan0 network interface for dnsmasq
+      block:
+        - name: set options with values
+          community.general.ini_file:
+            path: /etc/dnsmasq.d/pan0.conf
+            no_extra_spaces: true
+            section: ''
+            option: "{{ item.option }}"
+            value: "{{ item.value }}"
+            mode: "0644"
+          loop:
+            - { option: interface, value: pan0 }
+            - { option: dhcp-range, value: "{{ pan0_cidr_first_usable }},{{ pan0_cidr_last_usable }},{{ pan0_cidr_netmask }},1h" }
+        - name: set options without values
+          ansible.builtin.lineinfile:
+            path: /etc/dnsmasq.d/pan0.conf
+            line: "{{ item.option }}"
+            state: present
+          loop:
+            - { option: dhcp-authoritative }
+            - { option: dhcp-rapid-commit }
+            - { option: leasefile-ro }
+
+    - name: copy pan0 network interface config
+      template:
+        src: templates/pan0.network.j2
+        dest: /etc/network/interfaces.d/pan0
+        force: true
+
+    - name: restart services
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        state: restarted
+      loop:
+        - dnsmasq.service
+
+    - name: explain pan0 network interface
+      vars:
+        marker_begin_latin1: "MARKER_BEGIN"
+        marker_begin_unicode: "⸺̲͞ (((ꎤ ✧曲✧)—̠͞o"
+        marker_begin_escaped: '⸺̲͞\ \(\(\(ꎤ\ ✧曲✧\)—̠͞o'
+        marker_end_latin1: "MARKER_END"
+        marker_end_unicode: "​​​"
+        path: /etc/motd
+      block:
+        - name: convert markers to latin1
+          ansible.builtin.replace:
+            path: "{{ path }}"
+            regexp: "{{ item.regexp }}"
+            replace: "{{ item.replace }}"
+          loop:
+            - { regexp: "{{ marker_begin_escaped }}", replace: "{{ marker_begin_latin1 }}" }
+            - { regexp: "{{ marker_end_unicode }}", replace: "{{ marker_end_latin1 }}" }
+        - name: update block
+          ansible.builtin.blockinfile:
+            path: /etc/motd
+            create: true
+            mode: "0644"
+            marker: "{mark}"
+            marker_begin: "{{ marker_begin_latin1 }} Bluetooth PAN"
+            block: |2
+                - Interface: pan0 managed by dnsmasq (/etc/dnsmasq.d/pan0.conf)
+                - IP address: {{ pan0_cidr_address }} / {{ pan0_cidr_netmask }}
+                - DHCP range: {{ pan0_cidr_first_usable }} - {{ pan0_cidr_last_usable }}
+                - If you run into issues, you can run: sudo bt-pan-diag
+            marker_end: "{{ marker_end_latin1 }}"
+        - name: convert markers to unicode
+          ansible.builtin.replace:
+            path: "{{ path }}"
+            regexp: "{{ item.regexp }}"
+            replace: "{{ item.replace }}"
+          loop:
+            - { regexp: "{{ marker_begin_latin1 }}", replace: "{{ marker_begin_unicode }}" }
+            - { regexp: "{{ marker_end_latin1 }}", replace: "{{ marker_end_unicode }}" }
