@@ -1,0 +1,26 @@
+[Unit]
+Description=Bluetooth Auth Agent
+
+[Service]
+Type=simple
+
+# authorize each and everything
+# ExecStart=/bin/sh -c '/usr/bin/yes | /usr/bin/bt-agent --capability=NoInputNoOutput'
+
+# authorize devices as specified
+ExecStart=/usr/bin/bt-agent --capability=DisplayOnly --pin={{ pins_file }}
+
+{% if device_info.pretty_hostname is defined %}
+ExecStartPre=/usr/bin/bt-adapter --set Alias '{{ device_info.pretty_hostname }}'
+{% endif %}
+
+ExecStartPost=/usr/bin/bt-adapter --set Discoverable 1
+
+{% for device in trusted %}
+{% if device.trusted %}
+ExecStartPost=/usr/bin/bt-device '{{ device.mac }}' --set Trusted '1'
+{% endif %}
+{% endfor %}
+
+[Install]
+WantedBy=multi-user.target

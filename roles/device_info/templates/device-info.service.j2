@@ -1,7 +1,7 @@
 <?xml version="1.0" standalone='no'?><!--*-nxml-*-->
 <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
 <service-group>
-  <name replace-wildcards="yes">%h</name>
+  <name replace-wildcards="yes">{{ device_info.pretty_hostname | default('%h', true) }}</name>
   <service>
     <type>_device-info._tcp</type>
     <txt-record value-format="binary-base64">model={{ device_info.model | b64encode }}</txt-record>

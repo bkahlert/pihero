@@ -15,6 +15,7 @@ Pi Hero makes your Raspberry Pi:
 - configure Windows-compatible Samba shares,
 - accept serial connection, and
 - allow for custom features like behaving like a keyboard, mouse, mass storage, etc.
+- create a Bluetooth PAN
 
 Supported are even old models like the [Raspberry Pi Zero](https://www.raspberrypi.com/products/raspberry-pi-zero/) with no network accessibility at all.
 
@@ -26,8 +27,12 @@ A [sample inventory](inventory/sample/hosts.yml) for the two devices `foo.local`
 
 ```yaml
 # Device "foo" with the following features:
+# - Bluetooth PAN with custom CIDR and one (pre-)trusted device
 # - Ethernet over USB
 foo.local:
+    bt_pan:
+        cidr: 10.11.10.10/29
+        devices: { mac: 00:11:22:33:44:55, pin: '*', trusted: true }
     usb_gadget:
         ethernet:
 
@@ -62,6 +67,21 @@ Samba shares are configured for home directories and the root directory `/`.
 
 | [![samba login](docs%2Fsamba-login.png) samba login](./docs/samba-login.png) | [![samba shares](docs%2Fsamba-shares.png) samba shares](./docs/samba-shares.png) | [![samba home share](docs%2Fsamba-home-share.png) samba home share](./docs/samba-home-share.png) | [![samba rootfs share](docs%2Fsamba-rootfs-share.png) samba rootfs share](./docs/samba-rootfs-share.png) |
 |------------------------------------------------------------------------------|----------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+
+#### Bluetooth PAN
+
+If your device has Bluetooth, a Personal Area Network `PAN`—more specifically a Network Access Point `NAP`—can be created.
+It lets your configured devices connect to your Raspberry Pi via Bluetooth.
+
+| [![discoverable Raspberry Pi](docs%2Fbt-pan-discoverable.png) discoverable Raspberry Pi<br/>](./docs/bt-pan-discoverable.png) | [![connected with Mac via Bluetooth PAN](docs%2Fbt-pan-connected.png) connected with Mac via Bluetooth PAN<br/>](./docs/bt-pan-connected.png) | [![ping with iPhone via Bluetooth PAN](docs%2Fbt-pan-ping.png) ping with iPhone via Bluetooth](./docs/bt-pan-ping.png) | [![samba share via Bluetooth PAN](docs%2Fbt-pan-share.png) samba share accessed with iPhone via Bluetooth](./docs/bt-pan-share.png) |
+|-------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+
+Devices are identified by their MAC address. To find out your device's MAC address:
+
+- On macOS, run `system_profiler SPBluetoothDataType | grep "Address:" | head -n 1`
+- On an iPhone, go to `Settings` > `General` > `About` > `Bluetooth`
+- On Windows, run `ipconfig /all | findstr "Bluetooth"`
+- On Linux, run `hcitool dev`
 
 #### Ethernet over USB
 

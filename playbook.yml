@@ -2,8 +2,9 @@
 - hosts: "{{ inventory if inventory is defined else 'all' }}"
   gather_facts: false
   max_fail_percentage: 0
-  become: yes
+  become: true
   roles:
     - device_info
     - smb_shares
     - usb_gadget
+    - bt_pan

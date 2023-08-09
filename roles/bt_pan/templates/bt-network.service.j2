@@ -1,0 +1,13 @@
+[Unit]
+Description=Bluetooth NEP PAN
+After=pan0.network
+
+[Service]
+# nap: Network Access Point for up to 7 PANUs
+# gn: Group Network for up to 7 PANUs
+# panu: Access to a NAP or GN
+ExecStart=/usr/bin/bt-network --server nap pan0
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
