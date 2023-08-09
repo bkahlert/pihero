@@ -203,6 +203,11 @@ If you'd like to go with a different configuration, these are the ones I'd recom
   
   # Setup only the device foo.local
   ansible-playbook playbook.yml -l foo.local
+  
+  # Setup only the device foo.local declared in the given inventory, and use the specified IP address to connect
+  ansible-playbook playbook.yml -l foo.local \
+      -e "ansible_host=10.10.10.99" \
+      -i inventory/other/hosts.yml
   ```
     - If you used the provided [sample inventory](inventory/sample/hosts.yml) with two Raspberry Pis,   
       the output should look like the one in [sample-installation.md](sample-installation.md).

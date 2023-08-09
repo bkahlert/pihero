@@ -76,17 +76,10 @@
     - name: set bluetooth options
       community.general.ini_file:
         path: /etc/bluetooth/main.conf
-        section: "{{ item.section }}"
+        section: "{{ item.section | default('General', true) }}"
         option: "{{ item.option }}"
         value: "{{ item.value }}"
-      loop:
-        # Class syntax: bytes 12-8: major class, bytes 7-2: minor class, bytes 1-0: always 00
-        # see https://www.ampedrftech.com/datasheets/cod_definition.pdf
-        # see https://bitbucket.org/bluetooth-SIG/public/src/main/assigned_numbers/assigned_numbers/core/class_of_device.yaml
-        # - { section: General, option: Class, value: "0x{{ '%0x' % ('00001 000001 00' | replace(' ', '') | int(0, 2)) }}" } # Computer
-        # - { section: General, option: Class, value: "0x{{ '%0x' % ('00001 000010 00' | replace(' ', '') | int(0, 2)) }}" } # Server
-        - { section: General, option: Class, value: "0x{{ '%0x' % ('00010 000011 00' | replace(' ', '') | int(0, 2)) }}" } # Smartphone
-        - { section: General, option: DiscoverableTimeout, value: '0' } # unit: seconds, 0 = always discoverable, default: 180
+      loop: "{{ bt_pan.options }}"
 
 
     - name: copy bt-pan diagnosis script
