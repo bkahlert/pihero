@@ -3,6 +3,19 @@
   gather_facts: false
   max_fail_percentage: 0
   become: true
+  pre_tasks:
+    - name: gather fact group_members
+      block:
+        - name: get group_entries
+          shell: "getent group"
+          register: group_entries
+        - name: set fact group_members
+          set_fact:
+            group_members: "{{ group_members | default({}) | combine({item.split(':')[0]: item.split(':')[3].split(',') if item.split(':')[3] else []}) }}"
+          loop: "{{ group_entries.stdout_lines }}"
+    - name: request passwords
+      include_tasks: tasks/request_password.yml
+      loop: "{{ group_members['users'] | default([]) }}"
   roles:
     - device_info
     - smb_shares

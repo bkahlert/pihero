@@ -16,8 +16,8 @@
   notify: "restart samba"
 
 - name: set passwords
-  debug:
-    msg: "Don't forget to run 'sudo smbpasswd -a $USER' for each user who should have access to the Samba shares."
+  include_tasks: set_samba_password.yml
+  loop: "{{ smb_passwords | default({}) | dict2items }}"
 
 - name: copy avahi services
   become: true
@@ -34,7 +34,6 @@
   vars:
     marker_begin_latin1: "MARKER_BEGIN"
     marker_begin_unicode: "⸺̲͞ (((ꎤ ✧曲✧)—̠͞o"
-    marker_begin_escaped: '⸺̲͞\ \(\(\(ꎤ\ ✧曲✧\)—̠͞o'
     marker_end_latin1: "MARKER_END"
     marker_end_unicode: "​​​"
     path: /etc/motd
@@ -45,8 +44,8 @@
         regexp: "{{ item.regexp }}"
         replace: "{{ item.replace }}"
       loop:
-        - { regexp: "{{ marker_begin_escaped }}", replace: "{{ marker_begin_latin1 }}" }
-        - { regexp: "{{ marker_end_unicode }}", replace: "{{ marker_end_latin1 }}" }
+        - { regexp: "{{ marker_begin_unicode | regex_escape() }}", replace: "{{ marker_begin_latin1 }}" }
+        - { regexp: "{{ marker_end_unicode | regex_escape() }}", replace: "{{ marker_end_latin1 }}" }
     - name: update block
       ansible.builtin.blockinfile:
         path: /etc/motd

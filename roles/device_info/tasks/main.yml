@@ -47,6 +47,19 @@
       shell: hostnamectl set-chassis embedded
 
 
+- name: configure avahi
+  community.general.ini_file:
+    path: /etc/avahi/avahi-daemon.conf
+    no_extra_spaces: true
+    section: "{{ item.section }}"
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+  loop:
+    - { section: server, option: disallow-other-stacks, value: 'yes' }
+    - { section: publish, option: publish-hinfo, value: 'yes' }
+    - { section: publish, option: publish-workstation, value: 'no' }
+  notify: "restart avahi"
+
 - name: copy avahi services
   become: true
   template:

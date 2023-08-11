@@ -81,8 +81,8 @@ Devices are identified by their MAC address. To find out your device's MAC addre
 - On macOS, run `system_profiler SPBluetoothDataType | grep "Address:" | head -n 1`
 - On an iPhone, go to `Settings` > `General` > `About` > `Bluetooth`
 - On Windows, run `ipconfig /all | findstr "Bluetooth"`
-- On Linux, run `hcitool dev`
-
+- On Linux, run `bt-adapter -i | grep "Address:" | head -n 1`
+  
 #### Ethernet over USB
 
 If your device has no Wi-Fi or Ethernet port, or you use them for a different purpose,

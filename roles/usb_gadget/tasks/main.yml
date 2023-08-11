@@ -117,7 +117,6 @@
       vars:
         marker_begin_latin1: "MARKER_BEGIN"
         marker_begin_unicode: "⸺̲͞ (((ꎤ ✧曲✧)—̠͞o"
-        marker_begin_escaped: '⸺̲͞\ \(\(\(ꎤ\ ✧曲✧\)—̠͞o'
         marker_end_latin1: "MARKER_END"
         marker_end_unicode: "​​​"
         path: /etc/motd
@@ -128,8 +127,8 @@
             regexp: "{{ item.regexp }}"
             replace: "{{ item.replace }}"
           loop:
-            - { regexp: "{{ marker_begin_escaped }}", replace: "{{ marker_begin_latin1 }}" }
-            - { regexp: "{{ marker_end_unicode }}", replace: "{{ marker_end_latin1 }}" }
+            - { regexp: "{{ marker_begin_unicode | regex_escape() }}", replace: "{{ marker_begin_latin1 }}" }
+            - { regexp: "{{ marker_end_unicode | regex_escape() }}", replace: "{{ marker_end_latin1 }}" }
         - name: update block
           ansible.builtin.blockinfile:
             path: /etc/motd
@@ -213,7 +212,6 @@
       vars:
         marker_begin_latin1: "MARKER_BEGIN"
         marker_begin_unicode: "⸺̲͞ (((ꎤ ✧曲✧)—̠͞o"
-        marker_begin_escaped: '⸺̲͞\ \(\(\(ꎤ\ ✧曲✧\)—̠͞o'
         marker_end_latin1: "MARKER_END"
         marker_end_unicode: "​​​"
         path: /etc/motd
@@ -224,8 +222,8 @@
             regexp: "{{ item.regexp }}"
             replace: "{{ item.replace }}"
           loop:
-            - { regexp: "{{ marker_begin_escaped }}", replace: "{{ marker_begin_latin1 }}" }
-            - { regexp: "{{ marker_end_unicode }}", replace: "{{ marker_end_latin1 }}" }
+            - { regexp: "{{ marker_begin_unicode | regex_escape() }}", replace: "{{ marker_begin_latin1 }}" }
+            - { regexp: "{{ marker_end_unicode | regex_escape() }}", replace: "{{ marker_end_latin1 }}" }
         - name: update block
           ansible.builtin.blockinfile:
             path: /etc/motd

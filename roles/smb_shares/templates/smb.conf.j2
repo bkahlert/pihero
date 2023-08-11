@@ -32,6 +32,9 @@
         fruit:wipe_intentionally_left_blank_rfork = yes
         fruit:delete_empty_adfiles = Yes
 
+        # no registration by Samba, due to inconsistencies regarding the hostname
+        multicast dns register = No
+
 [homes]
         comment = Home Directory of %S
         # Only hides homes share, the actual user-specific shares are still visible

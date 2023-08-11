@@ -18,7 +18,7 @@ ExecStartPost=/usr/bin/bt-adapter --set Discoverable 1
 
 {% for device in trusted %}
 {% if device.trusted %}
-ExecStartPost=/usr/bin/bt-device '{{ device.mac }}' --set Trusted '1'
+ExecStartPost=/bin/sh -c "/usr/bin/bt-device --set '{{ device.mac }}' Trusted '1' || true"
 {% endif %}
 {% endfor %}
 
