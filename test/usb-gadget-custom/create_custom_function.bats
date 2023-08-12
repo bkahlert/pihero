@@ -15,28 +15,28 @@ fake_function_dir() {
 }
 
 @test 'Fails on missing function name' {
-  run usb-gadget-setup-custom create_custom_function
+  run usb-gadget-custom create_custom_function
 
   assert_output --partial 'function name missing'
   assert_failure
 }
 
 @test 'Fails on missing instance name' {
-  run usb-gadget-setup-custom create_custom_function mass_storage
+  run usb-gadget-custom create_custom_function mass_storage
 
   assert_output --partial 'instance name missing'
   assert_failure
 }
 
 @test 'Fails on missing script' {
-  run usb-gadget-setup-custom create_custom_function mass_storage usb0
+  run usb-gadget-custom create_custom_function mass_storage usb0
 
   assert_output --partial 'script missing'
   assert_failure
 }
 
 @test 'Fails on invalid script' {
-  run usb-gadget-setup-custom create_custom_function mass_storage usb0 invalid
+  run usb-gadget-custom create_custom_function mass_storage usb0 invalid
 
   assert_output --partial 'Script'
   assert_output --partial 'invalid'
@@ -49,7 +49,7 @@ fake_function_dir() {
   echo '#!/bin/bash
 echo $PWD >stall
 ' >no-executable
-  run usb-gadget-setup-custom create_custom_function mass_storage usb0 no-executable
+  run usb-gadget-custom create_custom_function mass_storage usb0 no-executable
 
   assert_output --partial 'Script'
   assert_output --partial 'no-executable'
@@ -59,7 +59,7 @@ echo $PWD >stall
 }
 
 @test 'Only prints first line of script' {
-  run usb-gadget-setup-custom create_custom_function mass_storage usb0 'foo
+  run usb-gadget-custom create_custom_function mass_storage usb0 'foo
 bar'
 
   assert_output --partial 'Script'
@@ -72,7 +72,7 @@ bar'
 
 @test 'Executes inline script in function directory' {
   fake_function_dir mass_storage.usb0
-  run usb-gadget-setup-custom create_custom_function mass_storage usb0 '#!/bin/bash
+  run usb-gadget-custom create_custom_function mass_storage usb0 '#!/bin/bash
 echo $PWD >stall
 '
 
@@ -87,11 +87,36 @@ echo $PWD >stall
 ' >script
   chmod +x script
   fake_function_dir mass_storage.usb0
-  run usb-gadget-setup-custom create_custom_function mass_storage usb0 script
+  run usb-gadget-custom create_custom_function mass_storage usb0 script
 
   assert_success
   assert_file_exist functions/mass_storage.usb0/stall
   assert_equal "$BATS_TEST_TMPDIR/functions/mass_storage.usb0" "$(cat functions/mass_storage.usb0/stall)"
+}
+
+@test 'Passes through STDOUT' {
+  cat <<'EOF' >script
+echo 42 >port_num
+
+port_num_file="$PWD/port_num"
+echo 'if [ -f "'$port_num_file'" ]; then
+    N="$(cat "'$port_num_file'")"
+    echo "serial-getty@ttyGS${N}.service" || true
+fi'
+EOF
+  chmod +x script
+  fake_function_dir acm.usb0
+  run --separate-stderr usb-gadget-custom create_custom_function acm usb0 script
+
+  assert_success
+  assert_output 'if [ -f "'"$BATS_TEST_TMPDIR"'/functions/acm.usb0/port_num" ]; then
+    N="$(cat "'"$BATS_TEST_TMPDIR"'/functions/acm.usb0/port_num")"
+    echo "serial-getty@ttyGS${N}.service" || true
+fi'
+
+  # off-topic: test if the output is actually executable
+  run bash -c "$output"
+  assert_output 'serial-getty@ttyGS42.service'
 }
 
 @test 'Escalates script errors' {
@@ -101,7 +126,7 @@ echo "doing something"
 echo "unexpected error"
 exit 42
 '
-  run usb-gadget-setup-custom create_custom_function mass_storage usb0 "$inline_script"
+  run usb-gadget-custom create_custom_function mass_storage usb0 "$inline_script"
 
   assert_output --partial 'terminated with exit code'
   assert_output --partial '42'

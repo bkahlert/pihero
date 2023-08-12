@@ -9,13 +9,13 @@ setup() {
 }
 
 @test 'Fails on missing function' {
-  run usb-gadget-setup-custom
+  run usb-gadget-custom
   assert_output --partial 'function missing'
   assert_failure
 }
 
 @test 'Fails on unknown function' {
-  run usb-gadget-setup-custom unknown
+  run usb-gadget-custom unknown
   assert_output --partial 'No function with name'
   assert_failure
 }

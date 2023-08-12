@@ -2,7 +2,4 @@
 - name: reboot system
   ansible.builtin.reboot:
     msg: "Rebooting system to finalize USB gadget setup."
-    reboot_timeout: 0 # don't wait for reboot
-  ignore_errors: true
   become: true
-  async: 0

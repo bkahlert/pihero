@@ -62,7 +62,7 @@
 
 - name: copy avahi services
   become: true
-  template:
+  ansible.builtin.template:
     src: "{{ item }}"
     dest: "/etc/avahi/services/{{ item | basename | regex_replace('.j2$', '') }}"
     mode: "0644"

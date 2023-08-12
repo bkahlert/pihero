@@ -10,10 +10,6 @@
       set_fact:
         has_bluetooth_hardware: "{{ bluetooth_dir.stat.exists }}"
 
-    - name: Display result
-      debug:
-        var: has_bluetooth_hardware
-
 
 - name: install bluetooth services
   when: has_bluetooth_hardware and bt_pan is defined
@@ -32,10 +28,10 @@
           - bridge-utils
         state: present
 
-    - name: set-up bt-network
+    - name: set up bt-network
       block:
         - name: copy bt-network service
-          template:
+          ansible.builtin.template:
             src: templates/bt-network.service.j2
             dest: /etc/systemd/system/bt-network.service
             mode: "0644"
@@ -47,10 +43,10 @@
             daemon_reload: true
             enabled: true
 
-    - name: set-up bt-agent
+    - name: set up bt-agent
       block:
         - name: copy bt-agent service
-          template:
+          ansible.builtin.template:
             src: templates/bt-agent.service.j2
             dest: /etc/systemd/system/bt-agent.service
             mode: "0644"
@@ -84,9 +80,9 @@
 
     - name: copy bt-pan diagnosis script
       become: true
-      template:
+      ansible.builtin.template:
         src: templates/bt-pan-diag.sh.j2
-        dest: /usr/local/sbin/bt-pan-diag
+        dest: /opt/pihero/bt-pan-diag
         mode: "0755"
         force: true
 
@@ -100,7 +96,7 @@
         - bt-agent.service
 
 
-- name: set-up pan0 network interface
+- name: set up pan0 network interface
   when: has_bluetooth_hardware and bt_pan is defined
   become: true
   vars:
@@ -144,7 +140,7 @@
             - { option: leasefile-ro }
 
     - name: copy pan0 network interface config
-      template:
+      ansible.builtin.template:
         src: templates/pan0.network.j2
         dest: /etc/network/interfaces.d/pan0
         force: true
@@ -159,7 +155,7 @@
     - name: explain pan0 network interface
       vars:
         marker_begin_latin1: "MARKER_BEGIN"
-        marker_begin_unicode: "⸺̲͞ (((ꎤ ✧曲✧)—̠͞o"
+        marker_begin_unicode: "─=≡Σ(([ 蓬•ｏ•]⊐"
         marker_end_latin1: "MARKER_END"
         marker_end_unicode: "​​​"
         path: /etc/motd
@@ -180,10 +176,8 @@
             marker: "{mark}"
             marker_begin: "{{ marker_begin_latin1 }} Bluetooth PAN"
             block: |2
-                - Interface: pan0 managed by dnsmasq (/etc/dnsmasq.d/pan0.conf)
-                - IP address: {{ pan0_cidr_address }} / {{ pan0_cidr_netmask }}
-                - DHCP range: {{ pan0_cidr_first_usable }} - {{ pan0_cidr_last_usable }}
-                - If you run into issues, you can run: sudo bt-pan-diag
+                  INTERFACE: pan0 — IP {{ pan0_cidr_address }} / {{ pan0_cidr_netmask }} — DHCP: {{ pan0_cidr_first_usable }} - {{ pan0_cidr_last_usable }}
+                  HELP: hero pan
             marker_end: "{{ marker_end_latin1 }}"
         - name: convert markers to unicode
           ansible.builtin.replace:

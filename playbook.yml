@@ -17,6 +17,7 @@
       include_tasks: tasks/request_password.yml
       loop: "{{ group_members['users'] | default([]) }}"
   roles:
+    - pihero
     - device_info
     - smb_shares
     - usb_gadget

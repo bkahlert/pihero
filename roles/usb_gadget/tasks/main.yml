@@ -1,5 +1,8 @@
 ---
+# Best article found:
+# - https://lwn.net/Articles/395712/
 # Inspired by:
+# - https://github.com/google/aiyprojects-raspbian-tools/blob/3abfb8d0133e44d9d215096798eb521ec31d81bd/packages/aiy-usb-gadget/gadget
 # - https://github.com/bablokb/raspi2go
 # - https://github.com/ckuethe/usbarmory/wiki/USB-Gadgets
 # - https://github.com/zachthieme/config/blob/77cfa15f9c313ba6ee7b7e78e2a9267710ea657e/ansible/roles/usbNetwork/tasks/main.yml
@@ -33,15 +36,25 @@
       block:
         - name: compute usb_gadget.serialnumber
           become: true
-          shell: grep 'Serial' /proc/cpuinfo | awk '{print $3}'
+          shell: grep 'Serial' /proc/cpuinfo | awk '{print $3}' # TODO how unique is /proc/device-tree/serial-number
           register: usb_gadget_serialnumber_result
 
         - name: set usb_gadget.serialnumber
           set_fact:
             usb_gadget: "{{ usb_gadget | default({},true) | combine({'serialnumber': (usb_gadget_serialnumber_result.stdout | hash('md5'))[:16]}) }}"
 
+    - name: compute IP settings
+      vars:
+        usb0_cidr: "{{ usb_gadget_features.ethernet.cidr if usb_gadget_features.ethernet.cidr is defined else '10.10.10.10/29' }}"
+      set_fact:
+        usb0_cidr: "{{ usb0_cidr }}"
+        usb0_cidr_address: "{{ usb0_cidr | ansible.utils.ipaddr('address') }}"
+        usb0_cidr_netmask: "{{ usb0_cidr | ansible.utils.ipaddr('netmask') }}"
+        usb0_cidr_first_usable: "{{ usb0_cidr | ansible.utils.ipaddr('first_usable') }}"
+        usb0_cidr_last_usable: "{{ usb0_cidr | ansible.utils.ipaddr('last_usable') }}"
 
-- name: set-up system
+
+- name: set up system
   block:
     - name: update /boot/config.txt
       become: true
@@ -53,7 +66,8 @@
         value: "{{ item.value }}"
         mode: "0644"
       loop:
-        - { option: dtoverlay, value: dwc2 }
+        # - { option: dtoverlay, value: dwc2 } # dr_mode=peripheral, to get current: find /sys/ -name dr_mode; cat /sys/kernel/debug/usb/20980000.usb/dr_mode
+        - { option: dtoverlay, value: "dwc2,dr_mode=peripheral" } # probably fixes USB problems with two connected devices to same USB hub
       notify: "reboot system"
 
     - name: update /boot/cmdline.txt
@@ -72,51 +86,60 @@
         - name: remove trailing line breaks from /boot/cmdline.txt
           shell: "sed -i -e :a -e '/\\n*$/N;s/\\n*$//;ta' /boot/cmdline.txt"
 
+    - name: create /etc/modprobe.d/dwc2.conf
+      become: true
+      ansible.builtin.copy:
+        content: |
+          install dwc2 /sbin/modprobe --ignore-install dwc2;  /sbin/modprobe libcomposite;
+        dest: /etc/modprobe.d/dwc2.conf
+        mode: "0644"
+      notify: "reboot system"
 
-- name: install usb-gadget setup
+
+- name: install usb-gadget
   become: true
   block:
-    - name: copy usb-gadget setup script
-      template:
-        src: templates/usb-gadget-setup.sh.j2
-        dest: /usr/local/sbin/usb-gadget-setup
+    - name: copy usb-gadget script
+      ansible.builtin.template:
+        src: templates/usb-gadget.sh.j2
+        dest: /opt/pihero/usb-gadget
         mode: "0755"
         force: true
       notify: "reboot system"
-    - name: copy usb-gadget setup custom script
-      template:
-        src: templates/usb-gadget-setup-custom.sh
-        dest: /usr/local/sbin/usb-gadget-setup-custom
+    - name: copy usb-gadget custom script
+      ansible.builtin.template:
+        src: templates/usb-gadget-custom.sh
+        dest: /opt/pihero/usb-gadget-custom
         mode: "0755"
         force: true
       notify: "reboot system"
 
-    - name: copy usb-gadget setup service
-      template:
-        src: templates/usb-gadget-setup.service.j2
-        dest: /etc/systemd/system/usb-gadget-setup.service
+    - name: copy usb-gadget service
+      ansible.builtin.template:
+        src: templates/usb-gadget.service.j2
+        dest: /etc/systemd/system/usb-gadget.service
         mode: "0644"
         force: true
 
-    - name: enable usb-gadget setup service
+    - name: enable usb-gadget service
       ansible.builtin.systemd_service:
-        name: usb-gadget-setup.service
+        name: usb-gadget.service
         daemon_reload: true
         enabled: true
       notify: "reboot system"
 
     - name: copy usb-gadget diagnosis script
       become: true
-      template:
+      ansible.builtin.template:
         src: templates/usb-gadget-diag.sh.j2
-        dest: /usr/local/sbin/usb-gadget-diag
+        dest: /opt/pihero/usb-gadget-diag
         mode: "0755"
         force: true
 
     - name: explain usb-gadget
       vars:
         marker_begin_latin1: "MARKER_BEGIN"
-        marker_begin_unicode: "⸺̲͞ (((ꎤ ✧曲✧)—̠͞o"
+        marker_begin_unicode: "─=≡Σ(([ 蓬•ｏ•]⊐"
         marker_end_latin1: "MARKER_END"
         marker_end_unicode: "​​​"
         path: /etc/motd
@@ -137,10 +160,7 @@
             marker: "{mark}"
             marker_begin: "{{ marker_begin_latin1 }} USB gadget"
             block: |2
-                - Features: {% if usb_gadget_features.keys() %}{{ usb_gadget_features.keys() | join(', ') }}{% else %}-{% endif %}
-
-                - To use the functions, connect to this machine by attaching the USB OTG port to a computer with a USB cable.
-                  If you run into issues, you can run: sudo usb-gadget-diag
+                  FEATURES: {% if usb_gadget_features.keys() %}{{ usb_gadget_features.keys() | join(', ') }}{% else %}-{% endif %}
             marker_end: "{{ marker_end_latin1 }}"
         - name: convert markers to unicode
           ansible.builtin.replace:
@@ -152,19 +172,10 @@
             - { regexp: "{{ marker_end_latin1 }}", replace: "{{ marker_end_unicode }}" }
 
 
-- name: set-up usb0 network interface
+- name: set up usb0 network interface
   when: usb_gadget_features.ethernet is defined
   become: true
-  vars:
-    usb0_cidr: "{{ usb_gadget_features.ethernet.cidr if usb_gadget_features.ethernet.cidr is defined else '10.10.10.10/29' }}"
   block:
-    - name: compute IP settings
-      set_fact:
-        usb0_cidr_address: "{{ usb0_cidr | ansible.utils.ipaddr('address') }}"
-        usb0_cidr_netmask: "{{ usb0_cidr | ansible.utils.ipaddr('netmask') }}"
-        usb0_cidr_first_usable: "{{ usb0_cidr | ansible.utils.ipaddr('first_usable') }}"
-        usb0_cidr_last_usable: "{{ usb0_cidr | ansible.utils.ipaddr('last_usable') }}"
-
     # dhcpcd: DHCP Client Daemon
     - name: prevent dhcpcd from configuring usb0 network interface
       ansible.builtin.lineinfile:
@@ -173,8 +184,7 @@
 
     - name: install dnsmasq
       apt:
-        name:
-          - dnsmasq
+        name: [ dnsmasq ]
         state: present
 
     # Documentation: https://dnsmasq.org/docs/dnsmasq-man.html
@@ -192,6 +202,7 @@
             - { option: interface, value: usb0 }
             - { option: dhcp-range, value: "{{ usb0_cidr_first_usable }},{{ usb0_cidr_last_usable }},{{ usb0_cidr_netmask }},1h" }
             - { option: dhcp-option, value: "3" }
+            - { option: dhcp-option, value: "6" }
         - name: set options without values
           ansible.builtin.lineinfile:
             path: /etc/dnsmasq.d/usb0.conf
@@ -202,16 +213,10 @@
             - { option: dhcp-rapid-commit }
             - { option: leasefile-ro }
 
-    - name: copy usb0 network interface config
-      template:
-        src: templates/usb0.network.j2
-        dest: /etc/network/interfaces.d/usb0
-        force: true
-
     - name: explain usb0 network interface
       vars:
         marker_begin_latin1: "MARKER_BEGIN"
-        marker_begin_unicode: "⸺̲͞ (((ꎤ ✧曲✧)—̠͞o"
+        marker_begin_unicode: "─=≡Σ(([ 蓬•ｏ•]⊐"
         marker_end_latin1: "MARKER_END"
         marker_end_unicode: "​​​"
         path: /etc/motd
@@ -232,11 +237,8 @@
             marker: "{mark}"
             marker_begin: "{{ marker_begin_latin1 }} USB ethernet"
             block: |2
-                - Interface: usb0 managed by dnsmasq (/etc/dnsmasq.d/usb0.conf)
-                - IP address: {{ usb0_cidr_address }} / {{ usb0_cidr_netmask }}
-                - DHCP range: {{ usb0_cidr_first_usable }} - {{ usb0_cidr_last_usable }}
-                - Use Google DNS: printf 'server=%s\n' '8.8.8.8' '8.8.4.4' | sudo tee /etc/dnsmasq.d/dns.conf >/dev/null; sudo systemctl restart dnsmasq
-                - Use host as gateway: sudo ip route add default via $HOST_IP
+                  INTERFACE: usb0 — IP {{ usb0_cidr_address }} / {{ usb0_cidr_netmask }} — DHCP: {{ usb0_cidr_first_usable }} - {{ usb0_cidr_last_usable }}
+                  HELP: hero gadget
             marker_end: "{{ marker_end_latin1 }}"
         - name: convert markers to unicode
           ansible.builtin.replace:

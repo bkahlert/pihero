@@ -1,7 +1,7 @@
 #!/bin/bash
 
 invoke() {
-  local -r working_dir=${1?:working directory missing} && shift
+  local -r working_dir=${1:?working directory missing} && shift
   local -ar cmdline=("$@")
   local exit_code
   printf "Invoking \033[3m%s\033[23m in \033[3m%s\033[23m...\n" "${cmdline[*]}" "$working_dir" >&2
@@ -19,10 +19,10 @@ invoke() {
 }
 
 create_custom_function() {
-  local -r function_name=${1?:function name missing}
-  local -r instance_name=${2?:instance name missing}
+  local -r function_name=${1:?function name missing}
+  local -r instance_name=${2:?instance name missing}
   local -r function="$function_name.$instance_name"
-  local -r script=${3?:script missing}
+  local -r script=${3:?script missing}
   local exit_code
 
   case "$script" in
@@ -57,7 +57,7 @@ create_custom_function() {
 }
 
 main() {
-  local -r function=${1?:function missing} && shift
+  local function=${1:?function missing} && shift
   if declare -F "$function" >/dev/null; then
     "$function" "$@"
   else

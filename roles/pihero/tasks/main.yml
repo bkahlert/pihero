@@ -1,0 +1,15 @@
+---
+- name: install Pi Hero
+  become: true
+  block:
+    - name: create /opt/pihero
+      file:
+        path: /opt/pihero
+        state: directory
+
+    - name: copy hero script
+      ansible.builtin.template:
+        src: templates/hero.sh.j2
+        dest: /usr/local/sbin/hero
+        mode: "0755"
+        force: true

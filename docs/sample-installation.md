@@ -109,19 +109,19 @@ TASK [usb_gadget : remove trailing line breaks from /boot/cmdline.txt] *********
 changed: [foo.local]
 changed: [bar.local]
 
-TASK [usb_gadget : copy usb-gadget setup script] ******************************************************
+TASK [usb_gadget : copy usb-gadget script] ******************************************************
 changed: [foo.local]
 changed: [bar.local]
 
-TASK [usb_gadget : copy usb-gadget setup custom script] ***********************************************
+TASK [usb_gadget : copy usb-gadget custom script] ***********************************************
 changed: [foo.local]
 changed: [bar.local]
 
-TASK [usb_gadget : copy usb-gadget setup service] *****************************************************
+TASK [usb_gadget : copy usb-gadget service] *****************************************************
 changed: [foo.local]
 changed: [bar.local]
 
-TASK [usb_gadget : enable usb-gadget setup service] ***************************************************
+TASK [usb_gadget : enable usb-gadget service] ***************************************************
 changed: [foo.local]
 changed: [bar.local]
 

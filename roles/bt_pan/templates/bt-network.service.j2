@@ -1,6 +1,7 @@
 [Unit]
-Description=Bluetooth NEP PAN
-After=pan0.network
+Description=Pi Hero Bluetooth NEP PAN
+After=bluetooth.service
+Requires=bluetooth.service
 
 [Service]
 # nap: Network Access Point for up to 7 PANUs
@@ -10,4 +11,4 @@ ExecStart=/usr/bin/bt-network --server nap pan0
 Type=simple
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=bluetooth.target

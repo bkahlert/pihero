@@ -6,7 +6,7 @@
 
 - name: copy samba configs
   become: true
-  template:
+  ansible.builtin.template:
     src: "{{ item }}"
     dest: "/etc/samba/{{ item | basename | regex_replace('.j2$', '') }}"
     mode: "0644"
@@ -21,7 +21,7 @@
 
 - name: copy avahi services
   become: true
-  template:
+  ansible.builtin.template:
     src: "{{ item }}"
     dest: "/etc/avahi/services/{{ item | basename | regex_replace('.j2$', '') }}"
     mode: "0644"
@@ -30,10 +30,10 @@
     - templates/*.service.j2
   notify: "restart avahi"
 
-- name: explain usb0 network interface
+- name: explain shares
   vars:
     marker_begin_latin1: "MARKER_BEGIN"
-    marker_begin_unicode: "⸺̲͞ (((ꎤ ✧曲✧)—̠͞o"
+    marker_begin_unicode: "─=≡Σ(([ 蓬•ｏ•]⊐"
     marker_end_latin1: "MARKER_END"
     marker_end_unicode: "​​​"
     path: /etc/motd
@@ -47,16 +47,17 @@
         - { regexp: "{{ marker_begin_unicode | regex_escape() }}", replace: "{{ marker_begin_latin1 }}" }
         - { regexp: "{{ marker_end_unicode | regex_escape() }}", replace: "{{ marker_end_latin1 }}" }
     - name: update block
+      vars:
+        user: "{{ (group_members['users'] | default(['pi']))[0] }}"
       ansible.builtin.blockinfile:
         path: /etc/motd
         create: true
         mode: "0644"
         marker: "{mark}"
-        marker_begin: "{{ marker_begin_latin1 }} Samba"
+        marker_begin: "{{ marker_begin_latin1 }} Shares"
         block: |2
-            - /home/$USER shares: smb://$HOSTNAME/$USER
-            - / share: smb://$HOSTNAME/rootfs (read-only)
-            - To access the shares, run 'sudo smbpasswd -a $USER' to set the Samba password.
+              smb://{{ inventory_hostname }}/{{ user }} → /home/{{ user }}
+              smb://{{ inventory_hostname }}/rootfs → / (read-only)
         marker_end: "{{ marker_end_latin1 }}"
     - name: convert markers to unicode
       ansible.builtin.replace:

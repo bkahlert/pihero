@@ -1,5 +1,7 @@
 [Unit]
-Description=Bluetooth Auth Agent
+Description=Pi Hero Bluetooth Auth Agent
+After=bluetooth.service
+Requires=bluetooth.service
 
 [Service]
 Type=simple
@@ -18,9 +20,9 @@ ExecStartPost=/usr/bin/bt-adapter --set Discoverable 1
 
 {% for device in trusted %}
 {% if device.trusted %}
-ExecStartPost=/bin/sh -c "/usr/bin/bt-device --set '{{ device.mac }}' Trusted '1' || true"
+ExecStartPost=/bin/sh -c "/usr/bin/bt-device --set '{{ device.mac }}' Trusted '1' 2>/dev/null || true"
 {% endif %}
 {% endfor %}
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=bluetooth.target
