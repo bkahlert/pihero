@@ -13,13 +13,13 @@
 
 - name: install bluetooth services
   when: has_bluetooth_hardware and bt_pan is defined
-  become: true
   vars:
     pins_file: /etc/bluetooth/pins
     pins: "{{ bt_pan.devices if bt_pan.devices is defined else [] }}"
     trusted: "{{ bt_pan.devices if bt_pan.devices is defined else [] }}"
   block:
     - name: install dependencies
+      become: true
       apt:
         name:
           - bluetooth
@@ -29,6 +29,7 @@
         state: present
 
     - name: set up bt-network
+      become: true
       block:
         - name: copy bt-network service
           ansible.builtin.template:
@@ -44,6 +45,7 @@
             enabled: true
 
     - name: set up bt-agent
+      become: true
       block:
         - name: copy bt-agent service
           ansible.builtin.template:
@@ -68,8 +70,8 @@
             mode: "0640"
           loop: "{{ pins }}"
 
-
     - name: set bluetooth options
+      become: true
       community.general.ini_file:
         path: /etc/bluetooth/main.conf
         section: "{{ item.section | default('General', true) }}"
@@ -77,6 +79,13 @@
         value: "{{ item.value }}"
       loop: "{{ bt_pan.options }}"
 
+    - name: add users to bluetooth group
+      become: true
+      ansible.builtin.user:
+        append: true
+        name: "{{ item }}"
+        groups: [ lp ]
+      loop: "{{ group_members['users'] | default([]) }}"
 
     - name: copy bt-pan diagnosis script
       become: true
@@ -87,6 +96,7 @@
         force: true
 
     - name: restart services
+      become: true
       ansible.builtin.systemd_service:
         name: "{{ item }}"
         state: restarted
@@ -98,7 +108,6 @@
 
 - name: set up pan0 network interface
   when: has_bluetooth_hardware and bt_pan is defined
-  become: true
   vars:
     pan0_cidr: "{{ bt_pan.cidr if usb_gadget_features.ethernet.cidr is defined else '10.11.10.10/29' }}"
   block:
@@ -110,6 +119,7 @@
         pan0_cidr_last_usable: "{{ pan0_cidr | ansible.utils.ipaddr('last_usable') }}"
 
     - name: install dependencies
+      become: true
       apt:
         name:
           - dnsmasq
@@ -117,6 +127,7 @@
 
     # Documentation: https://dnsmasq.org/docs/dnsmasq-man.html
     - name: configure pan0 network interface for dnsmasq
+      become: true
       block:
         - name: set options with values
           community.general.ini_file:
@@ -140,12 +151,14 @@
             - { option: leasefile-ro }
 
     - name: copy pan0 network interface config
+      become: true
       ansible.builtin.template:
         src: templates/pan0.network.j2
         dest: /etc/network/interfaces.d/pan0
         force: true
 
     - name: restart services
+      become: true
       ansible.builtin.systemd_service:
         name: "{{ item }}"
         state: restarted
@@ -153,6 +166,7 @@
         - dnsmasq.service
 
     - name: explain pan0 network interface
+      become: true
       vars:
         marker_begin_latin1: "MARKER_BEGIN"
         marker_begin_unicode: "─=≡Σ(([ 蓬•ｏ•]⊐"

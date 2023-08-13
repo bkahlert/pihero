@@ -2,11 +2,11 @@
 # USB Gadget: https://www.kernel.org/doc/html/latest/usb/index.html
 
 shopt -s nullglob
-declare -r gadget_name=g1
+declare -r gadget_name=pihero
 declare -r config_name=c.1
 declare -r instance_name=usb0
 
-declare -r CONFIGFS_HOME=${CONFIGFS_HOME:-/sys/kernel/config}
+CONFIGFS_HOME=$(findmnt --output TARGET --noheadings configfs) || { printf "\033[31mERROR: Failed to find \033[3m%s\033[23m\033[0m\n" configfs >&2 && exit 1; }
 declare -r gadget_dir="$CONFIGFS_HOME/usb_gadget/$gadget_name"
 
 start_gadget() {
@@ -181,7 +181,7 @@ create_function() {
 
 bind_gadget() {
   printf "Binding gadget in \033[3m%s\033[23m... " "$PWD" >&2
-  if [ "$(cat /sys/kernel/config/usb_gadget/g1/UDC)" ]; then
+  if [ "$(cat "$gadget_dir"/UDC)" ]; then
     printf "\033[33mWARNING: Gadget in \033[3m%s\033[23m is already bound.\033[0m\n" "$PWD" >&2
   else
     ls /sys/class/udc >UDC
@@ -191,7 +191,7 @@ bind_gadget() {
 
 unbind_gadget() {
   printf "Unbinding gadget in \033[3m%s\033[23m... " "$PWD" >&2
-  if [ "$(cat /sys/kernel/config/usb_gadget/g1/UDC)" ]; then
+  if [ "$(cat "$gadget_dir"/UDC)" ]; then
     echo '' >UDC
     printf "\033[32m✔︎\033[0m\n" >&2
   else

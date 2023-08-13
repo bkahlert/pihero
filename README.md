@@ -300,8 +300,8 @@ custom gadget functions:
 
 ```text
 systemd[1]: Starting Pi Hero USB Gadget...
-usb-gadget[642]: Setting up USB gadget g1...
-usb-gadget[642]: Creating gadget g1...
+usb-gadget[642]: Setting up USB gadget pihero...
+usb-gadget[642]: Creating gadget pihero...
 usb-gadget[642]: Creating configuration c.1...
 usb-gadget[642]: Creating function ecm.usb0...
 usb-gadget[642]: Associating function ecm.usb0 with configuration c.1...
@@ -316,7 +316,7 @@ usb-gadget[664]: ERROR: Invocation terminated with exit code 1.
 usb-gadget[664]: ERROR: Failed to execute script /tmp/tmp.mrFN5Lqm7H for function mass_storage.usb0.
 usb-gadget[642]: ERROR: The function mass_storage.usb0 failed to create. It won't be associated with configuration c.1.
 usb-gadget[642]: This is what functions/mass_storage.usb0 looked like:
-usb-gadget[642]:     Directory /sys/kernel/config/usb_gadget/g1/functions/mass_storage.usb0
+usb-gadget[642]:     Directory /sys/kernel/config/usb_gadget/pihero/functions/mass_storage.usb0
 usb-gadget[642]:     total 0
 usb-gadget[642]:     drwxr-xr-x 2 root root    0 Aug  6 23:40 lun.0/
 usb-gadget[642]:     -rw-r--r-- 1 root root 4.0K Aug  6 23:40 stall
@@ -330,7 +330,7 @@ usb-gadget[642]:     -rw-r--r-- 1 root root 4.0K Aug  6 23:40 ro
 usb-gadget[642]:     --w------- 1 root root 4.0K Aug  6 23:40 forced_eject
 usb-gadget[642]:     -rw-r--r-- 1 root root 4.0K Aug  6 23:40 inquiry_string
 usb-gadget[642]:     -rw-r--r-- 1 root root 4.0K Aug  6 23:40 file
-usb-gadget[642]: Enabling gadget in /sys/kernel/config/usb_gadget/g1... ✔︎
+usb-gadget[642]: Enabling gadget in /sys/kernel/config/usb_gadget/pihero... ✔︎
 systemd[1]: Finished Pi Hero USB Gadget.
 ```
 

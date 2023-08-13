@@ -1,15 +1,39 @@
 ---
 - name: install Pi Hero
   become: true
+  vars:
+    package_dir: /opt/pihero
   block:
-    - name: create /opt/pihero
-      file:
-        path: /opt/pihero
+    - name: create package directory
+      ansible.builtin.file:
+        path: "{{ package_dir}}"
         state: directory
 
-    - name: copy hero script
-      ansible.builtin.template:
-        src: templates/hero.sh.j2
-        dest: /usr/local/sbin/hero
-        mode: "0755"
-        force: true
+    - name: copy files
+      ansible.builtin.copy:
+        src: files/
+        dest: "{{ package_dir }}/"
+
+    - name: make executables executable
+      block:
+        - name: find files
+          find:
+            paths: "{{ package_dir }}/bin"
+            patterns: '*'
+          register: executables
+
+        - name: change mode of executables
+          file:
+            dest: "{{ item.path }}"
+            mode: "0755"
+          loop: "{{ executables.files }}"
+
+    - name: add package bin directory to PATH
+      ansible.builtin.copy:
+        content: "export PATH=$PATH:{{ package_dir }}/bin"
+        dest: "/etc/profile.d/pihero_path.sh"
+
+    - name: remove deprecated hero script
+      ansible.builtin.file:
+        path: /usr/local/sbin/hero
+        state: absent

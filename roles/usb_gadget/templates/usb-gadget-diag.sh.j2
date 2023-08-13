@@ -1,6 +1,6 @@
 #!/bin/bash
 
-declare -r CONFIGFS_HOME=${CONFIGFS_HOME:-/sys/kernel/config}
+CONFIGFS_HOME=$(findmnt --output TARGET --noheadings configfs) || { printf "\033[31mERROR: Failed to find \033[3m%s\033[23m\033[0m\n" configfs >&2 && exit 1; }
 
 declare -i failed=0
 
