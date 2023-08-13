@@ -1,23 +1,14 @@
 #!/bin/bash
 
-CONFIGFS_HOME=$(findmnt --output TARGET --noheadings configfs) || { printf "\033[31mERROR: Failed to find \033[3m%s\033[23m\033[0m\n" configfs >&2 && exit 1; }
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
-declare -i failed=0
-
-check() {
-  local -r message=$1
-  shift
-
-  printf "Checking if \033[3m%s\033[23m... " "$message" >&2
-  if "$@"; then
-    printf "\033[32m✔︎\033[0m\n" >&2
-  else
-    printf "\033[31mERROR: \033[3m%s\033[23m failed.\033[0m\n" "$*" >&2
-    failed=$((failed + 1))
-  fi
-}
+# shellcheck source=./../../pihero/files/lib/lib.bash
+source "$SCRIPT_DIR/lib/lib.bash"
 
 main() {
+  checks_start "USB gadget diagnostics"
+  CONFIGFS_HOME=$(findmnt --output TARGET --noheadings configfs) || { printf "\033[31mERROR: Failed to find \033[3m%s\033[23m\033[0m\n" configfs >&2 && exit 1; }
+
   local -r gadget_name=${1:?gadget name missing}
   local -r config_name=${2:?config name missing}
   local -r instance_name=${3:?instance name missing}
@@ -61,7 +52,7 @@ main() {
   check "usb0 dnsmasq config is not malformed" grep -v -q "^leasefile-ro=" /etc/dnsmasq.d/usb0.conf
   {% endif %}
 
-  case $failed in
+  case $FAILURE_COUNT in
   0)
     printf "\033[32mAll checks passed.\033[0m\n" >&2
     ;;
@@ -73,15 +64,20 @@ main() {
   esac
 
   printf "\n\033[1mFurther debugging:\033[0m\n" >&2
-  printf "  - check usb-gadget service: \033[3m%s\033[23m\n" "systemctl status usb-gadget.service; journalctl -b -u usb-gadget.service" >&2
-  printf "  - run usb-gadget yourself: \033[3m%s\033[23m\n" "sudo /opt/pihero/usb-gadget start|stop" >&2
+  printf "  - check usb-gadget's config: \033[3m%s\033[23m\n" "ls -1lAFhctR '$gadget_dir'" >&2
+  printf "  - check usb-gadget service logs: \033[3m%s\033[23m\n" "systemctl status usb-gadget.service; journalctl -b -u usb-gadget.service" >&2
+  printf "  - stop usb-gadget interactively: \033[3m%s\033[23m\n" "hero gadget stop" >&2
+  printf "  - start usb-gadget interactively: \033[3m%s\033[23m\n" "hero gadget start" >&2
   {% if usb_gadget_features.ethernet is defined %}
   printf "  - scan for connected hosts: \033[3m%s\033[23m\n" "command -v nmap >/dev/null 2>&1 || sudo apt-get install -yqq nmap; nmap -sn 10.10.10.11-14" >&2
   printf "  - check networking: \033[3m%s\033[23m\n" "systemctl status networking" >&2
-  printf "  - check dnsmasq service: \033[3m%s\033[23m\n" "systemctl status dnsmasq.service" >&2
-  printf "  - check dnsmasq config: \033[3m%s\033[23m\n" "dnsmasq --test" >&2
-  printf "  - stop dnsmasq service: \033[3m%s\033[23m\n" "sudo systemctl stop dnsmasq.service" >&2
-  printf "  - start dnsmasq manually: \033[3m%s\033[23m\n" "dnsmasq --no-daemon --log-queries" >&2
+  for service in dnsmasq; do
+    printf "  \033[1m- regarding service \033[3m%s\033[23m:\033[0m\n" "$service" >&2
+    printf "    - check status: \033[3m%s\033[23m\n" "systemctl status $service.service" >&2
+    printf "    - check logs: \033[3m%s\033[23m\n" "journalctl -b -e -u $service.service" >&2
+    printf "    - stop service: \033[3m%s\033[23m\n" "sudo systemctl stop $service.service" >&2
+    printf "    - start service interactively: \033[3m%s\033[23m\n" "$(service_start_cmdline "$service.service")" >&2
+  done
   {% endif %}
 
 }

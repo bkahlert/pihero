@@ -22,12 +22,8 @@ main() {
 
   case "$cmd" in
   diag)
-    printf -v line "\033[1m%0.s—\033[0m" $(seq 1 "$(tput cols)")
-    printf "\033[1mBluetooth PAN diagnostics\033[0m\n%s\n" "$line" >&2
     /opt/pihero/bt-pan-diag
     exit_code=$?
-    printf "\n" >&2
-    printf "\033[1mUSB gadget diagnostics\033[0m\n%s\n" "$line" >&2
     /opt/pihero/usb-gadget diag && [ $exit_code -eq 0 ]
     ;;
   *pan)

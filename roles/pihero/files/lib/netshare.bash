@@ -1,4 +1,4 @@
-# Shared functions for network sharing
+# Shared functions related to network sharing
 
 newest_dhcp_lease() {
   iface="${1:-.*}"

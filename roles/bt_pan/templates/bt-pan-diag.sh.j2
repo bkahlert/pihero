@@ -1,66 +1,45 @@
 #!/bin/bash
 
-declare -i failed=0
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
-check() {
-  local success=0
-  local -r message=$1
-  shift
+# shellcheck source=./../../pihero/files/lib/lib.bash
+source "$SCRIPT_DIR/lib/lib.bash"
 
-  printf "Checking if \033[3m%s\033[23m... " "$message" >&2
-  if [ "$1" = "!" ]; then
-      "${@:2}" || success=1
-  else
-      "${@}" && success=1
-  fi
+main() {
+  checks_start "Bluetooth PAN diagnostics"
 
-  if [ "$success" -eq 1 ]; then
-    printf "\033[32m✔︎\033[0m\n" >&2
-  else
-    printf "\033[31mERROR: \033[3m%s\033[23m failed.\033[0m\n" "$*" >&2
-    failed=$((failed + 1))
-  fi
+  check "/lib/systemd/system/hciuart.service exists" test -f /lib/systemd/system/hciuart.service
+
+  check "systemd-networkd.service is not active" ! systemctl -q is-active systemd-networkd.service
+  check "/etc/systemd/network/pan0.netdev is not present" test ! -f /etc/systemd/network/pan0.netdev
+  check "/etc/systemd/network/pan0.network is not present" test ! -f /etc/systemd/network/pan0.network
+
+  check "bt-network is active" systemctl -q is-active bt-network.service
+  check "bt-agent is active" systemctl -q is-active bt-agent.service
+
+  check "dnsmasq is installed" which dnsmasq >/dev/null
+  check "dnsmasq is active" systemctl -q is-active dnsmasq.service
+  check "pan0 interface exists" ip link show pan0 >/dev/null
+  check "pan0 interface is configured" grep -q "^auto pan0$" /etc/network/interfaces.d/pan0
+  check "pan0 interface is configured for dnsmasq" grep -q "^interface=pan0$" /etc/dnsmasq.d/pan0.conf
+  check "pan0 dnsmasq config is not malformed" grep -v -q "^interface$" /etc/dnsmasq.d/pan0.conf
+  check "pan0 dnsmasq config is not malformed" grep -v -q "^leasefile-ro=" /etc/dnsmasq.d/pan0.conf
+
+  check_summary
+
+  printf "\n\033[1mFurther debugging:\033[0m\n" >&2
+  printf "  - print name of bluetooth adapter: \033[3m%s\033[23m\n" 'hciconfig hci0 name' >&2
+  printf "  - print class of bluetooth adapter: \033[3m%s\033[23m\n" 'hciconfig hci0 class' >&2
+  printf "  - print features of bluetooth adapter: \033[3m%s\033[23m\n" 'hciconfig hci0 features' >&2
+  printf "  - list bluetooth adapter information: \033[3m%s\033[23m\n" 'bt-adapter --info' >&2
+  printf "  - list connected devices: \033[3m%s\033[23m\n" 'bt-device --list' >&2
+  printf "  - info about connected device: \033[3m%s\033[23m\n" 'bt-device --info=<name|mac>' >&2
+  for service in bt-network bt-agent dnsmasq; do
+    printf "  \033[1m- regarding service \033[3m%s\033[23m:\033[0m\n" "$service" >&2
+    printf "    - check status: \033[3m%s\033[23m\n" "systemctl status $service.service" >&2
+    printf "    - check logs: \033[3m%s\033[23m\n" "journalctl -b -e -u $service.service" >&2
+    printf "    - stop service: \033[3m%s\033[23m\n" "sudo systemctl stop $service.service" >&2
+    printf "    - start service interactively: \033[3m%s\033[23m\n" "$(service_start_cmdline "$service.service")" >&2
+  done
+
 }
-
-check "/lib/systemd/system/hciuart.service exists" test -f /lib/systemd/system/hciuart.service
-
-check "systemd-networkd.service is not active" ! systemctl -q is-active systemd-networkd.service
-check "/etc/systemd/network/pan0.netdev is not present" test ! -f /etc/systemd/network/pan0.netdev
-check "/etc/systemd/network/pan0.network is not present" test ! -f /etc/systemd/network/pan0.network
-
-check "bt-network is active" systemctl -q is-active bt-network.service
-check "bt-agent is active" systemctl -q is-active bt-agent.service
-
-check "dnsmasq is installed" which dnsmasq >/dev/null
-check "dnsmasq is active" systemctl -q is-active dnsmasq.service
-check "pan0 interface exists" ip link show pan0 >/dev/null
-check "pan0 interface is configured" grep -q "^auto pan0$" /etc/network/interfaces.d/pan0
-check "pan0 interface is configured for dnsmasq" grep -q "^interface=pan0$" /etc/dnsmasq.d/pan0.conf
-check "pan0 dnsmasq config is not malformed" grep -v -q "^interface$" /etc/dnsmasq.d/pan0.conf
-check "pan0 dnsmasq config is not malformed" grep -v -q "^leasefile-ro=" /etc/dnsmasq.d/pan0.conf
-
-case $failed in
-0)
-  printf "\033[32mAll checks passed.\033[0m\n" >&2
-  ;;
-1)
-  printf "\033[31m1 check failed.\033[0m\n" >&2
-  ;;
-*)
-  printf "\033[31m%d checks failed.\033[0m\n" $failed >&2
-esac
-
-printf "\n\033[1mFurther debugging:\033[0m\n" >&2
-printf "  - print name of bluetooth adapter: \033[3m%s\033[23m\n" 'hciconfig hci0 name' >&2
-printf "  - print class of bluetooth adapter: \033[3m%s\033[23m\n" 'hciconfig hci0 class' >&2
-printf "  - print features of bluetooth adapter: \033[3m%s\033[23m\n" 'hciconfig hci0 features' >&2
-printf "  - list bluetooth adapter information: \033[3m%s\033[23m\n" 'bt-adapter --info' >&2
-printf "  - list connected devices: \033[3m%s\033[23m\n" 'bt-device --list' >&2
-printf "  - info about connected device: \033[3m%s\033[23m\n" 'bt-device --info=<name|mac>' >&2
-for service in bt-network bt-agent dnsmasq; do
-  printf "  - regarding service \033[3m%s\033[23m:\n" "$service" >&2
-  printf "    - check status: \033[3m%s\033[23m\n" "systemctl status $service.service" >&2
-  printf "    - check logs: \033[3m%s\033[23m\n" "journalctl -b -e -u $service.service" >&2
-  start_cmdline=$(systemctl show -p ExecStart "$service.service" | sed -n -e 's/^ExecStart.*argv\[\]=\(.*\); ignore_errors.*/\1/p')
-  printf "    - run manually: \033[3m%s\033[23m\n" "sudo systemctl stop $service.service; $start_cmdline" >&2
-done
