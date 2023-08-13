@@ -109,14 +109,25 @@
 - name: set up pan0 network interface
   when: has_bluetooth_hardware and bt_pan is defined
   vars:
-    pan0_cidr: "{{ bt_pan.cidr if usb_gadget_features.ethernet.cidr is defined else '10.11.10.10/29' }}"
+    pan0_cidr: "{{ pan_gadget_features.ethernet.cidr | default(default_pan0_cidr) }}"
   block:
     - name: compute IP settings
       set_fact:
-        pan0_cidr_address: "{{ pan0_cidr | ansible.utils.ipaddr('address') }}"
-        pan0_cidr_netmask: "{{ pan0_cidr | ansible.utils.ipaddr('netmask') }}"
-        pan0_cidr_first_usable: "{{ pan0_cidr | ansible.utils.ipaddr('first_usable') }}"
-        pan0_cidr_last_usable: "{{ pan0_cidr | ansible.utils.ipaddr('last_usable') }}"
+        pan0_cidr: "{{ pan0_cidr }}"                                                     #  10. 11. 10. 10/29
+        pan0_cidr_netmask: "{{ pan0_cidr | ansible.utils.ipaddr('netmask') }}"           # 255.255.255.248 ↵
+        # If the specified CIDR is the network address itself
+        # or the unusable broadcast address, then use the first usable address.
+        # Dnsmasq can deal with it.
+        # Important: ipaddr untypically returns None if the CIDR is the network address.
+        pan0_cidr_address: >-                                                            #  10. 11. 10. 10
+          {{
+          (pan0_cidr | ansible.utils.ipaddr('address') not in [None, pan0_cidr | ansible.utils.ipaddr('broadcast')])
+          | ternary(pan0_cidr | ansible.utils.ipaddr('address'), pan0_cidr | ansible.utils.ipaddr('first_usable'))
+          }}
+        pan0_cidr_network: "{{ pan0_cidr | ansible.utils.ipaddr('network') }}"           #  10. 11. 10.  8
+        pan0_cidr_first_usable: "{{ pan0_cidr | ansible.utils.ipaddr('first_usable') }}" #  10. 11. 10.  9
+        pan0_cidr_last_usable: "{{ pan0_cidr | ansible.utils.ipaddr('last_usable') }}"   #  10. 11. 10. 14
+        pan0_cidr_broadcast: "{{ pan0_cidr | ansible.utils.ipaddr('broadcast') }}"       #  10. 11. 10. 15
 
     - name: install dependencies
       become: true

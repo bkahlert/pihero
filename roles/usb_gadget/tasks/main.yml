@@ -51,14 +51,23 @@
 
     - name: compute IP settings
       vars:
-        usb0_cidr: "{{ usb_gadget_features.ethernet.cidr if usb_gadget_features.ethernet.cidr is defined else '10.10.10.10/29' }}"
+        usb0_cidr: "{{ usb_gadget_features.ethernet.cidr | default(default_usb0_cidr) }}"
       set_fact:
-        usb0_cidr: "{{ usb0_cidr }}"
-        usb0_cidr_address: "{{ usb0_cidr | ansible.utils.ipaddr('address') }}"
-        usb0_cidr_netmask: "{{ usb0_cidr | ansible.utils.ipaddr('netmask') }}"
-        usb0_cidr_first_usable: "{{ usb0_cidr | ansible.utils.ipaddr('first_usable') }}"
-        usb0_cidr_last_usable: "{{ usb0_cidr | ansible.utils.ipaddr('last_usable') }}"
-
+        usb0_cidr: "{{ usb0_cidr }}"                                                     #  10. 10. 10. 10/29
+        usb0_cidr_netmask: "{{ usb0_cidr | ansible.utils.ipaddr('netmask') }}"           # 255.255.255.248 ↵
+        # If the specified CIDR is the network address itself
+        # or the unusable broadcast address, then use the first usable address.
+        # Dnsmasq can deal with it.
+        # Important: ipaddr untypically returns None if the CIDR is the network address.
+        usb0_cidr_address: >-                                                            #  10. 10. 10. 10
+          {{
+          (usb0_cidr | ansible.utils.ipaddr('address') not in [None, usb0_cidr | ansible.utils.ipaddr('broadcast')])
+          | ternary(usb0_cidr | ansible.utils.ipaddr('address'), usb0_cidr | ansible.utils.ipaddr('first_usable'))
+          }}
+        usb0_cidr_network: "{{ usb0_cidr | ansible.utils.ipaddr('network') }}"           #  10. 10. 10.  8
+        usb0_cidr_first_usable: "{{ usb0_cidr | ansible.utils.ipaddr('first_usable') }}" #  10. 10. 10.  9
+        usb0_cidr_last_usable: "{{ usb0_cidr | ansible.utils.ipaddr('last_usable') }}"   #  10. 10. 10. 14
+        usb0_cidr_broadcast: "{{ usb0_cidr | ansible.utils.ipaddr('broadcast') }}"       #  10. 10. 10. 15
 
 - name: set up system
   block:
