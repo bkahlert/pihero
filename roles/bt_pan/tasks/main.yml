@@ -109,7 +109,7 @@
 - name: set up pan0 network interface
   when: has_bluetooth_hardware and bt_pan is defined
   vars:
-    pan0_cidr: "{{ pan_gadget_features.ethernet.cidr | default(default_pan0_cidr) }}"
+    pan0_cidr: "{{ bt_pan.cidr | default(default_pan0_cidr) }}"
   block:
     - name: compute IP settings
       set_fact:

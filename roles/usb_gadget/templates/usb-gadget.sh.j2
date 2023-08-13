@@ -107,7 +107,17 @@ create_config() {
     mkdir -p "configs/$config_name"
     mkdir -p "configs/$config_name"/strings/0x409
     echo 'USB gadget features: {% if usb_gadget_features.keys() %}{{ usb_gadget_features.keys() | join(', ') }}{% else %}-{% endif %}' >"configs/$config_name"/strings/0x409/configuration
-    echo '250' >configs/c.1/MaxPower
+    case "$(cat /sys/firmware/devicetree/base/model | tr --delete [:cntrl:])" in
+    Raspberry\ Pi\ 4*)
+      echo '500'
+      ;;
+    Raspberry\ Pi\ Zero\ 2*)
+      echo '200'
+      ;;
+    *)
+      echo '100'
+      ;;
+    esac >configs/c.1/MaxPower
     ;;
   *)
     printf "\033[31mERROR: The configuration needs to have the format \033[3m<name>\033[23m.\033[3m<number>\033[23m.\033[0m\n" >&2
