@@ -1,0 +1,3 @@
+# Allowed values for the generic dr_mode USB property,
+# see https://www.kernel.org/doc/Documentation/devicetree/bindings/usb/generic.txt
+usb_dr_mode_options: [ 'host', 'peripheral', 'otg' ]

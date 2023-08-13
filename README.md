@@ -23,7 +23,7 @@ Supported are even old models like the [Raspberry Pi Zero](https://www.raspberry
 
 ### Easy configuration
 
-A [sample inventory](inventory/sample/hosts.yml) for the two devices `foo.local` and `bar.local` is provided to get you started:
+A [sample inventory](inventory/sample/hosts.yml) for sample devices, namely `foo.local` and `bar.local` is provided to get you started:
 
 ```yaml
 # Device "foo" with the following features:

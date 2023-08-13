@@ -11,7 +11,13 @@
   block:
     - name: set usb_gadget_features
       set_fact:
-        usb_gadget_features: "{{ usb_gadget | default({},true) | dict2items | rejectattr('key', 'in', ['product', 'manufacturer', 'serialnumber']) | list | items2dict }}"
+        usb_gadget_features: "{{ usb_gadget | default({},true) | dict2items | rejectattr('key', 'in', ['dr_mode', 'product', 'manufacturer', 'serialnumber']) | list | items2dict }}"
+
+    - name: set dr_mode_value
+      when: usb_gadget.dr_mode is defined
+      set_fact:
+        usb_gadget: "{{ usb_gadget | default({},true) | combine({'dr_mode': usb_gadget.dr_mode)}) }}"
+      failed_when: usb_gadget.dr_mode is defined and usb_gadget.dr_mode not in usb_dr_mode_options
 
     - name: set default usb_gadget.product
       when: usb_gadget.product is undefined
@@ -66,8 +72,8 @@
         value: "{{ item.value }}"
         mode: "0644"
       loop:
-        # - { option: dtoverlay, value: dwc2 } # dr_mode=peripheral, to get current: find /sys/ -name dr_mode; cat /sys/kernel/debug/usb/20980000.usb/dr_mode
-        - { option: dtoverlay, value: "dwc2,dr_mode=peripheral" } # probably fixes USB problems with two connected devices to same USB hub
+        - option: dtoverlay # to get current dr_mode: find /sys/ -name dr_mode; cat /sys/kernel/debug/usb/20980000.usb/dr_mode
+          value: "dwc2{% if usb_gadget.dr_mode is defined %},dr_mode={{ usb_gadget.dr_mode }}{% endif %}"
       notify: "reboot system"
 
     - name: update /boot/cmdline.txt
