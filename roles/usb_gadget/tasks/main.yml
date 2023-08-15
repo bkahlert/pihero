@@ -198,7 +198,7 @@
         line: denyinterfaces usb0
 
     - name: install dnsmasq
-      apt:
+      ansible.builtin.apt:
         name: [ dnsmasq ]
         state: present
 

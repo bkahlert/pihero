@@ -6,7 +6,7 @@
   block:
     - name: create package directory
       ansible.builtin.file:
-        path: "{{ package_dir}}"
+        path: "{{ package_dir }}"
         state: directory
 
     - name: copy files

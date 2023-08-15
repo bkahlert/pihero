@@ -7,7 +7,7 @@ newest_dhcp_lease() {
 
 dns_set() {
   dns_servers=('8.8.8.8' '8.8.4.4')
-  printf "Configuring dnsmasq to use DNS servers \033[3m%s\033[23m...\n" "${dns_servers[*]}" >&2
+  printf "Configuring dnsmasq to use DNS servers \e[3m%s\e[23m...\n" "${dns_servers[*]}" >&2
   printf 'server=%s\n' "${dns_servers[@]}" >/etc/dnsmasq.d/hero-dns.conf
   systemctl restart dnsmasq.service
 }
@@ -21,12 +21,12 @@ dns_unset() {
 
 add_default_route() {
   host_ip="${1?host IP missing}"
-  printf "Adding default route via \033[3m%s\033[23m...\n" "$host_ip" >&2
+  printf "Adding default route via \e[3m%s\e[23m...\n" "$host_ip" >&2
   ip route add default via "$host_ip"
 }
 
 delete_default_route() {
   host_ip="${1?host IP missing}"
-  printf "Deleting default route via \033[3m%s\033[23m...\n" "$host_ip" >&2
+  printf "Deleting default route via \e[3m%s\e[23m...\n" "$host_ip" >&2
   ip route delete default via "$host_ip"
 }

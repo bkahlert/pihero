@@ -159,6 +159,10 @@ usb_gadget:
 
 - Install Ansible on your computer.
 - Checkout this repository.
+  ```shell
+  git clone https://github.com/bkahlert/pihero.git
+  cd pihero
+  ```
 
 ### Configuration
 

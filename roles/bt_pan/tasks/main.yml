@@ -20,7 +20,7 @@
   block:
     - name: install dependencies
       become: true
-      apt:
+      ansible.builtin.apt:
         name:
           - bluetooth
           - bluez
@@ -131,7 +131,7 @@
 
     - name: install dependencies
       become: true
-      apt:
+      ansible.builtin.apt:
         name:
           - dnsmasq
         state: present

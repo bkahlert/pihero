@@ -1,7 +1,7 @@
 ---
 - name: install avahi
   become: true
-  apt:
+  ansible.builtin.apt:
     name:
       - avahi-daemon
     state: present

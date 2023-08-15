@@ -1,6 +1,6 @@
 ---
 - name: install samba
-  apt:
+  ansible.builtin.apt:
     name: samba
     state: present
 

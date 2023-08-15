@@ -7,9 +7,9 @@ checks_start() {
   if [ "${1:-}" = "" ]; then
     printf "\n" >&2
   else
-    printf -v line "\033[1m%0.s—\033[0m" $(seq 1 "$(tput cols)")
+    printf -v line "\e[1m%0.s—\e[0m" $(seq 1 "$(tput cols)")
     printf "\n" >&2
-    printf "\033[1m%s\033[0m\n%s\n" "$1" "$line" >&2
+    printf "\e[1m%s\e[0m\n%s\n" "$1" "$line" >&2
   fi
 }
 
@@ -23,7 +23,7 @@ check() {
   local -r message=$1
   shift
 
-  printf "Checking if \033[3m%s\033[23m... " "$message" >&2
+  printf "Checking if \e[3m%s\e[23m... " "$message" >&2
   if [ "$1" = "!" ]; then
     "${@:2}" || success=1
   else
@@ -31,9 +31,9 @@ check() {
   fi
 
   if [ "$success" -eq 1 ]; then
-    printf "\033[32m✔︎\033[0m\n" >&2
+    printf "\e[32m✔︎\e[0m\n" >&2
   else
-    printf "\033[31mERROR: \033[3m%s\033[23m failed.\033[0m\n" "$*" >&2
+    printf "\e[31mERROR: \e[3m%s\e[23m failed.\e[0m\n" "$*" >&2
     FAILURE_COUNT=$((FAILURE_COUNT + 1))
   fi
 }
@@ -43,13 +43,13 @@ check() {
 check_summary() {
   case $FAILURE_COUNT in
   0)
-    printf "\033[32mAll checks passed.\033[0m\n" >&2
+    printf "\e[32mAll checks passed.\e[0m\n" >&2
     ;;
   1)
-    printf "\033[31m1 check failed.\033[0m\n" >&2
+    printf "\e[31m1 check failed.\e[0m\n" >&2
     ;;
   *)
-    printf "\033[31m%d checks failed.\033[0m\n" $FAILURE_COUNT >&2
+    printf "\e[31m%d checks failed.\e[0m\n" $FAILURE_COUNT >&2
     ;;
   esac
 }

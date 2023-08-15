@@ -7,14 +7,14 @@ source "$SCRIPT_DIR/lib/lib.bash"
 
 main() {
   checks_start "USB gadget diagnostics"
-  CONFIGFS_HOME=$(findmnt --output TARGET --noheadings configfs) || { printf "\033[31mERROR: Failed to find \033[3m%s\033[23m\033[0m\n" configfs >&2 && exit 1; }
+  CONFIGFS_HOME=$(findmnt --output TARGET --noheadings configfs) || { printf "\e[31mERROR: Failed to find \e[3m%s\e[23m\e[0m\n" configfs >&2 && exit 1; }
 
   local -r gadget_name=${1:?gadget name missing}
   local -r config_name=${2:?config name missing}
   local -r instance_name=${3:?instance name missing}
   local -r gadget_dir="$CONFIGFS_HOME/usb_gadget/$gadget_name"
 
-  printf "\033[1mChecking USB gadget \033[3m%s\033[23m...\033[0m\n" "$gadget_name" >&2
+  printf "\e[1mChecking USB gadget \e[3m%s\e[23m...\e[0m\n" "$gadget_name" >&2
 
   check "/boot/config.txt contains dtoverlay=dwc2" grep -q '^dtoverlay=dwc2\(,dr_mode=.*\)\?$' /boot/config.txt
   check "/boot/cmdline.txt contains modules-load=dwc2" grep -q "modules-load=dwc2" /boot/cmdline.txt
@@ -36,12 +36,12 @@ main() {
   check "usb-gadget is running" grep -q "^$(ls /sys/class/udc)$" "$gadget_dir"/UDC
 
   {% if usb_gadget_features.serial is defined %}
-  printf "\033[1mChecking serial port...\033[0m\n" >&2
+  printf "\e[1mChecking serial port...\e[0m\n" >&2
   check "usb-gadget's serial port is active" systemctl -q is-active serial-getty@ttyGS0.service
   {% endif %}
 
   {% if usb_gadget_features.ethernet is defined %}
-  printf "\033[1mChecking ethernet...\033[0m\n" >&2
+  printf "\e[1mChecking ethernet...\e[0m\n" >&2
   check "dnsmasq is installed" which dnsmasq >/dev/null
   check "dnsmasq is active" systemctl -q is-active dnsmasq.service
   check "usb0 interface exists" ip link show usb0 >/dev/null
@@ -52,31 +52,22 @@ main() {
   check "usb0 dnsmasq config is not malformed" grep -v -q "^leasefile-ro=" /etc/dnsmasq.d/usb0.conf
   {% endif %}
 
-  case $FAILURE_COUNT in
-  0)
-    printf "\033[32mAll checks passed.\033[0m\n" >&2
-    ;;
-  1)
-    printf "\033[31m1 check failed.\033[0m\n" >&2
-    ;;
-  *)
-    printf "\033[31m%d checks failed.\033[0m\n" $failed >&2
-  esac
+  check_summary
 
-  printf "\n\033[1mFurther debugging:\033[0m\n" >&2
-  printf "  - check usb-gadget's config: \033[3m%s\033[23m\n" "ls -1lAFhctR '$gadget_dir'" >&2
-  printf "  - check usb-gadget service logs: \033[3m%s\033[23m\n" "systemctl status usb-gadget.service; journalctl -b -u usb-gadget.service" >&2
-  printf "  - stop usb-gadget interactively: \033[3m%s\033[23m\n" "hero gadget stop" >&2
-  printf "  - start usb-gadget interactively: \033[3m%s\033[23m\n" "hero gadget start" >&2
+  printf "\n\e[1mFurther debugging:\e[0m\n" >&2
+  printf "  - check usb-gadget's config: \e[3m%s\e[23m\n" "ls -1lAFhctR '$gadget_dir'" >&2
+  printf "  - check usb-gadget service logs: \e[3m%s\e[23m\n" "systemctl status usb-gadget.service; journalctl -b -u usb-gadget.service" >&2
+  printf "  - stop usb-gadget interactively: \e[3m%s\e[23m\n" "hero gadget stop" >&2
+  printf "  - start usb-gadget interactively: \e[3m%s\e[23m\n" "hero gadget start" >&2
   {% if usb_gadget_features.ethernet is defined %}
-  printf "  - scan for connected hosts: \033[3m%s\033[23m\n" "command -v nmap >/dev/null 2>&1 || sudo apt-get install -yqq nmap; nmap -sn 10.10.10.11-14" >&2
-  printf "  - check networking: \033[3m%s\033[23m\n" "systemctl status networking" >&2
+  printf "  - scan for connected hosts: \e[3m%s\e[23m\n" "command -v nmap >/dev/null 2>&1 || sudo apt-get install -yqq nmap; nmap -sn 10.10.10.11-14" >&2
+  printf "  - check networking: \e[3m%s\e[23m\n" "systemctl status networking" >&2
   for service in dnsmasq; do
-    printf "  \033[1m- regarding service \033[3m%s\033[23m:\033[0m\n" "$service" >&2
-    printf "    - check status: \033[3m%s\033[23m\n" "systemctl status $service.service" >&2
-    printf "    - check logs: \033[3m%s\033[23m\n" "journalctl -b -e -u $service.service" >&2
-    printf "    - stop service: \033[3m%s\033[23m\n" "sudo systemctl stop $service.service" >&2
-    printf "    - start service interactively: \033[3m%s\033[23m\n" "$(service_start_cmdline "$service.service")" >&2
+    printf "  \e[1m- regarding service \e[3m%s\e[23m:\e[0m\n" "$service" >&2
+    printf "    - check status: \e[3m%s\e[23m\n" "systemctl status $service.service" >&2
+    printf "    - check logs: \e[3m%s\e[23m\n" "journalctl -b -e -u $service.service" >&2
+    printf "    - stop service: \e[3m%s\e[23m\n" "sudo systemctl stop $service.service" >&2
+    printf "    - start service interactively: \e[3m%s\e[23m\n" "$(service_start_cmdline "$service.service")" >&2
   done
   {% endif %}
 
