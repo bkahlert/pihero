@@ -158,7 +158,7 @@ usb_gadget:
 ### Preparations
 
 - Install Ansible on your computer.
-- Checkout this repository.
+- Checkout this repository:
   ```shell
   git clone https://github.com/bkahlert/pihero.git
   cd pihero
@@ -166,7 +166,10 @@ usb_gadget:
 
 ### Configuration
 
-- Copy the [sample inventory](inventory/sample) to `inventory/berries` and adapt it to your needs.
+- Copy the [sample inventory](inventory/sample) to `inventory/berries` and adapt it to your needs:
+  ```shell
+  cp -r inventory/sample inventory/berries
+  ```
 
 By default, your device is advertised as an AirPort (4th generation) device.
 After having tried a dozen configurations, this one turned out to be the best,
@@ -202,9 +205,6 @@ If you'd like to go with a different configuration, these are the ones I'd recom
 
 - Start the setup process using:
   ```shell
-  # Setup all Raspberry Pis listed in your inventory
-  ansible-playbook playbook.yml
-  
   # Setup only the device foo.local
   ansible-playbook playbook.yml -l foo.local
   
