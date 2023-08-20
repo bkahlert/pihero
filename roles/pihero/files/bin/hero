@@ -5,13 +5,101 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # shellcheck source=./../lib/lib.bash
 source "$SCRIPT_DIR/../lib/lib.bash"
 
-declare hero
-printf -v hero '\e[33m─=≡\e[91mΣ\e[90m\e[101m((\e[30m\e[43m[ \e[31m蓬\e[30m•\e[91mｏ\e[30m•]\e[0m\e[93m⊐\e[0m'
+hero() {
+  local mood=neutral face=('蓬' '•' 'ｏ' '•')
+  while (($# > 0)); do
+    case "$1" in
+    --mood=*)
+      mood="${1#*=}" && shift
+      ;;
+    *)
+      break
+      ;;
+    esac
+  done
+
+  case "$mood" in
+  0 | happy)
+    face=('✿' '＾' 'ｖ' '＾')
+    ;;
+  1 | 2 | sad)
+    face=('༶' '◕' '︿' '◕')
+    ;;
+  *)
+    face=('༶' '´◑' '︿' '◑`')
+    ;;
+  esac
+  printf '\e[33m─=≡\e[91mΣ\e[90m\e[101m((\e[30m\e[43m[ \e[31m%s\e[30m%s\e[91m%s\e[30m%s]\e[0m\e[93m⊐\e[0m' "${face[@]}"
+}
 
 # TODO call share with sudo
 
+pan_wrapper() {
+  if [ "$#" -eq 0 ]; then
+    run_optional /opt/pihero/bt-pan-diag
+  elif [ "${1:-}" = diag ]; then
+    run_optional /opt/pihero/bt-pan-diag "${@:1}"
+  else
+    run_optional sudo /opt/pihero/bt-pan "$@"
+  fi
+}
+
+gadget_wrapper() {
+  if [ "$#" -eq 0 ]; then
+    run_optional /opt/pihero/usb-gadget diag
+  elif [ "${1:-}" = diag ]; then
+    run_optional /opt/pihero/usb-gadget "$@"
+  else
+    run_optional sudo /opt/pihero/usb-gadget "$@"
+  fi
+}
+
+share() {
+  local lease self_name host_ip host_name
+  case "${1:-}" in
+  start | stop)
+    lease=$(newest_dhcp_lease 2>/dev/null) || {
+      printf "\e[33mFailed to find host. No corresponding DHCP lease was found.\e[0m\n" >&2
+      exit 1
+    }
+    IFS=' ' read -ra c <<<"$lease"
+    self_name="$(hostnamectl --pretty status)"
+    host_ip="${c[1]}" # [1]=IP, [2]=MAC, [3]=hostname
+    host_name="${c[3]}"
+    if [ "$1" = "start" ]; then
+      printf "Preparing \e[3m%s\e[23m to use \e[3m%s\e[23m (\e[3m%s\e[23m) as upstream...\e[0m\n" \
+        "$self_name" "$host_name" "$host_ip" >&2
+      if add_default_route "$host_ip" && dns_set; then
+        printf "Done \e[32m✔︎\e[0m\n" >&2
+        printf "\e[1mDon't forget to activate routing on \e[3m%s\e[23m!\e[0m\n" "$host_name" >&2
+      else
+        printf "\e[31mFailed to prepare \e[3m%s\e[23m to use \e[3m%s\e[23m (\e[3m%s\e[23m) as upstream.\e[0m\n" \
+          "$self_name" "$host_name" "$host_ip" >&2
+        exit 1
+      fi
+    else
+      printf "Stopping \e[3m%s\e[23m from using \e[3m%s\e[23m (\e[3m%s\e[23m) as upstream...\e[0m\n" \
+        "$self_name" "$host_name" "$host_ip" >&2
+      if dns_unset && delete_default_route "$host_ip"; then
+        printf "Done \e[32m✔︎\e[0m\n" >&2
+        printf "\e[1mDon't forget to deactivate routing on \e[3m%s\e[23m!\e[0m\n" "$host_name" >&2
+      else
+        printf "\e[31mFailed to stop \e[3m%s\e[23m from using \e[3m%s\e[23m (\e[3m%s\e[23m) as upstream.\e[0m\n" \
+          "$self_name" "$host_name" "$host_ip" >&2
+        exit 1
+      fi
+    fi
+    ip route show
+    ;;
+  *)
+    printf "Usage: %s \e[3m%s\e[23m \e[3m%s\e[23m\n" "${0##*/}" share 'start|stop' >&2
+    exit 1
+    ;;
+  esac
+}
+
 main() {
-  printf "\n %s \e[1;33m%s\e[0m\n\n" "$hero" "Pi Hero" >&2
+  printf "\n %s \e[1;33m%s\e[0m\n\n" "$(hero --mood=neutral)" "Pi Hero" >&2
   local cmd
   if [ $# -eq 0 ]; then
     cmd=diag
@@ -22,69 +110,45 @@ main() {
 
   case "$cmd" in
   diag)
-    /opt/pihero/bt-pan-diag
-    exit_code=$?
-    /opt/pihero/usb-gadget diag && [ $exit_code -eq 0 ]
+    local result=0 diagnostics=()
+
+    system-diag
+    diagnostics+=("System" "$?")
+    printf '\n' >&2
+
+    pan_wrapper diag
+    diagnostics+=("Bluetooth PAN" "$?")
+    printf '\n' >&2
+
+    gadget_wrapper diag
+    diagnostics+=("USB Gadget" "$?")
+    printf '\n' >&2
+
+    local summary=''
+    while ((${#diagnostics[@]} > 0)); do
+      local icon
+      if [ "${diagnostics[1]}" -eq 0 ]; then
+        printf -v icon '\e[32m✔︎\e[0m'
+      else
+        printf -v icon '\e[31m✘︎\e[0m'
+        result=1
+      fi
+      printf -v summary '%s   \e[1m%s %s\e[0m' "$summary" "${diagnostics[0]}" "$icon"
+      diagnostics=("${diagnostics[@]:2}")
+    done
+    printf ' %s%s\n' "$(hero --mood="$result")" "$summary" >&2
+    printf '\n' >&2
+
+    return "$result"
     ;;
   *pan)
-    if [ "$#" -eq 0 ]; then
-      /opt/pihero/bt-pan-diag
-    elif [ "${1:-}" = diag ]; then
-      /opt/pihero/bt-pan-diag "${@:1}"
-    else
-      sudo /opt/pihero/bt-pan "$@"
-    fi
+    pan_wrapper "$@"
     ;;
   *gadget)
-    if [ "$#" -eq 0 ]; then
-      /opt/pihero/usb-gadget diag
-    elif [ "${1:-}" = diag ]; then
-      /opt/pihero/usb-gadget "$@"
-    else
-      sudo /opt/pihero/usb-gadget "$@"
-    fi
+    gadget_wrapper "$@"
     ;;
   share)
-    case "${1:-}" in
-    start | stop)
-      lease=$(newest_dhcp_lease 2>/dev/null) || {
-        printf "\e[33mFailed to find host. No corresponding DHCP lease was found.\e[0m\n" >&2
-        exit 1
-      }
-      IFS=' ' read -ra c <<<"$lease"
-      self_name="$(hostnamectl --pretty status)"
-      host_ip="${c[1]}" # [1]=IP, [2]=MAC, [3]=hostname
-      host_name="${c[3]}"
-      if [ "$1" = "start" ]; then
-        printf "Preparing \e[3m%s\e[23m to use \e[3m%s\e[23m (\e[3m%s\e[23m) as upstream...\e[0m\n" \
-          "$self_name" "$host_name" "$host_ip" >&2
-        if add_default_route "$host_ip" && dns_set; then
-          printf "Done \e[32m✔︎\e[0m\n" >&2
-          printf "\e[1mDon't forget to activate routing on \e[3m%s\e[23m!\e[0m\n" "$host_name" >&2
-        else
-          printf "\e[31mFailed to prepare \e[3m%s\e[23m to use \e[3m%s\e[23m (\e[3m%s\e[23m) as upstream.\e[0m\n" \
-            "$self_name" "$host_name" "$host_ip" >&2
-          exit 1
-        fi
-      else
-        printf "Stopping \e[3m%s\e[23m from using \e[3m%s\e[23m (\e[3m%s\e[23m) as upstream...\e[0m\n" \
-          "$self_name" "$host_name" "$host_ip" >&2
-        if dns_unset && delete_default_route "$host_ip"; then
-          printf "Done \e[32m✔︎\e[0m\n" >&2
-          printf "\e[1mDon't forget to deactivate routing on \e[3m%s\e[23m!\e[0m\n" "$host_name" >&2
-        else
-          printf "\e[31mFailed to stop \e[3m%s\e[23m from using \e[3m%s\e[23m (\e[3m%s\e[23m) as upstream.\e[0m\n" \
-            "$self_name" "$host_name" "$host_ip" >&2
-          exit 1
-        fi
-      fi
-      ip route show
-      ;;
-    *)
-      printf "Usage: %s \e[3m%s\e[23m \e[3m%s\e[23m\n" "${0##*/}" share 'start|stop' >&2
-      exit 1
-      ;;
-    esac
+    share "$@"
     ;;
   *)
     printf "Usage: %s \e[3m%s\e[23m [\e[3m%s\e[23m]\n" "${0##*/}" "diag|pan|gadget|share" "SUBCOMMANDS..." >&2

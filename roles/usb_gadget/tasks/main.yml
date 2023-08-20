@@ -108,6 +108,7 @@
           install dwc2 /sbin/modprobe --ignore-install dwc2;  /sbin/modprobe libcomposite;
         dest: /etc/modprobe.d/dwc2.conf
         mode: "0644"
+        force: true
       notify: "reboot system"
 
 

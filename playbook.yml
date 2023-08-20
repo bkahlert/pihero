@@ -14,24 +14,11 @@
             group_members: "{{ group_members | default({}) | combine({item.split(':')[0]: item.split(':')[3].split(',') if item.split(':')[3] else []}) }}"
           loop: "{{ group_entries.stdout_lines }}"
     - name: request passwords
-      include_tasks: tasks/request_password.yml
+      include_tasks: tasks/request-password.yml
       loop: "{{ group_members['users'] | default([]) }}"
 
-    # needed on outdated systems, for dependencies to be installable
     - name: update apt packages and allow release info changes
-      block:
-        - name: configure apt to allow release info change
-          become: true
-          ansible.builtin.lineinfile:
-            path: /etc/apt/apt.conf.d/99allow-release-info-change
-            state: present
-            create: yes
-            line: Acquire::AllowReleaseInfoChange::Suite "true";
-        - name: update apt packages
-          become: true
-          ansible.builtin.apt:
-            update_cache: true
-            cache_valid_time: 86400
+      import_tasks: tasks/apt-update.yml
 
   roles:
     - pihero

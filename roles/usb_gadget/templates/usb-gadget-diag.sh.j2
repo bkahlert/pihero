@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 source "$SCRIPT_DIR/lib/lib.bash"
 
 main() {
+  local result
+
   checks_start "USB gadget diagnostics"
   CONFIGFS_HOME=$(findmnt --output TARGET --noheadings configfs) || { printf "\e[31mERROR: Failed to find \e[3m%s\e[23m\e[0m\n" configfs >&2 && exit 1; }
 
@@ -53,6 +55,7 @@ main() {
   {% endif %}
 
   check_summary
+  result=$?
 
   printf "\n\e[1mFurther debugging:\e[0m\n" >&2
   printf "  - check usb-gadget's config: \e[3m%s\e[23m\n" "ls -1lAFhctR '$gadget_dir'" >&2
@@ -71,6 +74,7 @@ main() {
   done
   {% endif %}
 
+  return $result
 }
 
 main "$@"

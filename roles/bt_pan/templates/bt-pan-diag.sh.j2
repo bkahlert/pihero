@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 source "$SCRIPT_DIR/lib/lib.bash"
 
 main() {
+  local result
   checks_start "Bluetooth PAN diagnostics"
 
   check "/lib/systemd/system/hciuart.service exists" test -f /lib/systemd/system/hciuart.service
@@ -26,6 +27,7 @@ main() {
   check "pan0 dnsmasq config is not malformed" grep -v -q "^leasefile-ro=" /etc/dnsmasq.d/pan0.conf
 
   check_summary
+  result=$?
 
   printf "\n\e[1mFurther debugging:\e[0m\n" >&2
   printf "  - print name of bluetooth adapter: \e[3m%s\e[23m\n" 'hciconfig hci0 name' >&2
@@ -42,4 +44,7 @@ main() {
     printf "    - start service interactively: \e[3m%s\e[23m\n" "$(service_start_cmdline "$service.service")" >&2
   done
 
+  return $result
 }
+
+main "$@"

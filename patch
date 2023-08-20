@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+HOST=${HOST:-foo.local}                     # The host to patch (default: foo.local)
+HERO=${HERO:-0}                             # Whether to update the hero component (default: yes)
+HERO_FILES="$SCRIPT_DIR/roles/pihero/files" # The directory containing the bin and lib directory of the hero component (default: same as used by Ansible role)
+
+# Ansible ad-hoc command wrapper which runs:
+# ansible $HOST --become -m $1 -a "$2 $3 $4 ..."
+m() {
+  local module=${1?module missing} && shift
+  local args="$*"
+  ansible "$HOST" --become -m "$module" -a "$args"
+}
+
+# rsync command wrapper which runs:
+# rsync --recursive --compress --delete --rsh='ssh -o ConnectTimeout=120' --rsync-path='sudo rsync' "$1" "$HOST:$2"
+r() {
+  local src=${1?source missing} && shift
+  local dst="$HOST:${1?destination missing}" && shift
+  printf "Copying \e[3m%s\e[23m to \e[3m%s\e[23m... " "$src" "$dst"
+  rsync --recursive --compress --delete --rsh='ssh -o ConnectTimeout=10' --rsync-path='sudo rsync' "$src" "$dst" || {
+    printf '\e[31Failed to copy \e[3m%s\e[23m to \e[3m%s\e[23m\n' "$src" "$dst"
+    exit 1
+  }
+  printf '\e[32m✔︎\e[0m\n'
+}
+
+if [ "$HERO" = 0 ]; then
+  printf '\e[1mUsage: HERO=1 %s\e[0m\n' "${0##*/}"
+  printf ' Hint: Type \e[3m%s\e[23m to set a different host and the appropriate option or options for the remainder of your shell session.\n' \
+    'export HOST=bar.local HERO=1 [...]'
+  printf '       Check the source code for more options.\n'
+  exit 1
+fi
+
+# deploy hero component
+if [ ! "$HERO" = 0 ]; then
+  r "$HERO_FILES/bin/" /opt/pihero/bin/
+  r "$HERO_FILES/lib/" /opt/pihero/lib/
+fi
