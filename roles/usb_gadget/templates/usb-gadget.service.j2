@@ -6,8 +6,8 @@ Before=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/opt/pihero/usb-gadget start
-ExecStop=/opt/pihero/usb-gadget stop
+ExecStart={{ package_dir }}/usb-gadget start
+ExecStop={{ package_dir }}/usb-gadget stop
 RemainAfterExit=yes
 TimeoutStartSec=120
 

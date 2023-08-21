@@ -60,8 +60,8 @@ main() {
   printf "\n\e[1mFurther debugging:\e[0m\n" >&2
   printf "  - check usb-gadget's config: \e[3m%s\e[23m\n" "ls -1lAFhctR '$gadget_dir'" >&2
   printf "  - check usb-gadget service logs: \e[3m%s\e[23m\n" "systemctl status usb-gadget.service; journalctl -b -u usb-gadget.service" >&2
-  printf "  - stop usb-gadget interactively: \e[3m%s\e[23m\n" "hero gadget stop" >&2
-  printf "  - start usb-gadget interactively: \e[3m%s\e[23m\n" "hero gadget start" >&2
+  printf "  - stop usb-gadget interactively: \e[3m%s\e[23m\n" "pihero gadget stop" >&2
+  printf "  - start usb-gadget interactively: \e[3m%s\e[23m\n" "pihero gadget start" >&2
   {% if usb_gadget_features.ethernet is defined %}
   printf "  - scan for connected hosts: \e[3m%s\e[23m\n" "command -v nmap >/dev/null 2>&1 || sudo apt-get install -yqq nmap; nmap -sn 10.10.10.11-14" >&2
   printf "  - check networking: \e[3m%s\e[23m\n" "systemctl status networking" >&2

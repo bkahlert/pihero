@@ -245,11 +245,11 @@ Linux gadget 6.1.21-v8+ #1642 SMP PREEMPT aarch64
 
 ─=≡Σ(([ 蓬•ｏ•]⊐ USB ethernet
     INTERFACE: usb0 — IP 10.10.10.10 / 255.255.255.248 — DHCP: 10.10.10.11 - 10.10.10.14
-    HELP: hero gadget
+    HELP: pihero gadget
 
 ─=≡Σ(([ 蓬•ｏ•]⊐ Bluetooth PAN
     INTERFACE: usb0 — IP 10.11.10.10 / 255.255.255.248 — DHCP: 10.11.10.11 - 10.11.10.14
-    HELP: hero pan
+    HELP: pihero pan
 
 Last login from 10.10.10.12
 ```
@@ -260,7 +260,9 @@ The Ansible playbook places a diagnosis script on the target machine.
 You can run it with:
 
 ```shell
-sudo hero gadget diag
+pihero
+# or
+pihero gadget diag
 ```
 
 [![usb gadget diag](docs%2Fusb-gadget-diag.png)](./docs/usb-gadget-diag.png)

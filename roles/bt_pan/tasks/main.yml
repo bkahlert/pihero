@@ -91,7 +91,7 @@
       become: true
       ansible.builtin.template:
         src: templates/bt-pan-diag.sh.j2
-        dest: /opt/pihero/bt-pan-diag
+        dest: "{{ package_dir }}/bt-pan-diag"
         mode: "0755"
         force: true
 
@@ -202,7 +202,7 @@
             marker_begin: "{{ marker_begin_latin1 }} Bluetooth PAN"
             block: |2
                   INTERFACE: pan0 — IP {{ pan0_cidr_address }} / {{ pan0_cidr_netmask }} — DHCP: {{ pan0_cidr_first_usable }} - {{ pan0_cidr_last_usable }}
-                  HELP: hero pan
+                  HELP: pihero pan
             marker_end: "{{ marker_end_latin1 }}"
         - name: convert markers to unicode
           ansible.builtin.replace:

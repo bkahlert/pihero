@@ -107,7 +107,7 @@ create_config() {
     mkdir -p "configs/$config_name"
     mkdir -p "configs/$config_name"/strings/0x409
     echo 'USB gadget features: {% if usb_gadget_features.keys() %}{{ usb_gadget_features.keys() | join(', ') }}{% else %}-{% endif %}' >"configs/$config_name"/strings/0x409/configuration
-    case "$(cat /sys/firmware/devicetree/base/model | tr --delete [:cntrl:])" in
+    case "$(cat /sys/firmware/devicetree/base/model | tr --delete '[:cntrl:]')" in
     Raspberry\ Pi\ 4*)
       echo '500'
       ;;
@@ -183,7 +183,7 @@ create_function() {
     ;;
   *)
     printf "\e[1mDelegating creation of function \e[3m%s\e[23m to \e[3m%s\e[23m...\e[0m\n" "$function" 'usb-gadget-custom' >&2
-    (/opt/pihero/usb-gadget-custom create_custom_function "$@")
+    ({{ package_dir }}/usb-gadget-custom create_custom_function "$@")
     ;;
   esac
 }
@@ -286,7 +286,7 @@ main() {
       ;;
       diag)
           shift
-          /opt/pihero/usb-gadget-diag "$gadget_name" "$config_name" "$instance_name"
+          {{ package_dir }}/usb-gadget-diag "$gadget_name" "$config_name" "$instance_name"
       ;;
       *)
         printf "\e[33mUsage: %s \e[3m%s\e[23m|\e[3m%s\e[23m|\e[3m%s\e[23m\e[0m\n" "$0" start stop diag >&2

@@ -1,41 +1,45 @@
 ---
-- name: install Pi Hero
+- name: create package directory
+  ansible.builtin.file:
+    path: "{{ package_dir }}"
+    state: directory
   become: true
-  vars:
-    package_dir: /opt/pihero
+
+- name: copy files
+  ansible.builtin.copy:
+    src: files/
+    dest: "{{ package_dir }}/"
+    force: true
+  become: true
+
+- name: make executables executable
   block:
-    - name: create package directory
-      ansible.builtin.file:
-        path: "{{ package_dir }}"
-        state: directory
+    - name: find files
+      find:
+        paths: "{{ package_dir }}/bin"
+        patterns: '*'
+      register: executables
 
-    - name: copy files
-      ansible.builtin.copy:
-        src: files/
-        dest: "{{ package_dir }}/"
-        force: true
+    - name: change mode of executables
+      file:
+        dest: "{{ item.path }}"
+        mode: "0755"
+      loop: "{{ executables.files }}"
+      become: true
 
-    - name: make executables executable
-      block:
-        - name: find files
-          find:
-            paths: "{{ package_dir }}/bin"
-            patterns: '*'
-          register: executables
+- name: add package bin directory to PATH
+  ansible.builtin.copy:
+    content: "export PATH=$PATH:{{ package_dir }}/bin"
+    dest: "/etc/profile.d/pihero_path.sh"
+    force: true
+  become: true
 
-        - name: change mode of executables
-          file:
-            dest: "{{ item.path }}"
-            mode: "0755"
-          loop: "{{ executables.files }}"
-
-    - name: add package bin directory to PATH
-      ansible.builtin.copy:
-        content: "export PATH=$PATH:{{ package_dir }}/bin"
-        dest: "/etc/profile.d/pihero_path.sh"
-        force: true
-
-    - name: remove deprecated hero script
-      ansible.builtin.file:
-        path: /usr/local/sbin/hero
-        state: absent
+- name: remove deprecated hero artifacts
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /usr/local/sbin/hero
+    - /opt/pihero/bin/hero
+    - /opt/pihero/bin/system-diag
+    - /opt/pihero/lib/netshare.bash

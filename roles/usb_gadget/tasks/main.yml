@@ -79,7 +79,6 @@
         section: all
         option: "{{ item.option }}"
         value: "{{ item.value }}"
-        mode: "0644"
       loop:
         - option: dtoverlay # to get current dr_mode: find /sys/ -name dr_mode; cat /sys/kernel/debug/usb/20980000.usb/dr_mode
           value: "dwc2{% if usb_gadget.dr_mode is defined %},dr_mode={{ usb_gadget.dr_mode }}{% endif %}"
@@ -90,7 +89,7 @@
       block:
         - name: set options in /boot/cmdline.txt
           become: true
-          replace:
+          ansible.builtin.replace:
             path: /boot/cmdline.txt
             regexp: '^([\w](?!.*\b{{ item }}\b).*)$'
             replace: '\1 {{ item }}'
@@ -118,14 +117,14 @@
     - name: copy usb-gadget script
       ansible.builtin.template:
         src: templates/usb-gadget.sh.j2
-        dest: /opt/pihero/usb-gadget
+        dest: "{{ package_dir }}/usb-gadget"
         mode: "0755"
         force: true
       notify: "reboot system"
     - name: copy usb-gadget custom script
       ansible.builtin.template:
         src: templates/usb-gadget-custom.sh
-        dest: /opt/pihero/usb-gadget-custom
+        dest: "{{ package_dir }}/usb-gadget-custom"
         mode: "0755"
         force: true
       notify: "reboot system"
@@ -148,7 +147,7 @@
       become: true
       ansible.builtin.template:
         src: templates/usb-gadget-diag.sh.j2
-        dest: /opt/pihero/usb-gadget-diag
+        dest: "{{ package_dir }}/usb-gadget-diag"
         mode: "0755"
         force: true
 
@@ -254,7 +253,7 @@
             marker_begin: "{{ marker_begin_latin1 }} USB ethernet"
             block: |2
                   INTERFACE: usb0 — IP {{ usb0_cidr_address }} / {{ usb0_cidr_netmask }} — DHCP: {{ usb0_cidr_first_usable }} - {{ usb0_cidr_last_usable }}
-                  HELP: hero gadget
+                  HELP: pihero gadget
             marker_end: "{{ marker_end_latin1 }}"
         - name: convert markers to unicode
           ansible.builtin.replace:

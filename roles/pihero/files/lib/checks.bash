@@ -20,6 +20,21 @@ checks_start() {
   fi
 }
 
+# Prints an announcement about the checked (sub) unit, for example,
+#   - check_unit "network" → Checking network... (bold)
+# Globals:
+#   None
+# Arguments:
+#   $1 (string): Name of (sub) unit about to be checked
+# Outputs:
+#   Unit name (bold)
+# Returns:
+#   0: If the unit name is specified
+#   1: If the unit name is missing or empty
+check_unit() {
+  printf "\e[1mChecking \e[3m%s\e[23m...\e[0m\n" "${1:?subject name missing}" >&2
+}
+
 # Checks a condition and prints the result, for example,
 #   - check "foo contains bar" grep -q "bar" foo → "Checking if foo contains bar... ✔︎"
 #   - check "foo contains baz" grep -q "baz" foo → "Checking if foo contains bar... ERROR: grep -q baz foo failed."

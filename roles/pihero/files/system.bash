@@ -2,10 +2,10 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
-# shellcheck source=./../lib/lib.bash
-source "$SCRIPT_DIR/../lib/lib.bash"
+# shellcheck source=./../../pihero/files/lib/lib.bash
+source "$SCRIPT_DIR/lib/lib.bash"
 
-main() {
++diag() {
   local result init_system
 
   checks_start "System diagnostics"
@@ -23,7 +23,7 @@ main() {
     ;;
   esac
 
-  if ! check --brief "system is running" systemctl -q is-system-running; then
+  if ! check --brief "system is operational" systemctl -q is-system-running --wait; then
     local failed_unit failed_units=()
     while read -r line; do
       failed_units=("${failed_units[@]}" "$(echo "$line" | awk '{print $1}')")
@@ -48,5 +48,3 @@ main() {
 
   return $result
 }
-
-main "$@"
