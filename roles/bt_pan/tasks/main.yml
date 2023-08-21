@@ -87,13 +87,12 @@
         groups: [ lp ]
       loop: "{{ group_members['users'] | default([]) }}"
 
-    - name: copy bt-pan diagnosis script
-      become: true
-      ansible.builtin.template:
-        src: templates/bt-pan-diag.sh.j2
-        dest: "{{ package_dir }}/bt-pan-diag"
-        mode: "0755"
+    - name: copy files
+      ansible.builtin.copy:
+        src: files/
+        dest: "{{ package_dir }}/"
         force: true
+      become: true
 
     - name: restart services
       become: true

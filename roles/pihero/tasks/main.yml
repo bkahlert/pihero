@@ -43,3 +43,4 @@
     - /opt/pihero/bin/hero
     - /opt/pihero/bin/system-diag
     - /opt/pihero/lib/netshare.bash
+    - /opt/pihero/bt-pan-diag

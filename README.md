@@ -9,6 +9,7 @@ discoverable, accessible, and fun to use.
 
 Pi Hero makes your Raspberry Pi:
 
+- show a splash screen during boot and shutdown,
 - show up in your network with a nice icon,
 - share device information,
 - create an Ethernet over USB connection,
@@ -110,6 +111,15 @@ Additionally, a serial port over USB is set up.
     - `screen $(ls /dev/tty.usbmodem* | head -n 1) 115200` (exit with `Ctrl+A` `K`)
     - `cu -s 115200 -l $(ls /dev/tty.usbmodem* | head -n 1)` (exit with `~.`)
     - `minicom -b 115200 -D $(ls /dev/tty.usbmodem* | head -n 1)` (exit with `Meta+Z` `X`)
+
+### Maintainable
+
+The `pihero` tool provides diagnostics, that help you resolve problems.
+
+Simply type `pihero diag` to get a report on possible configuration problems.
+
+| [![Pi Hero commands](docs%2Fpihero-commands.png) Available Pi Hero commands](./docs/pihero-commands.png) | [![Pi Hero succeeded diagnostics](docs%2Fpihero-diag-succeeded.png) Succeeded diagnostics](./docs/pihero-diag-succeeded.png) | [![Pi Hero failed diagnostics](docs%2Fpihero-diag-failed.png) Failed diagnostics](./docs/pihero-diag-failed.png) |
+|----------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
 
 ### Extensible
 
@@ -256,12 +266,15 @@ Last login from 10.10.10.12
 
 ## Troubleshooting
 
-The Ansible playbook places a diagnosis script on the target machine.
-You can run it with:
+You can run a diagnosis script with:
 
 ```shell
-pihero
+# all diagnostics
+pihero diag
+
 # or
+
+# only USB gadget diagnostics
 pihero gadget diag
 ```
 
@@ -282,7 +295,7 @@ Checking if usb0 interface config is not malformed... ✔︎
 Checking if usb0 interface exists... ✔︎
 All checks passed.
 
-Further debugging:
+  Useful commands:
   - check usb-gadget service: systemctl status usb-gadget.service; journalctl -b -u usb-gadget.service
   - run usb-gadget yourself: sudo usb-gadget
   - scan for connected hosts: command -v nmap >/dev/null 2>&1 || sudo apt-get install -yqq nmap; nmap -sn 10.10.10.11-14

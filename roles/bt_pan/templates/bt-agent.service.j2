@@ -11,18 +11,13 @@ Type=simple
 
 # authorize devices as specified
 ExecStart=/usr/bin/bt-agent --capability=DisplayOnly --pin={{ pins_file }}
+ExecStop=/usr/bin/pkill -SIGINT bt-agent
 
 {% if device_info.pretty_hostname is defined %}
 ExecStartPre=/usr/bin/bt-adapter --set Alias '{{ device_info.pretty_hostname }}'
 {% endif %}
 
-ExecStartPost=/usr/bin/bt-adapter --set Discoverable 1
-
-{% for device in trusted %}
-{% if device.trusted %}
-ExecStartPost=/bin/sh -c "/usr/bin/bt-device --set '{{ device.mac }}' Trusted '1' 2>/dev/null || true"
-{% endif %}
-{% endfor %}
+ExecStartPost=/bin/sh -c "/usr/bin/bt-adapter --set Discoverable 1{% for device in trusted %}{% if device.trusted %}; /usr/bin/bt-device --set '{{ device.mac }}' Trusted '1' 2>/dev/null || true{% endif %}{% endfor %}"
 
 [Install]
 WantedBy=bluetooth.target

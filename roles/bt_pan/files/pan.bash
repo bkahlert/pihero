@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # shellcheck source=./../../pihero/files/lib/lib.bash
 source "$SCRIPT_DIR/lib/lib.bash"
 
-main() {
++diag() {
   local result
   checks_start "Bluetooth PAN diagnostics"
 
@@ -29,22 +29,22 @@ main() {
   check_summary
   result=$?
 
-  printf "\n\e[1mFurther debugging:\e[0m\n" >&2
-  printf "  - print name of bluetooth adapter: \e[3m%s\e[23m\n" 'hciconfig hci0 name' >&2
-  printf "  - print class of bluetooth adapter: \e[3m%s\e[23m\n" 'hciconfig hci0 class' >&2
-  printf "  - print features of bluetooth adapter: \e[3m%s\e[23m\n" 'hciconfig hci0 features' >&2
-  printf "  - list bluetooth adapter information: \e[3m%s\e[23m\n" 'bt-adapter --info' >&2
-  printf "  - list connected devices: \e[3m%s\e[23m\n" 'bt-device --list' >&2
-  printf "  - info about connected device: \e[3m%s\e[23m\n" 'bt-device --info=<name|mac>' >&2
-  for service in bt-network bt-agent dnsmasq; do
-    printf "  \e[1m- regarding service \e[3m%s\e[23m:\e[0m\n" "$service" >&2
-    printf "    - check status: \e[3m%s\e[23m\n" "systemctl status $service.service" >&2
-    printf "    - check logs: \e[3m%s\e[23m\n" "journalctl -b -e -u $service.service" >&2
-    printf "    - stop service: \e[3m%s\e[23m\n" "sudo systemctl stop $service.service" >&2
-    printf "    - start service interactively: \e[3m%s\e[23m\n" "$(service_start_cmdline "$service.service")" >&2
-  done
+  {
+    printf -- "\n\e[4mUseful commands:\e[0m\n"
+    printf -- "- print name of bluetooth adapter: \e[3m%s\e[23m\n" 'hciconfig hci0 name'
+    printf -- "- print class of bluetooth adapter: \e[3m%s\e[23m\n" 'hciconfig hci0 class'
+    printf -- "- print features of bluetooth adapter: \e[3m%s\e[23m\n" 'hciconfig hci0 features'
+    printf -- "- list bluetooth adapter information: \e[3m%s\e[23m\n" 'bt-adapter --info'
+    printf -- "- list connected devices: \e[3m%s\e[23m\n" 'bt-device --list'
+    printf -- "- info about connected device: \e[3m%s\e[23m\n" 'bt-device --info=<name|mac>'
+    for service in bt-network bt-agent dnsmasq; do
+      printf -- "\e[1m- regarding service \e[3m%s\e[23m:\e[0m\n" "$service"
+      printf -- "  - check status: \e[3m%s\e[23m\n" "systemctl status $service.service"
+      printf -- "  - check logs: \e[3m%s\e[23m\n" "journalctl -b -e -u $service.service"
+      printf -- "  - stop service: \e[3m%s\e[23m\n" "sudo systemctl stop $service.service"
+      printf -- "  - start service interactively: \e[3m%s\e[23m\n" "$(service_start_cmdline "$service.service")"
+    done
+  } | sed 's/^/  /' >&2
 
   return $result
 }
-
-main "$@"

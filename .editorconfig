@@ -1,31 +1,27 @@
-# EditorConfig helps developers define and maintain consistent
-# coding styles between different editors and IDEs
-# editorconfig.org
-
 root = true
 
 [*]
-indent_style = space
-indent_size = 2
-charset = utf-8
 end_of_line = lf
-insert_final_newline = true
+charset = utf-8
 trim_trailing_whitespace = true
+insert_final_newline = true
 
-[Makefile]
-indent_style = tab
-
-[*.py]
 indent_style = space
 indent_size = 4
+ij_visual_guides = 80, 120, 160
+max_line_length = 160
+tab_width = 4
 
-[*.json]
-insert_final_newline = ignore
+[*.{cff,css,scss,feature,js,json,jsx,ts,tsx,yaml,yml}]
+indent_size = 2
+ij_javascript_force_quote_style = true
+ij_javascript_use_double_quotes = false
+ij_javascript_force_semicolon_style = true
+ij_javascript_use_semicolon_after_statement = false
 
-[*.js]
-indent_style = ignore
-insert_final_newline = ignore
-
-[*.{md,txt}]
-indent_size = 4
+[*.md]
 trim_trailing_whitespace = false
+
+[*.run.xml]
+indent_size = 2
+ij_xml_space_inside_empty_tag = true

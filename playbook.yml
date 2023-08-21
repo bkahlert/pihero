@@ -22,6 +22,7 @@
 
   roles:
     - pihero
+    - pihero_splash
     - device_info
     - smb_shares
     - usb_gadget

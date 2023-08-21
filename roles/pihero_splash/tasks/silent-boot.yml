@@ -1,0 +1,81 @@
+---
+# Bunch of tasks to allow for a silent boot.
+# That is, no splash screens, no logos, no log messages, no rainbow square, no nothing.
+# See kernel parameters are documented at https://www.kernel.org/doc/html/latest/admin-guide/kernel-parameters.html
+# Log levels are:
+# - 0 (KERN_EMERG)          system is unusable
+# - 1 (KERN_ALERT)          action must be taken immediately
+# - 2 (KERN_CRIT)           critical conditions
+# - 3 (KERN_ERR)            error conditions
+# - 4 (KERN_WARNING)        warning conditions
+# - 5 (KERN_NOTICE)         normal but significant condition
+# - 6 (KERN_INFO)           informational
+# - 7 (KERN_DEBUG)          debug-level messages
+
+- name: set kernel parameters
+  become: true
+  block:
+    - name: suppress most log messages
+      kernel_parameters:
+        option: quiet
+        before: rootwait
+
+    - name: suppress non-critical diagnostic messages
+      kernel_parameters:
+        option: loglevel
+        after: quiet
+        value: "{{ loglevel | default('3') }}"
+
+    - name: stop systemd from printing its version number
+      kernel_parameters:
+        option: udev.log_level
+        after: loglevel
+        value: '3'
+
+    - name: stop initramfs systemd from printing its version number
+      kernel_parameters:
+        option: rd.udev.log_level
+        after: udev.log_level
+        value: '3'
+
+    - name: stop initramfs systemd from printing successful messages
+      kernel_parameters:
+        option: systemd.show_status
+        after: rd.udev.log_level
+        value: auto
+
+    - name: stop cursor from blinking by disabling the creation of cursors for new VTs
+      kernel_parameters:
+        option: vt.global_cursor_default
+        before: rootwait
+        value: '0'
+
+    - name: disable the console blank (screen saver) timer
+      kernel_parameters:
+        option: consoleblank
+        before: rootwait
+        value: '0'
+
+- name: remove Raspberry Pi branding
+  become: true
+  block:
+    - name: suppress Raspberry Pi logos at top of screen
+      kernel_parameters:
+        option: logo.nologo
+        before: rootwait
+
+    - name: suppress Raspberry Pi logo splash screen
+      kernel_parameters:
+        option: splash
+        state: absent
+
+    - name: suppress initial rainbow screen
+      community.general.ini_file:
+        path: /boot/config.txt
+        no_extra_spaces: true
+        section: all
+        option: disable_splash
+        value: '1'
+
+- name: remove third-party splash screen services
+  import_tasks: no-splashscreen-services.yml

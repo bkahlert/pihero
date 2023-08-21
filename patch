@@ -2,53 +2,74 @@
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
-HOST=${HOST:-foo.local}                                     # The host to patch (default: foo.local)
-PIHERO=${PIHERO:-0}                                         # Whether to update the pihero entrypoint (default: no)
-PIHERO_FILES="$SCRIPT_DIR/roles/pihero/files"               # The directory containing the bin and lib directory of the pihero entrypoint (default: same as used by Ansible role)
-PIHERO_SPLASH=${PIHERO_SPLASH:-0}                           # Whether to update the pihero splash component (default: no)
-PIHERO_SPLASH_FILES="$SCRIPT_DIR/roles/pihero_splash/files" # The directory containing the files of the pihero splash component (default: same as used by Ansible role)
+PREFIX=${PATCH_PREFIX-PIHERO_}
+# Sets variable with name $1 to the value of variable $PREFIX_$1 if it exists.
+# If it doesn't, uses $2 as the default value or exits with an error message.
+p() {
+    local var=${1?var missing} && shift
+    local default=$1
+    local prefixed=$PREFIX$var
+    local resolved=${!prefixed}
+    if [ "$resolved" ]; then
+        printf -v "$var" '%s' "$resolved"
+    elif [ "$default" ]; then
+        printf -v "$var" '%s' "$default"
+    else
+        printf '\e[31mRequired parameter \e[3m%s\e[23m is missing.\e[0m\n' "$prefixed" >&2
+        printf 'Either use \e[3m%s\e[23m or run \e[3m%s\e[23m to provide it.\n' "export $prefixed=..." "$prefixed=... ${0##*/}"
+        exit 1
+    fi
+    printf -v "$var" '%s' "${!prefixed:-$default}"
+}
+
+# Parameters
+p HOST                                                 # The host to patch
+p MAIN 1                                               # Whether to update the pihero entrypoint
+p MAIN_FILES "$SCRIPT_DIR/roles/pihero/files"          # The directory containing the bin and lib directory of the pihero entrypoint
+p SPLASH 1                                             # Whether to update the pihero splash component
+p SPLASH_FILES "$SCRIPT_DIR/roles/pihero_splash/files" # The directory containing the files of the pihero splash component
+
+if [ "$MAIN" = 0 ] && [ "$SPLASH" = 0 ]; then
+    printf -v params '\e[3m%s\e[23m ' "${PREFIX}HOST=foo.local" "$PREFIX...=..."
+    printf '\e[1mUsage: %s %s\e[0m\n' "$params" "${0##*/}"
+    printf ' Hint: Type export %sto set a different host and the appropriate option or options for the remainder of your shell session.\n' "$params"
+    printf '       Check the source code for more options.\n'
+    exit 1
+fi
 
 # Ansible ad-hoc command wrapper which runs:
 # ansible $HOST --become -m $1 -a "$2 $3 $4 ..."
 m() {
-  local module=${1?module missing} && shift
-  local args="$*"
-  ansible "$HOST" --become -m "$module" -a "$args"
+    local module=${1?module missing} && shift
+    local args="$*"
+    ansible "$HOST" --become -m "$module" -a "$args"
 }
 
 # rsync command wrapper which runs:
 # rsync --recursive --compress --delete --rsh='ssh -o ConnectTimeout=120' --rsync-path='sudo rsync' "${@:1:$#-1}" "$HOST:${@: -1}"
 r() {
-  [ "$#" -ge 2 ] || {
-    printf '\e[31mAt least two parameters—the files to copy, and the destination—are required\n'
-    exit 1
-  }
-  local src=("${@:1:$#-1}")
-  local dst="$HOST:${@: -1}"
-  printf "Copying \e[3m%s\e[23m to \e[3m%s\e[23m... " "${src[*]}" "$dst"
-  rsync --recursive --compress --delete --rsh='ssh -o ConnectTimeout=10' --rsync-path='sudo rsync' "${src[@]}" "$dst" || {
-    printf '\e[31Failed to copy \e[3m%s\e[23m to \e[3m%s\e[23m\n' "$src" "$dst"
-    exit 1
-  }
-  printf '\e[32m✔︎\e[0m\n'
+    [ "$#" -ge 2 ] || {
+        printf '\e[31mAt least two parameters—the files to copy, and the destination—are required\n'
+        exit 1
+    }
+    local src=("${@:1:$#-1}")
+    local dst="$HOST:${@: -1}"
+    printf "Copying \e[3m%s\e[23m to \e[3m%s\e[23m... " "${src[*]}" "$dst"
+    rsync --recursive --compress --delete --rsh='ssh -o ConnectTimeout=10' --rsync-path='sudo rsync' "${src[@]}" "$dst" || {
+        printf '\e[31Failed to copy \e[3m%s\e[23m to \e[3m%s\e[23m\n' "$src" "$dst"
+        exit 1
+    }
+    printf '\e[32m✔︎\e[0m\n'
 }
 
-if [ "$PIHERO" = 0 ] && [ "$PIHERO_SPLASH" = 0 ]; then
-  printf '\e[1mUsage: PIHERO=1 PIHERO_SPLASH=1 %s\e[0m\n' "${0##*/}"
-  printf ' Hint: Type \e[3m%s\e[23m to set a different host and the appropriate option or options for the remainder of your shell session.\n' \
-    'export HOST=bar.local PIHERO=1 [...]'
-  printf '       Check the source code for more options.\n'
-  exit 1
-fi
-
 # deploy pihero entrypoint
-if [ ! "$PIHERO" = 0 ]; then
-  r "$PIHERO_FILES/bin/" /opt/pihero/bin/
-  r "$PIHERO_FILES/lib/" /opt/pihero/lib/
-  r "$PIHERO_FILES/"*.bash /opt/pihero
+if [ ! "$MAIN" = 0 ]; then
+    r "$MAIN_FILES/bin/" /opt/pihero/bin/
+    r "$MAIN_FILES/lib/" /opt/pihero/lib/
+    r "$MAIN_FILES/"*.bash /opt/pihero
 fi
 
 # deploy pihero_splash component
-if [ ! "$PIHERO_SPLASH" = 0 ]; then
-  r "$PIHERO_SPLASH_FILES/"*.bash /opt/pihero
+if [ ! "$SPLASH" = 0 ]; then
+    r "$SPLASH_FILES/"*.bash /opt/pihero
 fi

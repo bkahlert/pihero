@@ -82,23 +82,14 @@
       loop:
         - option: dtoverlay # to get current dr_mode: find /sys/ -name dr_mode; cat /sys/kernel/debug/usb/20980000.usb/dr_mode
           value: "dwc2{% if usb_gadget.dr_mode is defined %},dr_mode={{ usb_gadget.dr_mode }}{% endif %}"
-      notify: "reboot system"
+      notify: reboot
 
-    - name: update /boot/cmdline.txt
+    - name: load dwc2 module in /boot/cmdline.txt
+      kernel_parameters:
+        option: modules-load
+        value: dwc2
       become: true
-      block:
-        - name: set options in /boot/cmdline.txt
-          become: true
-          ansible.builtin.replace:
-            path: /boot/cmdline.txt
-            regexp: '^([\w](?!.*\b{{ item }}\b).*)$'
-            replace: '\1 {{ item }}'
-          loop:
-            - "modules-load=dwc2"
-          notify: "reboot system"
-
-        - name: remove trailing line breaks from /boot/cmdline.txt
-          shell: "sed -i -e :a -e '/\\n*$/N;s/\\n*$//;ta' /boot/cmdline.txt"
+      notify: reboot
 
     - name: create /etc/modprobe.d/dwc2.conf
       become: true
@@ -108,7 +99,7 @@
         dest: /etc/modprobe.d/dwc2.conf
         mode: "0644"
         force: true
-      notify: "reboot system"
+      notify: reboot
 
 
 - name: install usb-gadget
@@ -120,14 +111,14 @@
         dest: "{{ package_dir }}/usb-gadget"
         mode: "0755"
         force: true
-      notify: "reboot system"
+      notify: reboot
     - name: copy usb-gadget custom script
       ansible.builtin.template:
         src: templates/usb-gadget-custom.sh
         dest: "{{ package_dir }}/usb-gadget-custom"
         mode: "0755"
         force: true
-      notify: "reboot system"
+      notify: reboot
 
     - name: copy usb-gadget service
       ansible.builtin.template:
@@ -141,10 +132,16 @@
         name: usb-gadget.service
         daemon_reload: true
         enabled: true
-      notify: "reboot system"
+      notify: reboot
+
+    - name: copy files
+      ansible.builtin.copy:
+        src: files/
+        dest: "{{ package_dir }}/"
+        force: true
+      become: true
 
     - name: copy usb-gadget diagnosis script
-      become: true
       ansible.builtin.template:
         src: templates/usb-gadget-diag.sh.j2
         dest: "{{ package_dir }}/usb-gadget-diag"

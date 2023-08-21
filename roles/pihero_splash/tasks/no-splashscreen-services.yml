@@ -1,0 +1,64 @@
+---
+- name: list splash screen services
+  ansible.builtin.shell: |
+    for service in $(systemctl list-unit-files | grep '\.service' | awk '{print $1}'); do
+      if exec_start=$(systemctl show -p ExecStart --value "$service"); then
+        if printf '%s' "$exec_start" | grep -E 'fbi|splash|screen' >/dev/null; then
+            printf '%s\n' "$service"
+        fi
+      fi
+    done
+  register: splashscreen_services_result
+  become: true
+  ignore_errors: true
+
+- name: set splash screen services fact
+  ansible.builtin.set_fact:
+    splashscreen_services: "{{ splashscreen_services_result.stdout_lines }}"
+  when: splashscreen_services_result is succeeded
+
+- name: stop and disable splash screen services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: false
+    state: stopped
+  become: true
+  register: stop_splashscreen_services_result
+  loop: "{{ splashscreen_services | default([]) }}"
+
+# The typical splash screen service copy-paste thing runs
+# fbi for all eternities, and if stopped, exits with an error code.
+# Now that those services are gone, their error state can be cleared.
+- name: resolve failed state of erroneously stopped splash screen services
+  ansible.builtin.shell: |
+    if systemctl -q is-failed '{{ item }}'; then
+      systemctl reset-failed '{{ item }}'
+    fi
+  loop: "{{ splashscreen_services | default([]) }}"
+
+- name: remove splash screen services's unit files
+  ansible.builtin.shell: |
+    systemctl cat '{{ item }}' | sed -n 's/^#\s*//p' | while read -r backing_file; do
+      [ -f "$backing_file" ] || {
+        printf 'Backing file %s does not exist. Skipping.\n' "$backing_file"
+        continue
+      }
+      case "$backing_file" in
+        *.service)
+          printf 'Removing service file %s\n' "$backing_file"
+          rm -f "$backing_file"
+          ;;
+        *)
+          printf 'Ignoring non-service file %s\n' "$backing_file"
+          ;;
+      esac
+    done
+  become: true
+  register: remove_splashscreen_service_files_result
+  loop: "{{ splashscreen_services | default([]) }}"
+
+- name: reload systemd daemon
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  become: true
+  when: stop_splashscreen_services_result is changed or remove_splashscreen_service_files_result is changed

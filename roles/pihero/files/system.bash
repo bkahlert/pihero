@@ -23,7 +23,11 @@ source "$SCRIPT_DIR/lib/lib.bash"
     ;;
   esac
 
-  if ! check --brief "system is operational" systemctl -q is-system-running --wait; then
+  check_unit "/boot/cmdline.txt"
+  check "it contains no line breaks" grep -q "\n" /boot/cmdline.txt
+
+  check_unit "$init_system"
+  if ! check --brief "it's operational" systemctl -q is-system-running --wait; then
     local failed_unit failed_units=()
     while read -r line; do
       failed_units=("${failed_units[@]}" "$(echo "$line" | awk '{print $1}')")
@@ -41,10 +45,11 @@ source "$SCRIPT_DIR/lib/lib.bash"
   check_summary
   result=$?
 
-  printf "\n\e[1mFurther debugging:\e[0m\n" >&2
-  printf "  - list all unit files: \e[3m%s\e[23m\n" 'systemctl list-unit-files' >&2
-  printf "  - list failed units: \e[3m%s\e[23m\n" 'systemctl list-units --state=failed' >&2
-  printf "  - check logs: \e[3m%s\e[23m\n" 'journalctl -b' >&2
-
+  {
+    printf "\n\e[4mUseful commands:\e[0m\n"
+    printf -- "- list all unit files: \e[3m%s\e[23m\n" 'systemctl list-unit-files'
+    printf -- "- list failed units: \e[3m%s\e[23m\n" 'systemctl list-units --state=failed'
+    printf -- "- check logs: \e[3m%s\e[23m\n" 'journalctl -b'
+  } | sed 's/^/  /' >&2
   return $result
 }

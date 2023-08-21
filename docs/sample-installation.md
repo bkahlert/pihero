@@ -201,7 +201,7 @@ RUNNING HANDLER [smb_shares : restart samba] ***********************************
 changed: [foo.local]
 changed: [bar.local]
 
-RUNNING HANDLER [usb_gadget : reboot system] **********************************************************
+RUNNING HANDLER [usb_gadget : reboot] **********************************************************
 fatal: [foo.local]: FAILED! => {
     "changed": false,
     "elapsed": 0,

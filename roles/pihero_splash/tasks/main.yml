@@ -1,0 +1,42 @@
+---
+- name: silence boot
+  import_tasks: silent-boot.yml
+
+- name: copy files
+  ansible.builtin.copy:
+    src: files/
+    dest: "{{ package_dir }}/"
+    force: true
+  become: true
+
+# themes are located at /usr/share/plymouth/themes
+# for custom themes, https://github.com/HerbFargus/plymouth-themes seems to be a good starting point
+- name: install plymouth and plymouth-themes
+  become: true
+  ansible.builtin.apt:
+    name: [ plymouth, plymouth-themes ]
+    state: present
+
+- name: set plymouth theme
+  ansible.builtin.shell: plymouth-set-default-theme --rebuild-initrd {{ splash.theme | default('spinner') }}
+  become: true
+
+- name: enable splash screen
+  become: true
+  kernel_parameters:
+    option: splash
+    before: quiet
+    state: present
+
+- name: set plymouth kernel parameters
+  become: true
+  block:
+    - name: enable plymouth
+      kernel_parameters:
+        option: plymouth.enable
+        value: 1
+
+    - name: stop plymouth from displaying anything on the serial console
+      kernel_parameters:
+        option: plymouth.ignore-serial-consoles
+        after: plymouth.enable
