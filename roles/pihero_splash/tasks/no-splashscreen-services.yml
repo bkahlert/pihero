@@ -1,4 +1,20 @@
 ---
+- name: get display manager status
+  ansible.builtin.shell: |
+    systemctl -q is-active display-manager
+  register: display_manager_result
+  become: true
+  failed_when: false
+
+- name: stop display manager
+  ansible.builtin.systemd_service:
+    name: display-manager
+    state: stopped
+  become: true
+  when: display_manager_result.rc == 0
+  register: stop_display_manager_result
+  notify: restart display-manager
+
 - name: list splash screen services
   ansible.builtin.shell: |
     for service in $(systemctl list-unit-files | grep '\.service' | awk '{print $1}'); do
@@ -11,6 +27,14 @@
   register: splashscreen_services_result
   become: true
   ignore_errors: true
+
+- name: restart display manager
+  ansible.builtin.systemd_service:
+    name: display-manager
+    state: stopped
+  become: true
+  when: display_manager_result.rc == 0
+  register: stop_display_manager_result
 
 - name: set splash screen services fact
   ansible.builtin.set_fact:

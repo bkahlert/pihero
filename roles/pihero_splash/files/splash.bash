@@ -36,7 +36,38 @@ source "$SCRIPT_DIR/lib/lib.bash"
     check_summary
     result=$?
 
+    {
+        printf -- '\n\e[4mUseful commands:\e[0m\n'
+        printf -- '- add \e[3m%s\e[23m to \e[3m%s\e[23m to enable debug logs\n' 'plymouth.debug' '/boot/cmdline.txt'
+        printf -- '- debug logs are located at \e[3m%s\e[23m\n' '/var/log/plymouth-debug.log'
+        printf -- '- for tips and tricks, see \e]8;;%s\e\\%s\e]8;;\e\\\n' \
+            'https://wiki.archlinux.org/title/plymouth#Tips_and_tricks' \
+            'wiki.archlinux.org/title/plymouth#Tips_and_tricks'
+    } | sed 's/^/  /' >&2
+
     return $result
+}
+
++enable() {
+    printf "Enabling Plymouth... "
+    if sudo sed -i 's/\bplymouth.enable=0\b/plymouth.enable=1/' /boot/cmdline.txt; then
+        printf '\e[32m✔︎\e[0m\n'
+    fi
+    printf "Suppressing successful systemd messages... "
+    if sudo sed -i 's/\bsystemd.show_status=true\b/systemd.show_status=auto/' /boot/cmdline.txt; then
+        printf '\e[32m✔︎\e[0m\n'
+    fi
+}
+
++disable() {
+    printf "Disabling Plymouth... "
+    if sudo sed -i 's/\bplymouth.enable=1\b/plymouth.enable=0/' /boot/cmdline.txt; then
+        printf '\e[32m✔︎\e[0m\n'
+    fi
+    printf "Printing successful systemd messages... "
+    if sudo sed -i 's/\bsystemd.show_status=auto\b/systemd.show_status=true/' /boot/cmdline.txt; then
+        printf '\e[32m✔︎\e[0m\n'
+    fi
 }
 
 +list() {
@@ -48,7 +79,18 @@ source "$SCRIPT_DIR/lib/lib.bash"
 }
 
 +set() {
-    local theme="${1:?theme missing}"
+    local theme
+    if [ "${1:-}" ]; then
+        theme="$1"
+    else
+        local themes=() && readarray -t themes < <(+list)
+        local PS3="Select a theme: "
+        select theme in "${themes[@]}"; do
+            [ ! "$theme" ] || break
+            printf ' \e[31m✘︎\e[0m %s\n' "Invalid selection" >&2
+        done
+    fi
+
     printf "Setting theme to \e[3m%s\e[23m... " "$theme"
     if sudo plymouth-set-default-theme --rebuild-initrd "$theme"; then
         printf '\e[32m✔︎\e[0m\n'
@@ -61,11 +103,12 @@ source "$SCRIPT_DIR/lib/lib.bash"
 #}
 
 +test() {
-    printf "Testing theme... "
+    printf 'Testing theme \e[3m%s\e[23m... ' "$(+get)"
     if sudo plymouthd && sudo plymouth show-splash; then
         printf "Press enter to quit... "
         read -rsn1
     fi
+
     if sudo plymouth quit; then
         printf '\e[32m✔︎\e[0m\n'
     fi
@@ -145,36 +188,10 @@ with_themes() {
     while read -r theme; do
         printf "\e[1mWith theme \e[3m%s\e[23m\e[0m...\n" "$theme"
         if sudo plymouth-set-default-theme --rebuild-initrd "$theme"; then
-            #      "$@" "$theme"
-            sleep 1
-            printf "\e[32m✔︎\e[0m\n"
+            "$@" "$theme"
         else
             printf "\e[31mFailed to set theme %s\e[0m\n" "$theme"
         fi
     done <<<"$(plymouth-set-default-theme --list)"
     sudo plymouth-set-default-theme --rebuild-initrd "$backup"
 }
-
-while read -r backing_file; do
-    [ -f "$backing_file" ] || {
-        printf 'Backing file %s does not exist. Skipping.\n' "$backing_file"
-        continue
-    }
-    case "$backing_file" in
-    *.service)
-        printf 'Removing service file %s\n' "$backing_file"
-        rm -f "$backing_file"
-        ;;
-    *)
-        printf 'Ignoring non-service file %s\n' "$backing_file"
-        ;;
-    esac
-done < <(systemctl cat 'splashscreen.service' | sed -n 's/^#\s*//p')
-
-systemctl cat 'splashscreen.service' | sed -n 's/^#\s*//p' | while read -r backing_file; do
-    [ -f "$backing_file" ] || {
-        printf 'Backing file %s does not exist. Skipping.\n' "$backing_file"
-        continue
-    }
-    printf 'Deleting file %s\n' "$backing_file"
-done

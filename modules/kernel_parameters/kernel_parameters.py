@@ -30,8 +30,7 @@ class KernelParams:
     ) -> 'KernelParams':
         existing_index: Optional[int] = self.exclusify_param(option)
         if existing_index is not None:
-            self.params[existing_index]['value'] = value
-            return self
+            self.remove_param(option)
 
         insertion_index: int = len(self.params)
         if after is not None:

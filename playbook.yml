@@ -21,9 +21,9 @@
       import_tasks: tasks/apt-update.yml
 
   roles:
-    - pihero
-    - pihero_splash
-    - device_info
-    - smb_shares
-    - usb_gadget
-    - bt_pan
+    - role: pihero
+    - role: pihero_splash
+    - role: device_info
+    - role: smb_shares
+    - role: usb_gadget
+    - role: bt_pan

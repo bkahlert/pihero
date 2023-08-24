@@ -2,15 +2,6 @@
 # Bunch of tasks to allow for a silent boot.
 # That is, no splash screens, no logos, no log messages, no rainbow square, no nothing.
 # See kernel parameters are documented at https://www.kernel.org/doc/html/latest/admin-guide/kernel-parameters.html
-# Log levels are:
-# - 0 (KERN_EMERG)          system is unusable
-# - 1 (KERN_ALERT)          action must be taken immediately
-# - 2 (KERN_CRIT)           critical conditions
-# - 3 (KERN_ERR)            error conditions
-# - 4 (KERN_WARNING)        warning conditions
-# - 5 (KERN_NOTICE)         normal but significant condition
-# - 6 (KERN_INFO)           informational
-# - 7 (KERN_DEBUG)          debug-level messages
 
 - name: set kernel parameters
   become: true
@@ -20,6 +11,15 @@
         option: quiet
         before: rootwait
 
+    # dmesg output of the form: [ 8.973972] random: crng init done
+    # 0 (KERN_EMERG): system is unusable
+    # 1 (KERN_ALERT): action must be taken immediately
+    # 2 (KERN_CRIT): critical conditions
+    # 3 (KERN_ERR): error conditions
+    # 4 (KERN_WARNING): warning conditions
+    # 5 (KERN_NOTICE): normal but significant condition
+    # 6 (KERN_INFO): informational
+    # 7 (KERN_DEBUG): debug-level messages
     - name: suppress non-critical diagnostic messages
       kernel_parameters:
         option: loglevel
@@ -38,11 +38,15 @@
         after: udev.log_level
         value: '3'
 
+    # systemd output of the form: [ STARTED ] Login Service.
+    # true: show all messages
+    # auto: suppress successful messages
+    # false: suppress all messages
     - name: stop initramfs systemd from printing successful messages
       kernel_parameters:
         option: systemd.show_status
         after: rd.udev.log_level
-        value: auto
+        value: 'auto'
 
     - name: stop cursor from blinking by disabling the creation of cursors for new VTs
       kernel_parameters:

@@ -1,0 +1,6 @@
+---
+- name: restart display-manager
+  ansible.builtin.service:
+    name: display-manager
+    state: restarted
+  become: true

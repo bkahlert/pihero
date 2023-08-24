@@ -9,7 +9,7 @@ Type=oneshot
 ExecStart={{ package_dir }}/usb-gadget start
 ExecStop={{ package_dir }}/usb-gadget stop
 RemainAfterExit=yes
-TimeoutStartSec=120
+TimeoutStartSec=60
 
 [Install]
 WantedBy=network.target
