@@ -56,26 +56,21 @@
         before: rootwait
         value: '0'
 
-- name: remove Raspberry Pi branding
+- name: suppress Raspberry Pi logos at top of screen
   become: true
-  block:
-    - name: suppress Raspberry Pi logos at top of screen
-      kernel_parameters:
-        option: logo.nologo
-        before: rootwait
+  kernel_parameters:
+    option: logo.nologo
+    before: rootwait
+    state: present
 
-    - name: suppress Raspberry Pi logo splash screen
-      kernel_parameters:
-        option: splash
-        state: absent
-
-    - name: suppress initial rainbow screen
-      community.general.ini_file:
-        path: /boot/config.txt
-        no_extra_spaces: true
-        section: all
-        option: disable_splash
-        value: '1'
+- name: suppress rainbow splash screen on boot
+  become: true
+  community.general.ini_file:
+    path: /boot/config.txt
+    no_extra_spaces: true
+    section: all
+    option: disable_splash
+    value: '1'
 
 - name: remove third-party splash screen services
   import_tasks: no-splashscreen-services.yml

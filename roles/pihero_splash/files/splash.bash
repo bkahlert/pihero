@@ -16,7 +16,7 @@ source "$SCRIPT_DIR/lib/lib.bash"
     check_unit "/boot/cmdline.txt"
     check "quiet is specified" grep -q " quiet" /boot/cmdline.txt
     check "loglevel is specified right after quiet" grep -q " quiet loglevel=" /boot/cmdline.txt
-    check "splash is removed" grep -v -q " splash" /boot/cmdline.txt
+    check "splash is specified" grep -q " splash" /boot/cmdline.txt
     check "vt.global_cursor_default is set to 0" grep -q " vt.global_cursor_default=0" /boot/cmdline.txt
 
     check "logo.nologo is specified" grep -q " logo.nologo" /boot/cmdline.txt
