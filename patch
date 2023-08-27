@@ -3,8 +3,11 @@
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 PREFIX=${PATCH_PREFIX-PIHERO_}
+declare params_defaulted=(PREFIX="$PREFIX")
+declare params_disabled=(PREFIX="$PREFIX")
 # Sets variable with name $1 to the value of variable $PREFIX_$1 if it exists.
 # If it doesn't, uses $2 as the default value or exits with an error message.
+# Side effect: adds $PREFIX_$1=$value to the params_* arrays
 p() {
     local var=${1?var missing} && shift
     local default=$1
@@ -19,23 +22,15 @@ p() {
         printf 'Either use \e[3m%s\e[23m or run \e[3m%s\e[23m to provide it.\n' "export $prefixed=..." "$prefixed=... ${0##*/}"
         exit 1
     fi
-    printf -v "$var" '%s' "${!prefixed:-$default}"
+    local val=${!prefixed:-$default}
+    printf -v "$var" '%s' "$val"
+    params_defaulted+=("$prefixed=$val")
+    if [ "$val" = 1 ]; then
+        params_disabled+=("$prefixed=0")
+    else
+        params_disabled+=("$prefixed=$val")
+    fi
 }
-
-# Parameters
-p HOST                                                 # The host to patch
-p MAIN 1                                               # Whether to update the pihero entrypoint
-p MAIN_FILES "$SCRIPT_DIR/roles/pihero/files"          # The directory containing the bin and lib directory of the pihero entrypoint
-p SPLASH 1                                             # Whether to update the pihero splash component
-p SPLASH_FILES "$SCRIPT_DIR/roles/pihero_splash/files" # The directory containing the files of the pihero splash component
-
-if [ "$MAIN" = 0 ] && [ "$SPLASH" = 0 ]; then
-    printf -v params '\e[3m%s\e[23m ' "${PREFIX}HOST=foo.local" "$PREFIX...=..."
-    printf '\e[1mUsage: %s %s\e[0m\n' "$params" "${0##*/}"
-    printf ' Hint: Type export %sto set a different host and the appropriate option or options for the remainder of your shell session.\n' "$params"
-    printf '       Check the source code for more options.\n'
-    exit 1
-fi
 
 # Ansible ad-hoc command wrapper which runs:
 # ansible $HOST --become -m $1 -a "$2 $3 $4 ..."
@@ -62,15 +57,80 @@ r() {
     printf '\e[32m✔︎\e[0m\n'
 }
 
-# deploy pihero entrypoint
-if [ ! "$MAIN" = 0 ]; then
+# Runs this patch command with the same parameters as the current execution,
+# but:
+# - if parameter is 1, sets it to 0
+# - given parameters, for example, MAIN=1, overrides the corresponding parameter
+continuous() {
+    local env_args=("${params_disabled[@]}") paths=()
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+        *=*)
+            env_args+=("${PREFIX}$1") && shift
+            ;;
+        *)
+            break
+            ;;
+        esac
+    done
+    env_args+=("${PREFIX}CONTINUOUS=0")
+    paths=("$@")
+
+    local fswatch_args=(
+        --recursive    # watch subdirectories
+        --exclude '~$' # ignore ~ suffix temp files
+        "${paths[@]}"  # paths to watch
+    )
+
+    printf '\e[2mWatching \e[3m%s\e[22;23m\n' "${paths[*]}" >&2
+    fswatch --print0 "${fswatch_args[@]}" | xargs -0 -n 1 -I {} env "${env_args[@]}" "$0"
+}
+
+deploy_main() {
     r "$MAIN_FILES/bin/" /opt/pihero/bin/
     r "$MAIN_FILES/lib/" /opt/pihero/lib/
     r "$MAIN_FILES/"*.bash /opt/pihero
-fi
+}
 
-# deploy pihero_splash component
-if [ ! "$SPLASH" = 0 ]; then
+deploy_splash() {
     r "$SPLASH_FILES/"*.bash /opt/pihero
     r "$SPLASH_FILES/themes/"* /usr/share/plymouth/themes
-fi
+}
+
+main() {
+    # set params
+    p CONTINUOUS 0                                         # Whether to run the patch operations whenever a relevant file changes
+    p HOST                                                 # The host to patch
+    p MAIN 1                                               # Whether to update the pihero entrypoint
+    p MAIN_FILES "$SCRIPT_DIR/roles/pihero/files"          # The directory containing the bin and lib directory of the pihero entrypoint
+    p SPLASH 1                                             # Whether to update the pihero splash component
+    p SPLASH_FILES "$SCRIPT_DIR/roles/pihero_splash/files" # The directory containing the files of the pihero splash component
+
+    if [ "$MAIN" = 0 ] && [ "$SPLASH" = 0 ]; then
+        printf -v params '\e[3m%s\e[23m ' "${PREFIX}HOST=foo.local" "$PREFIX...=..."
+        printf '\e[1mUsage: %s %s\e[0m\n' "$params" "${0##*/}"
+        printf ' Hints: Add -t / --continuous to run the corresponding patch operations whenever a relevant file changes.\n'
+        printf '        Type export %sto set a different host and the appropriate option or options for the remainder of your shell session.\n' "$params"
+        printf '        Check the source code for more options.\n'
+        exit 1
+    fi
+
+    if [ "$CONTINUOUS" = 0 ]; then
+        [ "$MAIN" = 0 ] || deploy_main
+        [ "$SPLASH" = 0 ] || deploy_splash
+    else
+        command -v fswatch >/dev/null 2>&1 || HOMEBREW_NO_ENV_HINTS=TRUE brew install fswatch
+        trap "trap - SIGTERM && kill -- -"$$ SIGINT SIGTERM EXIT
+        printf 'Watching for changes... '
+        printf '\e[2m%s\e[22m' 'Press Ctrl+C to stop'
+        printf '\n'
+        [ "$MAIN" = 0 ] || continuous MAIN=1 "$MAIN_FILES" &
+        [ "$SPLASH" = 0 ] || continuous SPLASH=1 "$SPLASH_FILES" &
+        wait
+    fi
+}
+
+main "$@"
+
+# TODO ask for smb password only if samba is installed
+# TODO make plymouth configurable, at least deactivatable
