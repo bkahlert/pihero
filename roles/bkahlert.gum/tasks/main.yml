@@ -1,13 +1,7 @@
 ---
-- name: gather os family facts
-  ansible.builtin.setup: { gather_subset: [ "!all", "!min", "os_family" ] }
+- name: install Go
+  import_tasks: install-go.yml
 
-- name: add charm APT repository
-  import_tasks: charm-repo.yml
-  when: ansible_os_family in ['Debian', 'Ubuntu']
-
-- name: update apt and install gum
-  ansible.builtin.apt:
-    name: [ gum ]
-    update_cache: yes
-  when: ansible_os_family in ['Debian', 'Ubuntu']
+- name: install Gum
+  ansible.builtin.shell: |
+    command -v gum >/dev/null 2>&1 || GOBIN='{{ go_bin_dir }}' '{{ go_root_dir }}/bin/go' install github.com/charmbracelet/gum@latest

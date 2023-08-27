@@ -1,0 +1,23 @@
+---
+- name: install Go
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      archive=go{{ go_version }}."$(uname -s | tr '[:upper:]' '[:lower:]')"-"$(uname -m)".tar.gz
+      curl -fSL "https://go.dev/dl/$archive" > "$archive"
+      rm -rf '{{ go_root_dir }}' && tar -C "$(dirname '{{ go_root_dir }}')" -xzf "$archive"
+    creates: "{{ go_root_dir }}/bin/go"
+
+- name: add Go bin directory to PATH
+  ansible.builtin.copy:
+    content: |
+      export GOROOT="{{ go_root_dir }}"
+      export GOPATH=${GOPATH:-$HOME/go}
+      export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
+    dest: "/etc/profile.d/go_path.sh"
+    force: true
+
+- name: verify Go installation
+  ansible.builtin.shell: |
+    . /etc/profile
+    go version

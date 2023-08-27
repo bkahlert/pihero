@@ -29,7 +29,7 @@
 
 - name: add package bin directory to PATH
   ansible.builtin.copy:
-    content: >
+    content: |
       export PATH=$PATH:{{ package_dir }}/bin
     dest: "/etc/profile.d/pihero_path.sh"
     force: true

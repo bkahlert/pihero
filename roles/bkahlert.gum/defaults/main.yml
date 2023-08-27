@@ -1,4 +1,4 @@
 ---
-apt_keyrings_dir: /etc/apt/keyrings
-charm_apt_repo_url: https://repo.charm.sh/apt
-charm_apt_repo_name: charm
+go_version: 1.20.7 # don't use 1.21.0, the armv6 build requires armv7
+go_root_dir: /usr/local/go
+go_bin_dir: /usr/local/bin
