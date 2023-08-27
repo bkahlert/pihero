@@ -4,15 +4,9 @@
   max_fail_percentage: 0
   become: true
   pre_tasks:
-    - name: gather fact group_members
-      block:
-        - name: get group_entries
-          shell: "getent group"
-          register: group_entries
-        - name: set fact group_members
-          set_fact:
-            group_members: "{{ group_members | default({}) | combine({item.split(':')[0]: item.split(':')[3].split(',') if item.split(':')[3] else []}) }}"
-          loop: "{{ group_entries.stdout_lines }}"
+    - name: ensure the group_members fact is set
+      import_tasks: tasks/ensure-group_members-fact.yml
+
     - name: request passwords
       include_tasks: tasks/request-password.yml
       loop: "{{ group_members['users'] | default([]) }}"
@@ -21,9 +15,10 @@
       import_tasks: tasks/apt-update.yml
 
   roles:
-    - role: pihero
-    - role: pihero_splash
-    - role: device_info
-    - role: smb_shares
-    - role: usb_gadget
-    - role: bt_pan
+    - { role: bkahlert.gum, become: true }
+    - { role: pihero }
+    - { role: pihero_splash }
+    - { role: device_info }
+    - { role: smb_shares }
+    - { role: usb_gadget }
+    - { role: bt_pan }

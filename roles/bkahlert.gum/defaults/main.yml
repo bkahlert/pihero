@@ -1,0 +1,4 @@
+---
+apt_keyrings_dir: /etc/apt/keyrings
+charm_apt_repo_url: https://repo.charm.sh/apt
+charm_apt_repo_name: charm

@@ -1,0 +1,11 @@
+---
+- name: gather fact group_members
+  when: group_members is not defined
+  block:
+    - name: get group_entries
+      shell: "getent group"
+      register: group_entries
+    - name: set fact group_members
+      set_fact:
+        group_members: "{{ group_members | default({}) | combine({item.split(':')[0]: item.split(':')[3].split(',') if item.split(':')[3] else []}) }}"
+      loop: "{{ group_entries.stdout_lines }}"

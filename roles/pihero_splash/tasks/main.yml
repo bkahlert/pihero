@@ -2,12 +2,14 @@
 - name: silence boot
   import_tasks: silent-boot.yml
 
-- name: copy files
-  ansible.builtin.copy:
-    src: files/
-    dest: "{{ package_dir }}/"
-    force: true
+- name: copy bash files
   become: true
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ package_dir }}/{{ item | basename }}"
+    force: true
+  with_fileglob:
+    - files/*.bash
 
 # themes are located at /usr/share/plymouth/themes
 # for custom themes, https://github.com/HerbFargus/plymouth-themes seems to be a good starting point
@@ -17,8 +19,15 @@
     name: [ plymouth, plymouth-themes ]
     state: present
 
+- name: copy themes
+  become: true
+  ansible.builtin.copy:
+    src: "files/themes/"
+    dest: "{{ plymouth_themes_dir }}/"
+    force: true
+
 - name: set plymouth theme
-  ansible.builtin.shell: plymouth-set-default-theme --rebuild-initrd {{ splash.theme | default('spinner') }}
+  ansible.builtin.shell: plymouth-set-default-theme --rebuild-initrd pihero
   become: true
 
 - name: enable splash screen

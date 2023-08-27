@@ -1,0 +1,7 @@
+galaxy_info:
+  author: Björn Kahlert
+  description: A role to install [Gum—A tool for glamorous shell scripts](https://github.com/charmbracelet/gum)
+  license: MIT
+  min_ansible_version: 2.1
+  galaxy_tags: [ shell, bash, ansi, gum, charmbracelet ]
+dependencies: [ ]
