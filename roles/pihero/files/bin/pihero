@@ -27,25 +27,17 @@ main() {
         exit
     }
     [ ! "$1" = --hero-animate ] || {
-        hero_animate --margin 1 --loops 1 <(CLICOLOR_FORCE=1 hero_frames) >&2
-        #        hero_animate --margin 1 --loops -1 < <(CLICOLOR_FORCE=1 hero_frames) &
-        wait
+        hero_animate --vertical-padding 1 --loops 1 <(CLICOLOR_FORCE=1 hero_frames) >&2
+        exit
+    }
+    [ ! "$1" = --hero-animate-pre-rendered ] || {
+        hero_animate_pre_rendered --vertical-padding 1 --loops 1 >&2
         exit
     }
 
-    # Save cursor position and hide cursor
-    printf "\e7\e[?25l" >&2
-
-    # Clear that line
-    tput el
-    printf '\n' >&2
-    hero_animate_static
     local animation_pid
     if [ $# = 0 ] && is_tty; then
-        trap 'tput cnorm' EXIT
-        tput civis # hide cursor
-        printf '\n'
-        hero_animate_static &
+        hero_animate_pre_rendered --vertical-padding 1 --loops 1 --cleanup 0 >&2 &
         animation_pid=$!
     fi
 
@@ -54,10 +46,10 @@ main() {
     local extensions && mapfile -t extensions < <(list_extensions "${extension_dirs[@]}")
 
     if [ "$animation_pid" ] && kill -0 "$animation_pid" 2>/dev/null; then
-        kill "$animation_pid"
+        wait "$animation_pid"
     fi
 
-    [ $# -gt 0 ] || exec_completed --name command diag "${extensions[@]}"
+    [ $# -gt 0 ] || GUM_CHOOSE_HEADER=' ' exec_completed --name command diag "${extensions[@]}"
     local cmd=$1 && shift
 
     # run all diagnostics
@@ -96,7 +88,7 @@ main() {
             local subcommands && mapfile -t subcommands < <(list_extension_commands "$extension" "${extension_dirs[@]}")
             [ "${#subcommands[@]}" -gt 0 ] || hero_die sad "no commands found for extension $extension"
 
-            [ $# -gt 0 ] || exec_completed --name subcommand "${subcommands[@]}" -- "$cmd"
+            [ $# -gt 0 ] || GUM_CHOOSE_HEADER=' ' exec_completed --name subcommand "${subcommands[@]}" -- "$cmd"
             local subcmd=$1 && shift
 
             local subcommand

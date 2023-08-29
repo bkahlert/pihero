@@ -95,7 +95,7 @@ hero() {
         )
 
         # add hand graphemes
-        local hands=("⫎" "⊐") hand_char
+        local hands=("⫎" "⫎" "⫎" "⊐" "⊐" "⊐") hand_char
         while IFS='' read -r hand_char; do
             graphemes+=('{{ Foreground "11" "'"$hand_char"'" }}')
         done < <(echo "${hands[$((frame % ${#hands[@]}))]}" | grep -o .)
@@ -150,55 +150,39 @@ hero_frames() {
     done
 }
 
-#restore_terminal_state() {
-#		p.renderer.showCursor()
-#		p.renderer.disableMouseCellMotion()
-#		p.renderer.disableMouseAllMotion()
-#
-#		if p.renderer.altScreen() {
-#			p.renderer.exitAltScreen()
-#
-#			// give the terminal a moment to catch up
-#			time.Sleep(time.Millisecond * 10) //nolint:gomnd
-#		}
-#
-#		err := p.console.Reset()
-#		if err != nil {
-#			return fmt.Errorf("error restoring terminal state: %w", err)
-#		}
-#
-#	 p.restoreInput()
-#}
-
-# Runs tput -S with each argument appearing on a separate line.
-tputs() {
-    printf '%s\n' "$@" | tput -S
-}
-
 # Prints all frames line by line that create the animation of
 # the Pi Hero kaomoji flying-in from the left.
 # Globals:
 #   None
 # Arguments:
-#   margin (int, default: 0): Number of empty lines to print before and after the animation.
-#   loops (int, default: 0): Number of loops to play, for unlimited use -1.
+#   vertical-padding (int, default: 0): Number of empty lines to add before and after the animation.
+#   frame-delay (float, default: 0.04): Number of seconds to wait between frames.
+#   loops (int, default: 0): How many times to repeat the part where's no horizontal movement, or –1 for infinite.
+#   cleanup (bool, default: 1): Whether to restore the terminal's state afterward.
 #   $@: file ...: files containing the frames of the animation; use - for stdin
 # Outputs:
-#   1: TODO
+#   1: The terminal output for the animation.
 # Returns:
 #   0: Frames successfully printed.
 #   1: An error occurred.
 hero_animate() {
-    local margin=0
+    local py=0
+    local frame_delay=0.04
     local -i loops=0
-    local -i loop_frames=10
+    local cleanup=1
     while [ $# -gt 0 ]; do
         case "$1" in
-        --margin=*)
-            margin="${1#*=}" && shift
+        --vertical-padding=*)
+            py="${1#*=}" && shift
             ;;
-        --margin)
-            shift && margin=${1?margin: parameter value not set} && shift
+        --vertical-padding)
+            shift && py=${1?vertical-padding: parameter value not set} && shift
+            ;;
+        --frame-delay=*)
+            frame_delay="${1#*=}" && shift
+            ;;
+        --frame-delay)
+            shift && frame_delay=${1?frame-delay: parameter value not set} && shift
             ;;
         --loops=*)
             loops="${1#*=}" && shift
@@ -206,43 +190,73 @@ hero_animate() {
         --loops)
             shift && loops=${1?loops: parameter value not set} && shift
             ;;
+        --cleanup=*)
+            cleanup="${1#*=}" && shift
+            ;;
+        --cleanup)
+            shift && cleanup=${1?cleanup: parameter value not set} && shift
+            ;;
         *)
             break
             ;;
         esac
     done
 
-    local prefix='' postfix=''
-    for (( ; margin > 0; margin--)); do
-        prefix="$prefix"$'\n'
-        postfix="$postfix"$'\n'
+    local py_lines=0
+    local pt=''
+    local pb=''
+    for (( ; py > 0; py--)); do
+        pt="$pt"$'\n'
+        pb="$pb"$'\n'
+        py_lines=$((py_lines + 2))
     done
-    postfix="${postfix%$'\n'}"
-    prefix=''
-    postfix=''
 
     local loop_buffer && loop_buffer=$(mktemp)
-    #    trap "printf '\n\e8\e[?25h'" EXIT # restore cursor position and show cursor
-    trap 'tput cub "$(tput cols)"
-          tput el
-          tput cnorm
-         ' EXIT # restore cursor position and show cursor
+    # setup cleanup trap
     {
-        # store cursor \e8
-        tput civis # hide cursor
+        local cleanup_steps=()
+        cleanup_steps+=("rm -f '$loop_buffer' 2>/dev/null || true")
+        if [ ! "$cleanup" = 0 ]; then
+            cleanup_steps+=('tput cub "$(tput cols)"')
+            cleanup_steps+=('tput el')
+            [ "$py_lines" = 0 ] || {
+                local i
+                for ((i = 0; i < py_lines; i++)); do
+                    cleanup_steps+=('tput cuu 1')
+                    cleanup_steps+=('tput el')
+                done
+            }
+            cleanup_steps+=('tput sgr0')
+            cleanup_steps+=('tput cnorm')
+        fi
+        # shellcheck disable=SC2064
+        trap "$(printf '%s\n' "${cleanup_steps[@]}")" EXIT
     }
 
+    tput civis # hide cursor
     while read -r frame; do
-        tputs "cub $(tput cols)" "el" # move the cursor to the start of the line and clear the line
-        printf '%s%s%s' "$prefix" "$frame" "$postfix"
+        printf '%s%s%s' "$pt" "$frame" "$pb"
+        tput cub "$(tput cols)"
+        [ "$py_lines" = 0 ] || tput cuu "$py_lines"
         sleep 0.04
     done < <(
         if [ "$loops" -eq 0 ]; then
             # no loops: just print the frames once
             cat "$@"
         else
-            # looping: save the last frames of the read frames in a buffer
-            cat "$@" | tee >(tail -"$loop_frames" >"$loop_buffer")
+            # looping: print the frames ...
+            cat "$@" | tee >(
+                # ... and buffer the last frames with the same line length
+                local buffered_lines=() buffered_consecutive_line_length=-1 stripped_line stripped_line_length
+                while IFS='' read -r line; do
+                    stripped_line=$(printf '%s\n' "$line" | remove_ansi_escapes)
+                    stripped_line_length=${#stripped_line}
+                    [ "$buffered_consecutive_line_length" = "$stripped_line_length" ] || buffered_lines=()
+                    buffered_consecutive_line_length=$stripped_line_length
+                    buffered_lines+=("$line")
+                done
+                printf '%s\n' "${buffered_lines[@]}" >"$loop_buffer"
+            )
             # print the buffer until loops are reached or the buffer no longer exists
             while [ "$loops" -ne 0 ] && [ -f "$loop_buffer" ]; do
                 cat "$loop_buffer" || exit # if anything goes wrong, reading from the buffer, exit
@@ -251,25 +265,28 @@ hero_animate() {
         fi
     )
 }
-# "q", "esc", "ctrl+c"
-# \n\n   %s Loading forever...press q to quit\n\n
-hero_animate_static() {
 
-    hero_animate <(printf '%s' '
+hero_animate_pre_rendered() {
+    # to create, type: pihero --hero-frames | pbcopy
+    hero_animate "$@" <(printf '%s' '
 [93m⫎[0m
-[30;43m][0m[93m⊐[0m
+[30;43m][0m[93m⫎[0m
 [30;43m•[0m[30;43m][0m[93m⫎[0m
 [91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
 [31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
 [30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
 [90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
 [90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
 [33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
 [33m─[0m[33m-[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[33m─[0m[33m─[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[33m─[0m[33m─[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
  [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+ [33m─[0m[33m=[0m[33m-[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+ [33m─[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+ [33m─[0m[33m─[0m[33m-[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+ [33m─[0m[33m─[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
 ')
 }
