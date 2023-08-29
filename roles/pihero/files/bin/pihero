@@ -7,81 +7,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # shellcheck source=./../lib/lib.bash
 source "$SCRIPT_DIR/../lib/lib.bash"
 
-# Prints the Pi Hero kaomoji in the given mood.
-# Globals:
-#   None
-# Arguments:
-#   test (flag, optional): If specified, print one kaomoji for each mood.
-#   mood (string, default: neutral): The mood to use.
-# Outputs:
-#   1: The kaomoji in the given mood.
-# Returns:
-#   0: Always
-hero() {
-    local mood=neutral face
-
-    if [ $# -gt 0 ] && [ "$1" = --test ]; then
-        shift
-        local rows=()
-        for mood in neutral happy sad unknown; do
-            m=$(gum style --faint "$mood")
-            k=$(CLICOLOR_FORCE=${CLICOLOR_FORCE-1} hero --mood "$mood")
-            row=$(gum join --vertical --align center "$k" '' "$m")
-            rows+=("$(gum style --padding "1 2" "$row")")
-        done
-        gum join --vertical "${rows[@]}"
-        exit
-    fi
-
-    while [ $# -gt 0 ]; do
-        case "$1" in
-        --mood=*)
-            mood="${1#*=}" && shift
-            ;;
-        --mood)
-            shift && mood=${1?mood: parameter value not set} && shift
-            ;;
-        *)
-            break
-            ;;
-        esac
-    done
-
-    case "$mood" in
-    neutral)
-        face=(' ' '蓬' '•' 'ｏ' '•' '')
-        ;;
-    0 | happy)
-        face=('' '✿' '＾' 'ｖ' '＾' '')
-        ;;
-    1 | 2 | sad)
-        face=(' ' '༶' '◕' '︿' '◕' ' ')
-        ;;
-    *)
-        face=('' '༶' '´⊙' '﹏' '⊙`' '')
-        ;;
-    esac
-
-    local parts=(
-        '{{ Foreground "3" "─" }}'
-        '{{ Foreground "3" "=" }}'
-        '{{ Foreground "3" "≡" }}'
-        '{{ Foreground "9" "Σ" }}'
-        '{{ Color "8" "9" "(" }}'
-        '{{ Color "8" "9" "(" }}'
-        '{{ Color "0" "3" "[" }}'
-        '{{ Color "0" "3" "'"${face[0]}"'" }}'
-        '{{ Color "1" "3" "'"${face[1]}"'" }}'
-        '{{ Color "0" "3" "'"${face[2]}"'" }}'
-        '{{ Color "9" "3" "'"${face[3]}"'" }}'
-        '{{ Color "0" "3" "'"${face[4]}"'" }}'
-        '{{ Color "1" "3" "'"${face[5]}"'" }}'
-        '{{ Color "0" "3" "]" }}'
-        '{{ Foreground "11" "⊐" }}'
-    )
-    gum format --type template "$(printf '%s' "${parts[@]}")"
-}
-
 customize_cli() {
     if is_tty; then
         export DIE_TEMPLATE && DIE_TEMPLATE=" $(hero --mood sad) "'{{ Foreground "1" "%s" }}'$'\n'
@@ -92,17 +17,45 @@ customize_cli() {
     export GUM_CHOOSE_CURSOR_FOREGROUND='11' # 3=yellow + 8=bright
 }
 
-# TODO call share with sudo
-
 main() {
-    if [ "$1" = --test ]; then
-        hero "$@"
-        exit $?
+    [ ! "$1" = --hero-moods ] || {
+        shift && hero --moods "$@"
+        exit
+    }
+    [ ! "$1" = --hero-frames ] || {
+        CLICOLOR_FORCE=1 hero_frames
+        exit
+    }
+    [ ! "$1" = --hero-animate ] || {
+        hero_animate --margin 1 --loops 1 <(CLICOLOR_FORCE=1 hero_frames) >&2
+        #        hero_animate --margin 1 --loops -1 < <(CLICOLOR_FORCE=1 hero_frames) &
+        wait
+        exit
+    }
+
+    # Save cursor position and hide cursor
+    printf "\e7\e[?25l" >&2
+
+    # Clear that line
+    tput el
+    printf '\n' >&2
+    hero_animate_static
+    local animation_pid
+    if [ $# = 0 ] && is_tty; then
+        trap 'tput cnorm' EXIT
+        tput civis # hide cursor
+        printf '\n'
+        hero_animate_static &
+        animation_pid=$!
     fi
 
     customize_cli
     local extension_dirs=("$SCRIPT_DIR/..")
     local extensions && mapfile -t extensions < <(list_extensions "${extension_dirs[@]}")
+
+    if [ "$animation_pid" ] && kill -0 "$animation_pid" 2>/dev/null; then
+        kill "$animation_pid"
+    fi
 
     [ $# -gt 0 ] || exec_completed --name command diag "${extensions[@]}"
     local cmd=$1 && shift

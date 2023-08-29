@@ -3,6 +3,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # shellcheck source=./cli.bash
 source "$SCRIPT_DIR/cli.bash"
 
+# shellcheck source=./hero.bash
+source "$SCRIPT_DIR/hero.bash"
+
 # shellcheck source=./extensions.bash
 source "$SCRIPT_DIR/extensions.bash"
 

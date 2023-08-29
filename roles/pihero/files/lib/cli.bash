@@ -117,7 +117,6 @@ remove_ansi_escapes() {
     LC_ALL=C sed "$pattern"
 }
 
-export GUM_CHOOSE_HEADER=' '
 export GUM_CHOOSE_ITEM_FOREGROUND=''
 
 usage() {
