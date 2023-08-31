@@ -5,116 +5,147 @@ shopt -s nullglob # expand to nothing if no match
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # shellcheck source=./../lib/lib.bash
-source "$SCRIPT_DIR/../lib/lib.bash"
+. "$SCRIPT_DIR/../lib/lib.bash"
 
 customize_cli() {
-    if is_tty; then
-        export DIE_TEMPLATE && DIE_TEMPLATE=" $(hero --mood sad) "'{{ Foreground "1" "%s" }}'$'\n'
-    fi
-
     export GUM_CHOOSE_CURSOR
-    GUM_CHOOSE_CURSOR=" $(CLICOLOR_FORCE=1 hero --mood=neutral) "
-    export GUM_CHOOSE_CURSOR_FOREGROUND='11' # 3=yellow + 8=bright
+    export GUM_CHOOSE_CURSOR_LENGTH=18
+    if is_tty; then
+        local neutral_hero
+        neutral_hero=$(CLICOLOR_FORCE=1 caching tty -- hero --mood=neutral)
+        GUM_CHOOSE_CURSOR=" $neutral_hero "
+
+        local sad_hero
+        sad_hero=$(CLICOLOR_FORCE=1 caching tty -- hero --mood=sad)
+        export DIE_TEMPLATE=$'\n'" $sad_hero "'{{ Foreground "1" "%s" }}'$'\n'
+        export GUM_CHOOSE_CURSOR_FOREGROUND='11' # 3=yellow + 8=bright
+    else
+        local neutral_hero
+        neutral_hero=$(CLICOLOR_FORCE=1 caching notty -- hero --mood=neutral)
+        GUM_CHOOSE_CURSOR=" $neutral_hero "
+    fi
 }
 
 main() {
-    [ ! "$1" = --hero-moods ] || {
-        shift && hero --moods "$@"
-        exit
+    local debug=0
+    local time_main_start=$((${EPOCHREALTIME/./} / 1000))
+    {
+        # debugging options that should be place elsewhere
+        [ ! "$1" = --hero-moods ] || {
+            shift && hero --moods "$@"
+            exit
+        }
+        [ ! "$1" = --hero-frames ] || {
+            CLICOLOR_FORCE=1 hero_frames
+            exit
+        }
+        [ ! "$1" = --hero-animate ] || {
+            hero_animate --vertical-padding 1 --loops 1 <(CLICOLOR_FORCE=1 hero_frames) >&2
+            exit
+        }
+        [ ! "$1" = --hero-animate-pre-rendered ] || {
+            hero_animate_pre_rendered --vertical-padding 1 --loops 1 >&2
+            exit
+        }
+        [ ! "$1" = --hero-animate-pre-rendered2 ] || {
+            hero_animate_pre_rendered2 --vertical-padding 1 --loops 1 >&2
+            exit
+        }
     }
-    [ ! "$1" = --hero-frames ] || {
-        CLICOLOR_FORCE=1 hero_frames
-        exit
-    }
-    [ ! "$1" = --hero-animate ] || {
-        hero_animate --vertical-padding 1 --loops 1 <(CLICOLOR_FORCE=1 hero_frames) >&2
-        exit
-    }
-    [ ! "$1" = --hero-animate-pre-rendered ] || {
-        hero_animate_pre_rendered --vertical-padding 1 --loops 1 >&2
-        exit
-    }
 
-    local animation_pid
-    if [ $# = 0 ] && is_tty; then
-        hero_animate_pre_rendered --vertical-padding 1 --loops 1 --cleanup 0 >&2 &
-        animation_pid=$!
-    fi
-
-    customize_cli
-    local extension_dirs=("$SCRIPT_DIR/..")
-    local extensions && mapfile -t extensions < <(list_extensions "${extension_dirs[@]}")
-
-    if [ "$animation_pid" ] && kill -0 "$animation_pid" 2>/dev/null; then
-        wait "$animation_pid"
-    fi
-
-    [ $# -gt 0 ] || GUM_CHOOSE_HEADER=' ' exec_completed --name command diag "${extensions[@]}"
-    local cmd=$1 && shift
-
-    # run all diagnostics
-    if [ "$cmd" = diag ]; then
-        printf "\n %s \e[1;33m%s\e[0m\n\n" "$(hero --mood=neutral)" "Pi Hero" >&2
-        local result=0 diagnostics=()
-
-        for cmd in "${extensions[@]}"; do
-            run_extension_command "$cmd" diag "${extension_dirs[@]}"
-            diagnostics+=("$cmd" "$?")
-            printf '\n' >&2
-        done
-
-        local summary=''
-        while ((${#diagnostics[@]} > 0)); do
-            local icon
-            if [ "${diagnostics[1]}" -eq 0 ]; then
-                printf -v icon '\e[32m✔︎\e[0m'
-            else
-                printf -v icon '\e[31m✘︎\e[0m'
-                result=1
-            fi
-            printf -v summary '%s   \e[1m%s %s\e[0m' "$summary" "${diagnostics[0]}" "$icon"
-            diagnostics=("${diagnostics[@]:2}")
-        done
-        printf ' %s%s\n' "$(hero --mood="$result")" "$summary" >&2
-        printf '\n' >&2
-
-        exit "$result"
-    fi
-
-    # match extension command
-    local extension
-    for extension in "${extensions[@]}"; do
-        if [ "$cmd" = "$extension" ]; then
-            local subcommands && mapfile -t subcommands < <(list_extension_commands "$extension" "${extension_dirs[@]}")
-            [ "${#subcommands[@]}" -gt 0 ] || hero_die sad "no commands found for extension $extension"
-
-            [ $# -gt 0 ] || GUM_CHOOSE_HEADER=' ' exec_completed --name subcommand "${subcommands[@]}" -- "$cmd"
-            local subcmd=$1 && shift
-
-            local subcommand
-            for subcommand in "${subcommands[@]}"; do
-                if [ "$subcmd" = "$subcommand" ]; then
-                    run_extension_command "$cmd" "$subcmd" "${extension_dirs[@]}" -- "$@"
-                    exit $?
-                fi
-            done
-
-            # no subcommand matched
-            usage --name subcommand "${subcommands[@]}" -- "$cmd"
-            for t in 0 1 2; do
-                if [ -t "$t" ]; then
-                    echo "t$t: yes"
-                else
-                    echo "t$t: no"
-                fi
-            done
-            die "subcommand $subcmd not found"
-        fi
+    local cmd
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --*)
+            die "The provided option %p is unknown." "$1"
+            ;;
+        *)
+            cmd=$1 && shift && break
+            ;;
+        esac
     done
 
-    # no command matched
-    usage --name command diag "${extensions[@]}"
-    die "command $cmd not found"
+    local extension_dirs=("$SCRIPT_DIR/..") extensions
+    extensions=$(caching -- get_extensions "${extension_dirs[@]}") || die "Failed to load the extensions at %p." "${extension_dirs[*]}"
+
+    local commands=() curr_ext_file _ curr_ext_name
+    while IFS=: read -r curr_ext_file _ curr_ext_name; do
+        commands+=("$curr_ext_name")
+    done <<<"$extensions"
+
+    local exit_code
+    if is_interactive; then
+        local time_interactive_start=$((${EPOCHREALTIME/./} / 1000))
+
+        local animation_pid animation_start=$((${EPOCHREALTIME/./} / 1000))
+        #        if [ $# = 0 ] && is_tty; then
+        #            hero_animate_pre_rendered --vertical-padding 2 --loops 0 --cleanup 0 >&2 &
+        #            animation_pid=$!
+        #        fi
+
+        customize_cli
+
+        if [ -n "$animation_pid" ] && kill -0 "$animation_pid" 2>/dev/null; then
+            local ready_start=$((${EPOCHREALTIME/./} / 1000))
+            local elapsed=$((ready_start - animation_start))
+            #            if [ "$elapsed" -lt 1000 ]; then
+            #                sleep "0.$(printf "%03d" $((1000 - elapsed)))"
+            #            fi
+            wait "$animation_pid"
+            #                kill "$animation_pid" 2>/dev/null
+            #            kill "$animation_pid"
+        fi
+
+        local bold='' && bold=$(tput bold)
+        local dim='' && dim=$(tput dim)
+        local header_pattern="\n%$((GUM_CHOOSE_CURSOR_LENGTH - 1))s %-10s %8s"
+        while true; do
+            printf -v header "$header_pattern" \
+                "" "${bold}Pi Hero" "Esc"
+
+            local time_cmd_option_start=$((${EPOCHREALTIME/./} / 1000))
+
+            if [ -z "$cmd" ]; then
+                if ! cmd=$(gum choose --header="$header" --selected="${commands[0]}" "${commands[@]}"); then
+                    exit 130
+                fi
+                local time_cmd_option_end=$((${EPOCHREALTIME/./} / 1000))
+            fi
+
+            [ "$debug" = 0 ] || printf '%10s %10d\n' \
+                "start" "$time_main_start" \
+                "interaction" "$((time_interactive_start - time_main_start))" \
+                "option-start" "$((time_cmd_option_start - time_interactive_start))" \
+                "option-end" "$((time_cmd_option_end - time_cmd_option_start))" >&2
+
+            printf -v header "$header_pattern" \
+                "" "${dim}Pi Hero" "" \
+                "" "${bold}$cmd" "Esc"
+            (
+                GUM_CHOOSE_HEADER=$header \
+                    GUM_CHOOSE_CURSOR=$GUM_CHOOSE_CURSOR \
+                    run_extension --extensions "$extensions" --extension-name "$cmd" -- "$@"
+            )
+            exit_code=$?
+            if [ "$exit_code" -eq 130 ]; then
+                cmd=''
+            else
+                break
+            fi
+        done
+    else
+        [ -n "$cmd" ] || die --code 2 "The command to run is missing."
+        local exit_code
+        (run_extension --extensions "$extensions" --extension-name "$cmd" -- "$@")
+        exit_code=$?
+    fi
+
+    if [ "$exit_code" -ge 123 ] && [ "$exit_code" -lt 128 ]; then
+        die --code "$exit_code" "Failed to run the extension command %p." "$cmd"
+    elif [ "$exit_code" -gt 2 ]; then
+        die --code "$exit_code" "The command %p terminated with exit code %s." "$cmd" "$exit_code"
+    fi
+    exit "$exit_code"
 }
 
 main "$@"

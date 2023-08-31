@@ -67,7 +67,9 @@ style() {
 #   DIE_TEMPLATE (string, default: "$(basename $0): error: %s"): The template used to format the error message, see `gum format --help` for more information.
 # Arguments:
 #   code (int, default: 1): exit code
-#   $*: error message
+#   $@: printf format and arguments; the result represents the error message used for the DIE_TEMPLATE
+#       In addition to the usual printf format specifiers, the following extensions are supported:
+#       - %p: same as %s, but semantically highlighted to denote a parameter
 # Outputs:
 #   STDERR: error message
 # Returns:
@@ -88,8 +90,19 @@ die() {
             ;;
         esac
     done
+
+    local error_message
+    if [ $# = 0 ]; then
+        error_message='An error occurred in .'
+    else
+        local format=$1 && shift
+        # transform %p to %s
+        format=$(sed -E 's|%([^%p]*)p|\\e[3m%\1s\\e[23m|g' <<<"$format")
+        # shellcheck disable=SC2059
+        printf -v error_message -- "$format" "$@"
+    fi
     {
-        gum format --type template "${template//%s/$*}"
+        gum format --type template "${template//%s/$error_message}"
         printf '\n'
     } >&2
     exit "$code"
@@ -143,52 +156,5 @@ usage() {
         printf '\n'
         printf '{{ Bold "%s:" }}\n' "${name^}s"
         [ "${#options[@]}" = 0 ] || printf '  %s\n' "${options[@]}"
-        printf '\n'
     } | gum format --type template
-}
-
-# Executes this script with the missing argument interactively chosen
-# from the provided options by the user.
-# If the missing argument can't be determined, the usage and an error message are printed.
-# Globals:
-#   None
-# Arguments:
-#   name (string, default: "argument"): The name of the missing argument.
-#   $@ (string): The options to choose from.
-#   -- (string): The arguments that follow the first "--" are passed to the script as the first arguments.
-# Outputs:
-#   Same as this script invoked with missing parameter.
-#   If the missing argument can't be determined:
-#   STDOUT: optional usage
-#   STDERR: error message
-# Returns:
-#   Same as this script invoked with missing parameter.
-#   If the user cancels the selection: > 128
-#   If the missing argument can't be determined: 1
-exec_completed() {
-    local name="argument" args=() options=() choice
-    while [ $# -gt 0 ]; do
-        case "$1" in
-        --name)
-            shift && name=${1?name: parameter value not set} && shift
-            ;;
-        --)
-            shift && break
-            ;;
-        *)
-            options+=("$1") && shift
-            ;;
-        esac
-    done
-    args=("$@")
-    if is_interactive; then
-        choice=$(gum choose "${options[@]}") || exit
-    fi
-
-    if [ "$choice" ]; then
-        exec "$0" "${args[@]}" "$choice"
-    else
-        usage --name "$name" "${options[@]}" -- "${args[@]}"
-        die "$name missing"
-    fi
 }

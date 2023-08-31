@@ -56,7 +56,12 @@ hero() {
     local graphemes=()
     {
         # add tail graphemes
-        local tails=("─=-" "──=" "──-" "──≡" "─=≡") tail_char
+        local tails=(
+            "-─=" "-─=" "-─="
+            " -─" " -─" " -─"
+            "-─=" "-─=" "-─="
+            "─=≡" "─=≡" "─=≡"
+        ) tail_char
         while IFS='' read -r tail_char; do
             graphemes+=('{{ Foreground "3" "'"$tail_char"'" }}')
         done < <(echo "${tails[$((frame % ${#tails[@]}))]}" | grep -o .)
@@ -95,7 +100,10 @@ hero() {
         )
 
         # add hand graphemes
-        local hands=("⫎" "⫎" "⫎" "⊐" "⊐" "⊐") hand_char
+        local hands=(
+            "⫎" "⫎" "⫎" "⫎" "⫎" "⫎"
+            "⊐" "⊐" "⊐" "⊐" "⊐" "⊐"
+        ) hand_char
         while IFS='' read -r hand_char; do
             graphemes+=('{{ Foreground "11" "'"$hand_char"'" }}')
         done < <(echo "${hands[$((frame % ${#hands[@]}))]}" | grep -o .)
@@ -156,7 +164,7 @@ hero_frames() {
 #   None
 # Arguments:
 #   vertical-padding (int, default: 0): Number of empty lines to add before and after the animation.
-#   frame-delay (float, default: 0.04): Number of seconds to wait between frames.
+#   ideal-frame-ms (int, default: 50): Number of milliseconds to pass between frames. If the number is too ambitious, the frames are dropped as required.
 #   loops (int, default: 0): How many times to repeat the part where's no horizontal movement, or –1 for infinite.
 #   cleanup (bool, default: 1): Whether to restore the terminal's state afterward.
 #   $@: file ...: files containing the frames of the animation; use - for stdin
@@ -166,8 +174,16 @@ hero_frames() {
 #   0: Frames successfully printed.
 #   1: An error occurred.
 hero_animate() {
+    # First, hide the cursor and make sure it's restored on exit.
+    local tput_civis tput_cnorm
+    tput_civis=$(tput civis)
+    tput_cnorm=$(tput cnorm)
+    # shellcheck disable=SC2064
+    trap 'printf %s "'"$tput_cnorm"'"' EXIT
+    printf %s "$tput_civis"
+
     local py=0
-    local frame_delay=0.04
+    local ideal_frame_ms=50
     local -i loops=0
     local cleanup=1
     while [ $# -gt 0 ]; do
@@ -178,11 +194,11 @@ hero_animate() {
         --vertical-padding)
             shift && py=${1?vertical-padding: parameter value not set} && shift
             ;;
-        --frame-delay=*)
-            frame_delay="${1#*=}" && shift
+        --ideal-frame-ms=*)
+            ideal_frame_ms="${1#*=}" && shift
             ;;
-        --frame-delay)
-            shift && frame_delay=${1?frame-delay: parameter value not set} && shift
+        --ideal-frame-ms)
+            shift && ideal_frame_ms=${1?ideal-frame-ms: parameter value not set} && shift
             ;;
         --loops=*)
             loops="${1#*=}" && shift
@@ -202,91 +218,202 @@ hero_animate() {
         esac
     done
 
-    local py_lines=0
+    local i
     local pt=''
     local pb=''
-    for (( ; py > 0; py--)); do
+    for ((i = 0; i < py; i++)); do
         pt="$pt"$'\n'
         pb="$pb"$'\n'
-        py_lines=$((py_lines + 2))
     done
 
-    local loop_buffer && loop_buffer=$(mktemp)
+    # Caching the escape sequences speeds up the animation about 10x,
+    # for example, on a Raspberry Pi Zero, 0.5 s vs 5 s
+    local tput_cols tput_cub_cols tput_cuu1 tput_cuu_py='' tput_el tput_sgr0
+    tput_cols=$(tput cols)
+    tput_cub_cols=$(tput cub "$tput_cols")
+    tput_cuu1=$(tput cuu1 2>/dev/null || tput cuu 1)
+    if [ "$py" -gt 0 ]; then
+        for ((i = 0; i < py; i++)); do
+            tput_cuu_py+="$tput_cuu1"
+        done
+    fi
+    tput_el=$(tput el)
+    tput_sgr0=$(tput sgr0)
+
     # setup cleanup trap
     {
         local cleanup_steps=()
-        cleanup_steps+=("rm -f '$loop_buffer' 2>/dev/null || true")
         if [ ! "$cleanup" = 0 ]; then
-            cleanup_steps+=('tput cub "$(tput cols)"')
-            cleanup_steps+=('tput el')
-            [ "$py_lines" = 0 ] || {
-                local i
-                for ((i = 0; i < py_lines; i++)); do
-                    cleanup_steps+=('tput cuu 1')
-                    cleanup_steps+=('tput el')
+            cleanup_steps+=('printf "'$'\n''"')
+            cleanup_steps+=('printf %s "'"$tput_cub_cols"'" "'"$tput_el"'"')
+            if [ "$py" -gt 0 ]; then
+                for ((i = 0; i < py; i++)); do
+                    cleanup_steps+=('printf %s "'"$tput_cuu1"'" "'"$tput_el"'"')
                 done
-            }
-            cleanup_steps+=('tput sgr0')
-            cleanup_steps+=('tput cnorm')
+            fi
+            cleanup_steps+=('printf %s "'"$tput_sgr0"'" "'"$tput_cnorm"'"')
         fi
         # shellcheck disable=SC2064
         trap "$(printf '%s\n' "${cleanup_steps[@]}")" EXIT
     }
 
-    tput civis # hide cursor
+    printf %s "$tput_civis" # hide cursor
+    local remaining_output last_frame_time current_time elapsed_time available_frame_time
+    last_frame_time=$((${EPOCHREALTIME/./} / 1000))
+    #    if [ -f "/tmp/hero.ansi" ]; then rm /tmp/hero.ansi; fi
     while read -r frame; do
-        printf '%s%s%s' "$pt" "$frame" "$pb"
-        tput cub "$(tput cols)"
-        [ "$py_lines" = 0 ] || tput cuu "$py_lines"
-        sleep 0.04
-    done < <(
-        if [ "$loops" -eq 0 ]; then
-            # no loops: just print the frames once
-            cat "$@"
-        else
-            # looping: print the frames ...
-            cat "$@" | tee >(
-                # ... and buffer the last frames with the same line length
-                local buffered_lines=() buffered_consecutive_line_length=-1 stripped_line stripped_line_length
-                while IFS='' read -r line; do
-                    stripped_line=$(printf '%s\n' "$line" | remove_ansi_escapes)
-                    stripped_line_length=${#stripped_line}
-                    [ "$buffered_consecutive_line_length" = "$stripped_line_length" ] || buffered_lines=()
-                    buffered_consecutive_line_length=$stripped_line_length
-                    buffered_lines+=("$line")
-                done
-                printf '%s\n' "${buffered_lines[@]}" >"$loop_buffer"
-            )
-            # print the buffer until loops are reached or the buffer no longer exists
-            while [ "$loops" -ne 0 ] && [ -f "$loop_buffer" ]; do
-                cat "$loop_buffer" || exit # if anything goes wrong, reading from the buffer, exit
-                [ "$loops" -lt 0 ] || loops=$((loops - 1))
-            done
+        current_time=$((${EPOCHREALTIME/./} / 1000))
+        elapsed_time=$((current_time - last_frame_time))
+        available_frame_time=$((ideal_frame_ms - elapsed_time))
+
+        # prints the frame + padding and moves the cursor back to the original position
+        printf -v remaining_output %s "$pt" "$frame" "$pb" "$tput_cub_cols" "$tput_cuu_py" "$tput_cuu_py"
+        #        printf '%b|' "$remaining_output" >>/tmp/hero.ansi
+
+        if [ $available_frame_time -gt 0 ]; then
+            printf %s "$remaining_output"
+            remaining_output=''
+            sleep $((available_frame_time / 1000))."$(printf "%03d" $((available_frame_time % 1000)))"
         fi
-    )
+
+        last_frame_time=$current_time
+    done < <(caching -- looped_frames --loops "$loops" "$@")
+
+    if [ "$remaining_output" ]; then
+        printf %s "$remaining_output"
+    fi
+}
+
+looped_frames() {
+    local -i loops=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --loops=*)
+            loops="${1#*=}" && shift
+            ;;
+        --loops)
+            shift && loops=${1?loops: parameter value not set} && shift
+            ;;
+        *)
+            break
+            ;;
+        esac
+    done
+
+    if [ "$loops" -eq 0 ]; then
+        # no loops: just print the frames once
+        cat "$@"
+    else
+        local loop_buffer && loop_buffer=$(mktemp)
+        # looping: print the frames ...
+        cat "$@" | tee >(
+            # ... and buffer the last frames with the same line length
+            local buffered_lines=() buffered_consecutive_line_length=-1 stripped_line stripped_line_length
+            while IFS='' read -r line; do
+                stripped_line=$(printf '%s\n' "$line" | remove_ansi_escapes)
+                stripped_line_length=${#stripped_line}
+                [ "$buffered_consecutive_line_length" = "$stripped_line_length" ] || buffered_lines=()
+                buffered_consecutive_line_length=$stripped_line_length
+                buffered_lines+=("$line")
+            done
+            printf '%s\n' "${buffered_lines[@]}" >"$loop_buffer"
+        )
+        # print the buffer until loops are reached or the buffer no longer exists
+        while [ "$loops" -ne 0 ] && [ -f "$loop_buffer" ]; do
+            cat "$loop_buffer" || exit # if anything goes wrong, reading from the buffer, exit
+            [ "$loops" -lt 0 ] || loops=$((loops - 1))
+        done
+    fi
 }
 
 hero_animate_pre_rendered() {
-    # to create, type: pihero --hero-frames | pbcopy
-    hero_animate "$@" <(printf '%s' '
+    local file="/tmp/pihero.pre-rendered.ansi"
+    [ -f "$file" ] || printf %s "$_hero_pre_rendered" >"$file"
+    hero_animate "$@" "$file"
+}
+
+# to create, type: pihero --hero-frames | pbcopy
+_hero_pre_rendered='
 [93m⫎[0m
 [30;43m][0m[93m⫎[0m
 [30;43m•[0m[30;43m][0m[93m⫎[0m
-[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
 [90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
 [91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[33m─[0m[33m-[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[33m─[0m[33m─[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
- [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
- [33m─[0m[33m=[0m[33m-[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
- [33m─[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
- [33m─[0m[33m─[0m[33m-[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
- [33m─[0m[33m─[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-')
+[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+ [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+ [33m [0m[33m-[0m[33m─[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+ [33m [0m[33m-[0m[33m─[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+ [33m [0m[33m-[0m[33m─[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+ [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+ [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+ [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+ [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+ [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+ [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+'
+
+hero_animate_pre_rendered2() {
+    tput civis
+    while IFS='|' read -r output; do
+        printf '%s' "$output"
+        sleep 0.05
+    done <<<"
+[112D[A[A|
+[93m⫎[0m
+[112D[A[A|
+[30;43m][0m[93m⫎[0m
+[112D[A[A|
+[30;43m•[0m[30;43m][0m[93m⫎[0m
+[112D[A[A|
+[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[112D[A[A|
+[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[112D[A[A|
+[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[112D[A[A|
+[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[112D[A[A|
+[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[112D[A[A|
+[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[112D[A[A|
+[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[112D[A[A|
+[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[112D[A[A|
+[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[112D[A[A|
+[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[112D[A[A|
+[33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[112D[A[A|
+ [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[112D[A[A|
+ [33m [0m[33m-[0m[33m─[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[112D[A[A|
+ [33m [0m[33m-[0m[33m─[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[112D[A[A|
+ [33m [0m[33m-[0m[33m─[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
+[112D[A[A|
+ [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[112D[A[A|
+ [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[112D[A[A|
+ [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[112D[A[A|
+ [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[112D[A[A|
+ [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[112D[A[A|
+ [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
+[112D[A[A|"
+    tput cnorm
 }

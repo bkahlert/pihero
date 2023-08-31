@@ -1,0 +1,10 @@
+enable=all
+external-sources=true
+source-path=SCRIPTDIR
+source-path=PWD
+
+# Don't prefer putting braces around variable references even when not strictly required
+disable=SC2250
+
+# Don't prefer [[ ]] over [ ] for tests in Bash/Ksh
+disable=SC2292

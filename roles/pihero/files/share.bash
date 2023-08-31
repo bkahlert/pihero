@@ -3,12 +3,12 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # shellcheck source=./../../pihero/files/lib/lib.bash
-source "$SCRIPT_DIR/lib/lib.bash"
+. "$SCRIPT_DIR/lib/lib.bash"
 
 # TODO call share with sudo
 
 +diag() {
-    local result init_system
+    local result
 
     checks_start "Share diagnostics"
     check "dnsmasq is running" systemctl -q is-active dnsmasq.service

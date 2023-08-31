@@ -112,7 +112,7 @@ main() {
         printf ' Hints: Add -t / --continuous to run the corresponding patch operations whenever a relevant file changes.\n'
         printf '        Type export %sto set a different host and the appropriate option or options for the remainder of your shell session.\n' "$params"
         printf '        Check the source code for more options.\n'
-        exit 1
+        exit 2
     fi
 
     if [ "$CONTINUOUS" = 0 ]; then

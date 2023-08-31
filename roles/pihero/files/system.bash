@@ -3,17 +3,26 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # shellcheck source=./../../pihero/files/lib/lib.bash
-source "$SCRIPT_DIR/lib/lib.bash"
+. "$SCRIPT_DIR/lib/lib.bash"
 
 +diag() {
-    local result init_system
+    local result
 
     checks_start "System diagnostics"
 
-    init_system=$(</proc/1/comm) || {
-        printf "\e[31mFailed to determine the init system!\e[0m\n"
-        exit 1
-    }
+    local os
+    os=$(uname -o) || die "Failed to determine the operating system"
+    case "$os" in
+    Linux)
+        break
+        ;;
+    *)
+        die "The operating system %p is not supported." "$os"
+        ;;
+    esac
+
+    local init_system
+    init_system=$(</proc/1/comm) || die "Failed to determine the init system"
 
     case "$init_system" in
     systemd) ;;
