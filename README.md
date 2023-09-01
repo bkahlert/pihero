@@ -135,7 +135,7 @@ The following configuration shows a custom USB mass storage gadget that creates 
 ```yaml
 usb_gadget:
     mass_storage: |
-        #!/bin/bash
+        #!/usr/bin/env bash
 
         # create disk image
         if [ ! -f /data/hdd.img ]; then

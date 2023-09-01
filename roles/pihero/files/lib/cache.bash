@@ -45,90 +45,65 @@ caching() {
     # add command line as cache key
     keys+=("$@")
 
-    local cache_file exit_code
-    if cache_file=$(_cache_file "${keys[@]}"); then
-        [ "$debug" = 0 ] || printf 'caching: cache file: %s\n' "$cache_file" >&2
-        if [ -e "$cache_file" ]; then
-            [ "$debug" = 0 ] || printf 'caching: cache hit\n' >&2
-            cat "$cache_file"
-            exit_code=0
+    local cache_key
+    if cache_key=$(_cache_key "${keys[@]}"); then
+        [ "$debug" = 0 ] || printf 'caching: cache key: %s\n' "$cache_key" >&2
+    else
+        [ "$debug" = 0 ] || printf 'caching: cache key: failed\n' >&2
+    fi
+
+    local exit_code
+    declare -p _cache_mem &>/dev/null || declare -gA _cache_mem=()
+    if [ -n "${_cache_mem[$cache_key]}" ]; then
+        [ "$debug" = 0 ] || printf 'caching: mem-cache hit\n' >&2
+        printf '%s' "${_cache_mem[$cache_key]}"
+        exit_code=0
+    else
+        [ "$debug" = 0 ] || printf 'caching: mem-cache miss\n' >&2
+        local cache_file output
+        if cache_file=$(_cache_file "${keys[@]}"); then
+            [ "$debug" = 0 ] || printf 'caching: cache file: %s\n' "$cache_file" >&2
+            if [ -e "$cache_file" ]; then
+                [ "$debug" = 0 ] || printf 'caching: file-cache hit\n' >&2
+                output=$(<"$cache_file")
+                exit_code=0
+                _cache_mem[$cache_key]="$output"
+                [ "$debug" = 0 ] || printf 'caching: mem-cache update\n' >&2
+                printf '%s' "$output"
+            else
+                [ "$debug" = 0 ] || printf 'caching: file-cache miss\n' >&2
+                output=$("$@")
+                exit_code=$?
+                if [ "$exit_code" -eq 0 ]; then
+                    [ "$debug" = 0 ] || printf 'caching: mem-cache update\n' >&2
+                    _cache_mem[$cache_key]="$output"
+                    [ "$debug" = 0 ] || printf 'caching: file-cache update\n' >&2
+                    printf '%s' "$output" | tee "$cache_file"
+                else
+                    [ "$debug" = 0 ] || printf 'caching: output dismissal\n' >&2
+                    printf '%s' "$output"
+                fi
+            fi
         else
-            [ "$debug" = 0 ] || printf 'caching: cache miss\n' >&2
-            local output exit_code
+            [ "$debug" = 0 ] || printf 'caching: file-caching impossible\n' >&2
             output=$("$@")
             exit_code=$?
             if [ "$exit_code" -eq 0 ]; then
-                [ "$debug" = 0 ] || printf 'caching: cache update\n' >&2
-                printf '%s\n' "$output" | tee "$cache_file"
+                [ "$debug" = 0 ] || printf 'caching: mem-cache update\n' >&2
+                _cache_mem[$cache_key]="$output"
             else
                 [ "$debug" = 0 ] || printf 'caching: output dismissal\n' >&2
-                printf '%s\n' "$output"
             fi
+            printf '%s' "$output"
         fi
-    else
-        [ "$debug" = 0 ] || printf 'caching: caching impossible\n' >&2
-        "$@"
     fi
+
     if [ ! "$debug" = 0 ]; then
         local end_time=$((${EPOCHREALTIME/./} / 1000))
         printf 'caching: summary\n - command: %s\n - exit code: %d\n - runtime: %s ms\n' \
             "$*" "$exit_code" "$((end_time - start_time))" >&2
     fi
     return "$exit_code"
-}
-
-# Prints the path to a cache file for the given keys.
-# If the cache file doesn't exist, it can be used to the result of the computation.
-# If the cache file exists, it can be read to get the result of the last computation.
-#
-# Globals:
-#   None
-# Arguments:
-#   $@ (string ...): keys that define the validity of the cache file.
-# Outputs:
-#   1: Path to the cache file.
-# Returns:
-#   0: The printed file can be used for caching.
-#   1: Caching is impossible.
-_cache_file() {
-    local hash cache_dir cache_file
-    if ! hash=$(_cache_hash "$@"); then
-        printf 'Failed to hash cache keys\n' >&2
-        return 1
-    fi
-    if ! cache_dir=$(cd "${TEMPDIR:-/tmp}" && pwd); then
-        printf 'Failed to find cache directory\n' >&2
-        return 1
-    fi
-    cache_file="${cache_dir}/${0##*/}.${hash}"
-    if [ -e "$cache_file" ]; then
-        if [ -r "$cache_file" ] && [ -w "$cache_file" ]; then
-            printf '%s\n' "$cache_file"
-            return 0
-        else
-            printf 'Cache file %s is not readable and writable\n' "$cache_file" >&2
-            return 1
-        fi
-    else
-        if ! touch "$cache_file"; then
-            printf 'Failed to create cache file %s\n' "$cache_file" >&2
-            return 1
-        fi
-        if [ ! -r "$cache_file" ]; then
-            printf 'Created cache file %s is not readable\n' "$cache_file" >&2
-            return 1
-        fi
-        if [ ! -w "$cache_file" ]; then
-            printf 'Created cache file %s is not writable\n' "$cache_file" >&2
-            return 1
-        fi
-        if ! rm "$cache_file"; then
-            printf 'Failed to remove cache file %s\n' "$cache_file" >&2
-            return 1
-        fi
-        printf '%s\n' "$cache_file"
-        return 0
-    fi
 }
 
 # Prints the given cache keys as a hash.
@@ -142,12 +117,11 @@ _cache_file() {
 # Outputs:
 #   1: Path to the cache file.
 # Returns:
-#   0: Hash printed.
-#   1: An error occurred, most likely because no cache key was given.
-_cache_hash() {
-    [ $# -gt 0 ] || die "At least one cache key must be provided."
+#   0: Success, hash printed
+#   1: Failure
+_cache_key() {
     local hash
-    if hash=$(
+    hash=$(
         local key last_modified
         for key in "$@"; do
             printf '%s\n' "$key"
@@ -161,13 +135,68 @@ _cache_hash() {
                 fi
             fi
         done | md5sum -
-    ); then
-        printf '%s\n' "${hash%% *}"
-        return 0
+    ) || return 1
+    printf '%s\n' "${hash%% *}"
+}
+
+# Prints the path to a cache file for the given cache key.
+# If the cache file doesn't exist, it can be used to the result of the computation.
+# If the cache file exists, it can be read to get the result of the last computation.
+#
+# Globals:
+#   None
+# Arguments:
+#   $1: cache key returned by _cache_key
+# Outputs:
+#   1: Path to the cache file.
+# Returns:
+#   0: The printed file can be used for caching.
+#   1: Failure, caching impossible
+_cache_file() {
+    local hash cache_file
+    hash=$(_cache_key "$@") || return
+    cache_file="$(_cache_file_prefix)${hash}" || return
+    if [ -e "$cache_file" ]; then
+        [ -r "$cache_file" ] || return
+        [ -w "$cache_file" ] || return
+        printf '%s\n' "$cache_file"
     else
-        printf 'Failed to hash cache keys\n' >&2
-        return 1
+        touch "$cache_file" || return
+        [ -r "$cache_file" ] || return
+        [ -w "$cache_file" ] || return
+        rm "$cache_file" || return
+        printf '%s\n' "$cache_file"
     fi
+}
+
+# Deeplink for managing the cache, invocable with $0 @cache
+@cache() {
+    local op=list
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --list) op=list && shift ;;
+        --clear) op=clear && shift ;;
+        *) die "The provided option %p is unknown." "$1" ;;
+        esac
+    done
+
+    local prefix
+    prefix=$(_cache_file_prefix) || return
+    (
+        shopt -s nullglob
+        for cache_file in "$prefix"*; do
+            case "$op" in
+            clear) rm "$cache_file" ;;
+            *) printf '%s\n' "$cache_file" ;;
+            esac
+        done
+    )
+}
+
+_cache_file_prefix() {
+    local cache_dir
+    cache_dir=$(cd "${TEMPDIR:-/tmp}" && pwd) || return 1
+    printf '%s/%s.' "$cache_dir" "${0##*/}"
 }
 
 _mtime() {

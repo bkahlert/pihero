@@ -26,40 +26,95 @@ is_tty() {
     test -t 1 && test -t 2
 }
 
-# Prints the given text—if connected to a terminal—styled with `gum style`, or
-# as is otherwise.
+# Checks if the first of the given arguments starts with the @ character.
+# - If there is a function with that name, it's called with the remaining arguments, and
+#   the script exits with the return code of that function.
+# - If there is no such function, the script exits with the return code 127.
+# - If there is no first argument or the first argument doesn't start with the @ character,
+#   the function returns 0.
 # Globals:
 #   None
 # Arguments:
-#   Same as `gum style`, run `gum style --help` for more information.
+#   $@: The arguments the program was called with.
 # Outputs:
-#   If connected to a terminal, the given text styled with `gum style`.
-#   Otherwise, the given text as is.
+#   None
 # Returns:
-#   If connected to a terminal, same as `gum style`.
-#   Otherwise, 0.
-style() {
-    local text
-    if is_tty; then
-        gum style "$@"
-    else
-        while [ $# -gt 0 ]; do
-            case "$1" in
-            --)
-                shift && break
-                ;;
-            --*)
-                shift
-                ;;
-            *)
-                break
-                ;;
-            esac
-        done
-        for text in "$@"; do
-            printf '%s\n' "$text"
-        done
+#   0: The first argument doesn't start with the @ character.
+#   Otherwise, exits with either 127 or the return code of the function called with the remaining arguments.
+exec_deeplink() {
+    if [ "$#" -gt 0 ] && [ "${1:0:1}" = '@' ]; then
+        declare -fp "$1" &>/dev/null || die --code 127 'Failed to find the deeplink %p' "${1:1}"
+        local exit_code
+        ("$@")
+        exit_code=$?
+        if [ "$exit_code" -ne 0 ]; then
+            {
+                printf 'Failed deeplink declared as: '
+                declare -fp "$1"
+            } >&2
+        fi
+        exit "$exit_code"
     fi
+    return 0
+}
+
+# Prints the named icon in the given format.
+# Globals:
+#   None
+# Arguments:
+#   --format (enum ansi|template, default: ansi): The format used to print the icon.
+#   $1: The name of the icon to print.
+# Outputs:
+#   The named icon in the given format.
+# Returns:
+#   0: The named icon was printed.
+#   1: Unknown format, prints a space.
+icon() {
+    local format=ansi
+    local -l name
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --format=*)
+            format="${1#*=}" && shift
+            ;;
+        --format)
+            shift && format=${1?format: parameter value not set} && shift
+            ;;
+        --)
+            shift && break
+            ;;
+        *)
+            break
+            ;;
+        esac
+    done
+
+    local -l name=${*: -1}
+
+    local foreground text
+    case "$name" in
+    create | created | creation) text='✱' foreground=3 ;;
+    add | added | adding | addition) text='✚' foreground=2 ;;
+    item) text='▪' foreground=8 ;;
+    link) text='↗' foreground=4 ;;
+    task | work) text='⚙' foreground=3 ;;
+    return | exit) text='↩' foreground=1 ;;
+    success | successful | succeeded) text='✔' foreground=2 ;;
+    info | information) text='ℹ' foreground=7 ;;
+    warning | warn) text='!' foreground=3 ;;
+    error | err) text='✘' foreground=1 ;;
+    failure | fail | failed) text='ϟ' foreground=1 ;;
+    *) printf ' ' && return 1 ;;
+    esac
+
+    local template
+    printf -v template '{{ Bold (Foreground "%d" "%s") }}' "$foreground" "$text"
+
+    case "$format" in
+    ansi) CLICOLOR_FORCE=${CLICOLOR_FORCE-1} caching -- gum format --type template "$template" ;;
+    template) printf %s "$template" ;;
+    *) printf ' ' && return 1 ;;
+    esac
 }
 
 # Prints the given error message to STDERR and exits with the given code.
@@ -76,7 +131,21 @@ style() {
 #   Exits with the given code, if specified, or 1.
 die() {
     local code=1
-    local template=${DIE_TEMPLATE-"$(printf '%s: %s: ' "$(basename "$0")" "error")%s"}
+
+    local executable
+    executable=$(basename "$0") || executable=${0##*/}
+
+    local source
+    source=$(basename "${BASH_SOURCE[1]}") || source=${BASH_SOURCE[1]##*/}
+
+    local lineno=${BASH_LINENO[0]}
+    if [ "$executable" = "$source" ]; then
+        executable=''
+    else
+        executable="$executable/"
+    fi
+
+    local template=${DIE_TEMPLATE-"$(printf '%s: %s: ' "$executable$source:$lineno" "error")%s"}
     while [ $# -gt 0 ]; do
         case "$1" in
         --)

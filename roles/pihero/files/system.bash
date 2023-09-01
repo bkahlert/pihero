@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
@@ -13,12 +13,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
     local os
     os=$(uname -o) || die "Failed to determine the operating system"
     case "$os" in
-    Linux)
-        break
-        ;;
-    *)
-        die "The operating system %p is not supported." "$os"
-        ;;
+    *Linux*) : ;;
+    *) die "The operating system %p is not supported." "$os" ;;
     esac
 
     local init_system
@@ -27,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
     case "$init_system" in
     systemd) ;;
     *)
-        printf "\e[2mSkipping unsupported \e[3m%s\e[23m init system... \e[32m✔︎\e[0m\n" "$init_system"
+        printf "\e[2mSkipping unsupported \e[3m%s\e[23m init system... \e[32;1m✔\e[0m\n" "$init_system"
         return 0
         ;;
     esac
@@ -67,5 +63,5 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
         printf -- "- list failed units: \e[3m%s\e[23m\n" 'systemctl list-units --state=failed'
         printf -- "- check logs: \e[3m%s\e[23m\n" 'journalctl -b'
     } | sed 's/^/  /'
-    return $result
+    return "$result"
 }

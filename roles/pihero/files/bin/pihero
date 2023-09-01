@@ -1,14 +1,110 @@
-#!/bin/bash
-
-shopt -s nullglob # expand to nothing if no match
+#!/usr/bin/env bash
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # shellcheck source=./../lib/lib.bash
 . "$SCRIPT_DIR/../lib/lib.bash"
 
-customize_cli() {
+# Start the application.
+# If called with a terminal connected and no provided command, a menu is displayed.
+# Otherwise, the provided command is executed, or an error is thrown.
+main() {
+    exec_deeplink "$@"
+
+    local command
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --*)
+            die "The provided option %p is unknown." "$1"
+            ;;
+        *)
+            command=$1 && shift && break
+            ;;
+        esac
+    done
+
+    if is_interactive; then
+        trap 'tput cnorm' EXIT
+        print_loading_screen "Loading extensions ..." >&2
+
+        local extensions && init_extensions
+        local commands=() _ extension_name
+        while IFS=: read -r _ _ extension_name; do
+            commands+=("$extension_name")
+        done <<<"$extensions"
+
+        init_gum
+        while true; do
+            set_gum_choose_header \
+                "" "$(tput bold || true)Pi Hero" "Esc"
+
+            if [ -z "$command" ]; then
+                if command=$(
+                    # Loading title must be less or equal the shortest extension name to make sure its overwritten by gum
+                    print_loading_screen "..." >&2
+                    gum choose --selected="${commands[0]}" "${commands[@]}"
+                ); then
+                    tput civis >&2
+                else
+                    exit 130
+                fi
+            fi
+
+            set_gum_choose_header \
+                "" "$(tput dim || true)Pi Hero" "" \
+                "" "$(tput bold || true)$command" "Esc"
+
+            local exit_code
+            run_extension --extensions "$extensions" --extension-name "$command" -- "$@"
+            exit_code=$?
+            if [ "$exit_code" -eq 130 ]; then
+                print_loading_screen "..." >&2
+                command=''
+            else
+                exit "$exit_code"
+            fi
+        done
+    else
+        : "${command:?}"
+
+        local extensions && init_extensions
+
+        local exit_code
+        run_extension --extensions "$extensions" --extension-name "$command" -- "$@"
+    fi
+}
+
+# Set the extension variable to contain the specification of all discovered extensions.
+# Looks similar to this:
+# file1:command1_a command1_b:name1
+# file2:command2_a command2_b:name2
+init_extensions() {
+    local extension_dirs=("$SCRIPT_DIR/..")
+    extensions=$(caching -- get_extensions "${extension_dirs[@]}") || die "Failed to load the extensions at %p." "${extension_dirs[*]}"
+}
+
+# Sets various environment variables that are used by the command line interface.
+# bashsupport disable=BP2001
+init_gum() {
+    local bright=8 black=0 red=1 green=2 yellow=3 blue=4 magenta=5 cyan=6 white=7
+
     export GUM_CHOOSE_CURSOR
+    export GUM_CHOOSE_CURSOR_FOREGROUND=$((yellow + bright))
+
+    export GUM_PAGER_BORDER_FOREGROUND=$((black + bright))
+    export GUM_PAGER_HELP_FOREGROUND=$((yellow))
+    export GUM_PAGER_HELP_FAINT=1
+    export GUM_PAGER_LINE_NUMBER_FOREGROUND=$((yellow))
+    export GUM_PAGER_LINE_NUMBER_FAINT=true
+    export GUM_PAGER_MATCH_FOREGROUND=$((red))
+    export GUM_PAGER_MATCH_BACKGROUND=''
+    export GUM_PAGER_MATCH_HIGH_FOREGROUND=''
+    export GUM_PAGER_MATCH_HIGH_BACKGROUND=$((red))
+
+    export GUM_SPIN_SPINNER=pulse
+    export GUM_SPIN_SPINNER_FOREGROUND=$((yellow))
+    export GUM_SPIN_TITLE_BOLD=1
+
     export GUM_CHOOSE_CURSOR_LENGTH=18
     if is_tty; then
         local neutral_hero
@@ -18,7 +114,6 @@ customize_cli() {
         local sad_hero
         sad_hero=$(CLICOLOR_FORCE=1 caching tty -- hero --mood=sad)
         export DIE_TEMPLATE=$'\n'" $sad_hero "'{{ Foreground "1" "%s" }}'$'\n'
-        export GUM_CHOOSE_CURSOR_FOREGROUND='11' # 3=yellow + 8=bright
     else
         local neutral_hero
         neutral_hero=$(CLICOLOR_FORCE=1 caching notty -- hero --mood=neutral)
@@ -26,126 +121,37 @@ customize_cli() {
     fi
 }
 
-main() {
-    local debug=0
-    local time_main_start=$((${EPOCHREALTIME/./} / 1000))
-    {
-        # debugging options that should be place elsewhere
-        [ ! "$1" = --hero-moods ] || {
-            shift && hero --moods "$@"
-            exit
-        }
-        [ ! "$1" = --hero-frames ] || {
-            CLICOLOR_FORCE=1 hero_frames
-            exit
-        }
-        [ ! "$1" = --hero-animate ] || {
-            hero_animate --vertical-padding 1 --loops 1 <(CLICOLOR_FORCE=1 hero_frames) >&2
-            exit
-        }
-        [ ! "$1" = --hero-animate-pre-rendered ] || {
-            hero_animate_pre_rendered --vertical-padding 1 --loops 1 >&2
-            exit
-        }
-        [ ! "$1" = --hero-animate-pre-rendered2 ] || {
-            hero_animate_pre_rendered2 --vertical-padding 1 --loops 1 >&2
-            exit
-        }
-    }
+# Prints a loading screen that is overwritten once "gum" prints
+# its choose menu.
+# The loading screen can be used to provide feedback to the user,
+# for the time the app itself and the gum menu take to load.
+print_loading_screen() {
+    local title=${1+ $1}
 
-    local cmd
-    while [ $# -gt 0 ]; do
-        case $1 in
-        --*)
-            die "The provided option %p is unknown." "$1"
-            ;;
-        *)
-            cmd=$1 && shift && break
-            ;;
-        esac
-    done
+    tput civis
 
-    local extension_dirs=("$SCRIPT_DIR/..") extensions
-    extensions=$(caching -- get_extensions "${extension_dirs[@]}") || die "Failed to load the extensions at %p." "${extension_dirs[*]}"
+    # This is the last "screen" in the hero animation, the cleanup escape sequence—without sgr0 and cnorm.
+    # That is, it clears leftovers of previous loading screens.
+    printf $'\n\n\n\n\E[112D\E[K\E[A\E[K\E[A\E[K\E[A\E[K\E[A\E[K'
 
-    local commands=() curr_ext_file _ curr_ext_name
-    while IFS=: read -r curr_ext_file _ curr_ext_name; do
-        commands+=("$curr_ext_name")
-    done <<<"$extensions"
+    # This is the last screen in the hero animation.
+    # Type "pihero @hero animate-record" to make a recording and copy the second last screen.
+    # The last screen is the cleanup escape sequence.
+    # bashsupport disable=LongLine
+    printf $'\n\n \E[33m─\E[0m\E[33m=\E[0m\E[33m≡\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m'
+    [ -z "$title" ] || printf ' %s' "$title"
+    printf $'\n\n\E[112D\E[A\E[A\E[A\E[A'
+}
 
-    local exit_code
-    if is_interactive; then
-        local time_interactive_start=$((${EPOCHREALTIME/./} / 1000))
-
-        local animation_pid animation_start=$((${EPOCHREALTIME/./} / 1000))
-        #        if [ $# = 0 ] && is_tty; then
-        #            hero_animate_pre_rendered --vertical-padding 2 --loops 0 --cleanup 0 >&2 &
-        #            animation_pid=$!
-        #        fi
-
-        customize_cli
-
-        if [ -n "$animation_pid" ] && kill -0 "$animation_pid" 2>/dev/null; then
-            local ready_start=$((${EPOCHREALTIME/./} / 1000))
-            local elapsed=$((ready_start - animation_start))
-            #            if [ "$elapsed" -lt 1000 ]; then
-            #                sleep "0.$(printf "%03d" $((1000 - elapsed)))"
-            #            fi
-            wait "$animation_pid"
-            #                kill "$animation_pid" 2>/dev/null
-            #            kill "$animation_pid"
-        fi
-
-        local bold='' && bold=$(tput bold)
-        local dim='' && dim=$(tput dim)
-        local header_pattern="\n%$((GUM_CHOOSE_CURSOR_LENGTH - 1))s %-10s %8s"
-        while true; do
-            printf -v header "$header_pattern" \
-                "" "${bold}Pi Hero" "Esc"
-
-            local time_cmd_option_start=$((${EPOCHREALTIME/./} / 1000))
-
-            if [ -z "$cmd" ]; then
-                if ! cmd=$(gum choose --header="$header" --selected="${commands[0]}" "${commands[@]}"); then
-                    exit 130
-                fi
-                local time_cmd_option_end=$((${EPOCHREALTIME/./} / 1000))
-            fi
-
-            [ "$debug" = 0 ] || printf '%10s %10d\n' \
-                "start" "$time_main_start" \
-                "interaction" "$((time_interactive_start - time_main_start))" \
-                "option-start" "$((time_cmd_option_start - time_interactive_start))" \
-                "option-end" "$((time_cmd_option_end - time_cmd_option_start))" >&2
-
-            printf -v header "$header_pattern" \
-                "" "${dim}Pi Hero" "" \
-                "" "${bold}$cmd" "Esc"
-            (
-                GUM_CHOOSE_HEADER=$header \
-                    GUM_CHOOSE_CURSOR=$GUM_CHOOSE_CURSOR \
-                    run_extension --extensions "$extensions" --extension-name "$cmd" -- "$@"
-            )
-            exit_code=$?
-            if [ "$exit_code" -eq 130 ]; then
-                cmd=''
-            else
-                break
-            fi
-        done
-    else
-        [ -n "$cmd" ] || die --code 2 "The command to run is missing."
-        local exit_code
-        (run_extension --extensions "$extensions" --extension-name "$cmd" -- "$@")
-        exit_code=$?
-    fi
-
-    if [ "$exit_code" -ge 123 ] && [ "$exit_code" -lt 128 ]; then
-        die --code "$exit_code" "Failed to run the extension command %p." "$cmd"
-    elif [ "$exit_code" -gt 2 ]; then
-        die --code "$exit_code" "The command %p terminated with exit code %s." "$cmd" "$exit_code"
-    fi
-    exit "$exit_code"
+# Sets the header used by the gum choose menu.
+# Each triple of arguments is a row with
+# - the first argument placed at the start,
+# - the second argument placed at the same column as the menu options, and
+# - the third argument placed right aligned at the end of the row.
+set_gum_choose_header() {
+    # bashsupport disable=BP2001
+    export GUM_CHOOSE_HEADER
+    printf -v GUM_CHOOSE_HEADER "\n%$((GUM_CHOOSE_CURSOR_LENGTH - 1))s %-10s %8s" "$@"
 }
 
 main "$@"

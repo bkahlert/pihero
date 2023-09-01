@@ -1,9 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # shellcheck source=./../../pihero/files/lib/lib.bash
-source "$SCRIPT_DIR/lib/lib.bash"
+. "$SCRIPT_DIR/lib/lib.bash"
 
 +diag() {
     local result theme
@@ -30,7 +30,7 @@ source "$SCRIPT_DIR/lib/lib.bash"
     printf "\e[1mAvailable plymouth themes:\e[0m"
     while read -r theme; do
         printf " %s" "$theme"
-    done <<<"$(plymouth-set-default-theme --list)"
+    done < <(plymouth-set-default-theme --list)
     printf "\n"
 
     check_summary
@@ -40,10 +40,8 @@ source "$SCRIPT_DIR/lib/lib.bash"
         printf -- '\n\e[4mUseful commands:\e[0m\n'
         printf -- '- add \e[3m%s\e[23m to \e[3m%s\e[23m to enable debug logs\n' 'plymouth.debug' '/boot/cmdline.txt'
         printf -- '- debug logs are located at \e[3m%s\e[23m\n' '/var/log/plymouth-debug.log'
-        printf -- '- for tips and tricks, see \e]8;;%s\e\\%s\e]8;;\e\\\n' \
-            'https://wiki.archlinux.org/title/plymouth#Tips_and_tricks' \
-            'wiki.archlinux.org/title/plymouth#Tips_and_tricks'
-    } | sed 's/^/  /' >&2
+        printf -- '- for tips and tricks, see %s\n' 'https://wiki.archlinux.org/title/plymouth#Tips_and_tricks'
+    } | sed 's/^/  /'
 
     return $result
 }
@@ -51,22 +49,22 @@ source "$SCRIPT_DIR/lib/lib.bash"
 +enable() {
     printf "Enabling Plymouth... "
     if sudo sed -i 's/\bplymouth.enable=0\b/plymouth.enable=1/' /boot/cmdline.txt; then
-        printf '\e[32m✔︎\e[0m\n'
+        printf '\e[32;1m✔\e[0m\n'
     fi
     printf "Suppressing successful systemd messages... "
     if sudo sed -i 's/\bsystemd.show_status=true\b/systemd.show_status=auto/' /boot/cmdline.txt; then
-        printf '\e[32m✔︎\e[0m\n'
+        printf '\e[32;1m✔\e[0m\n'
     fi
 }
 
 +disable() {
     printf "Disabling Plymouth... "
     if sudo sed -i 's/\bplymouth.enable=1\b/plymouth.enable=0/' /boot/cmdline.txt; then
-        printf '\e[32m✔︎\e[0m\n'
+        printf '\e[32;1m✔\e[0m\n'
     fi
     printf "Printing successful systemd messages... "
     if sudo sed -i 's/\bsystemd.show_status=auto\b/systemd.show_status=true/' /boot/cmdline.txt; then
-        printf '\e[32m✔︎\e[0m\n'
+        printf '\e[32;1m✔\e[0m\n'
     fi
 }
 
@@ -86,14 +84,14 @@ source "$SCRIPT_DIR/lib/lib.bash"
         local themes=() && readarray -t themes < <(+list)
         local PS3="Select a theme: "
         select theme in "${themes[@]}"; do
-            [ ! "$theme" ] || break
-            printf ' \e[31m✘︎\e[0m %s\n' "Invalid selection" >&2
+            [ -n "$theme" ] || break
+            printf ' \e[31m✘\e[0m %s\n' "Invalid selection"
         done
     fi
 
     printf "Setting theme to \e[3m%s\e[23m... " "$theme"
     if sudo plymouth-set-default-theme --rebuild-initrd "$theme"; then
-        printf '\e[32m✔︎\e[0m\n'
+        printf '\e[32;1m✔\e[0m\n'
     fi
 }
 
@@ -110,7 +108,7 @@ source "$SCRIPT_DIR/lib/lib.bash"
     fi
 
     if sudo plymouth quit; then
-        printf '\e[32m✔︎\e[0m\n'
+        printf '\e[32;1m✔\e[0m\n'
     fi
 }
 
@@ -124,7 +122,7 @@ source "$SCRIPT_DIR/lib/lib.bash"
         sleep 10
         printf "Testing display-message... "
         if sudo plymouth display-message --text="Hello World!"; then
-            printf '\e[32m✔︎\e[0m\n'
+            printf '\e[32;1m✔\e[0m\n'
         fi
         sleep 2
         printf "Testing progress... "
@@ -141,11 +139,11 @@ source "$SCRIPT_DIR/lib/lib.bash"
         sudo plymouth system-update --progress=95
         sleep 1
         sudo plymouth system-update --progress=100
-        printf '\e[32m✔︎\e[0m\n'
+        printf '\e[32;1m✔\e[0m\n'
         sleep 2
         printf "Testing updates mode... "
         if sudo plymouth change-mode --updates; then
-            printf '\e[32m✔︎\e[0m\n'
+            printf '\e[32;1m✔\e[0m\n'
         fi
         sleep 2
         printf "Testing shutdown mode... "
@@ -158,10 +156,10 @@ source "$SCRIPT_DIR/lib/lib.bash"
         sleep 1
         sudo plymouth system-update --progress=60
         sleep 1
-        printf '\e[32m✔︎\e[0m\n'
+        printf '\e[32;1m✔\e[0m\n'
     fi
     if sudo plymouth quit; then
-        printf 'Done \e[32m✔︎\e[0m\n'
+        printf 'Done \e[32;1m✔\e[0m\n'
     fi
 }
 
@@ -178,7 +176,7 @@ source "$SCRIPT_DIR/lib/lib.bash"
         done
     fi
     if sudo plymouth quit; then
-        printf "%s\nDone \e[32m✔︎\e[0m\n" "$line"
+        printf "%s\nDone \e[32;1m✔\e[0m\n" "$line"
     fi
 }
 

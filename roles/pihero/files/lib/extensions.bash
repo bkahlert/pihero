@@ -20,14 +20,8 @@ get_extensions() {
     local directory real_directory extension_file extension_commands extension_name
     while [ $# -gt 0 ]; do
         directory=$1 && shift
-        if [ ! -d "$directory" ]; then
-            printf '%s: %s: No such directory\n' "${FUNCNAME[0]}" "$directory" >&2
-            continue
-        fi
-        if ! real_directory=$(realpath "$directory"); then
-            printf '%s: %s: Failed to get realpath\n' "${FUNCNAME[0]}" "$directory" >&2
-            continue
-        fi
+        [ -d "$directory" ] || continue
+        real_directory=$(realpath "$directory") || continue
         for extension_file in "$real_directory"/*.bash; do
             [ -f "$extension_file" ] || continue
             # shellcheck disable=SC2312
@@ -41,7 +35,12 @@ get_extensions() {
 # Runs the given command of the given extension.
 # - If no command is given, but a "main" command exists, "main" is used.
 # - Otherwise, the user is prompted to choose a command.
-# - If the STDIN is found not to be a terminal, an error is printed and the program exits.
+#
+# If no command is given, no "main" command exists, and the STDIN is found not to be a terminal;
+# this function exits with 125.
+#
+# If unknown parameters are provided, or required parameters aren't provided,
+# this function exits with 1.
 #
 # Globals:
 #   None
@@ -54,9 +53,6 @@ get_extensions() {
 # Outputs:
 #   Same as the executed extension command.
 # Returns:
-#   123: unexpected parameter encountered
-#   124: required parameter missing
-#   125: missing command couldn't be determined
 #   126: extension failed to load
 #   127: extension command not found
 #   130: user cancelled command prompt
@@ -81,13 +77,13 @@ run_extension() {
             shift && break
             ;;
         *)
-            die --code 123 "unexpected parameter %p" "$1"
+            die "The provided parameter %p is unknown." "$1"
             ;;
         esac
     done
 
-    [ -n "$extensions" ] || die --code 124 "%p missing" extensions
-    [ -n "$extension_name" ] || die --code 124 "%p missing" extension-name
+    : "${extensions:?}"
+    : "${extension_name:?}"
 
     local extension_file has_main
     local -a extension_commands=()
@@ -106,7 +102,7 @@ run_extension() {
         fi
     done <<<"$extensions"
 
-    [ -n "$extension_file" ] || die "extension %p not found" "$extension_name"
+    [ -n "$extension_file" ] || return 127
 
     local cmd
     if [ $# -gt 0 ]; then
@@ -129,14 +125,16 @@ run_extension() {
         cmd=$(
             GUM_CHOOSE_HEADER=${GUM_CHOOSE_HEADER-$default_header} \
                 gum choose --selected="${extension_commands[0]}" "${extension_commands[@]}"
-        ) || exit 130
+        ) || return 130
     else
-        die --code 125 "command missing"
+        die --code 125 "The parameter %p is required because the extension %p has no default command." command "$extension_name"
     fi
 
-    # shellcheck disable=SC1090
-    . "$extension_file" || die --code 126 "failed to load extension %p" "$extension_file"
-    declare -F -- "+$cmd" >/dev/null || die --code 127 "command %p not found" "$cmd"
-    "+$cmd" "${args[@]}"
-    exit $?
+    # subshell to avoid polluting the environment due to sourcing
+    (
+        # shellcheck disable=SC1090
+        . "$extension_file" || die --code 126 "Failed to load extension %p." "$extension_file"
+        declare -F -- "+$cmd" >/dev/null || die --code 127 "Failed to find command %p." "$cmd"
+        "+$cmd" "${args[@]}"
+    )
 }

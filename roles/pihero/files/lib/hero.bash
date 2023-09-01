@@ -2,31 +2,17 @@
 # Globals:
 #   None
 # Arguments:
-#   moods (flag, optional): If specified, print one kaomoji for each mood.
-#   mood (string, default: neutral): The mood to use.
-#   frame (int, default: -1): The frame index of the animation to use.
-#   offset (int, default: 0): The number of characters to drop from the left. Negative values pad the left side with spaces.
+#   --mood (string, default: neutral): The mood to use.
+#   --format (enum ansi|template, default: ansi): The format used to print the kaomoji.
+#   --frame (int, default: -1): The frame index of the animation to use.
+#   --offset (int, default: 0): The number of characters to drop from the left. Negative values pad the left side with spaces.
 # Outputs:
 #   1: The kaomoji in the given mood.
 # Returns:
 #   0: Always
 hero() {
-    local mood=neutral face
+    local mood=neutral format=ansi
     local -i frame=-1 offset=0
-
-    if [ $# -gt 0 ] && [ "$1" = --moods ]; then
-        shift
-        local rows=()
-        for mood in neutral happy sad unknown; do
-            m=$(gum style --faint "$mood")
-            k=$(CLICOLOR_FORCE=${CLICOLOR_FORCE-1} hero --mood "$mood" "$@")
-            row=$(gum join --vertical --align center "$k" '' "$m")
-            rows+=("$(gum style --padding "1 2" "$row")")
-        done
-        gum join --vertical "${rows[@]}"
-        exit
-    fi
-
     while [ $# -gt 0 ]; do
         case "$1" in
         --mood=*)
@@ -34,6 +20,12 @@ hero() {
             ;;
         --mood)
             shift && mood=${1?mood: parameter value not set} && shift
+            ;;
+        --format=*)
+            format="${1#*=}" && shift
+            ;;
+        --format)
+            shift && format=${1?format: parameter value not set} && shift
             ;;
         --frame=*)
             frame="${1#*=}" && shift
@@ -46,6 +38,12 @@ hero() {
             ;;
         --offset)
             shift && offset=${1?offset: parameter value not set} && shift
+            ;;
+        --)
+            shift && break
+            ;;
+        --*)
+            die --code 2 'Unknown option %p' "$1"
             ;;
         *)
             break
@@ -74,6 +72,7 @@ hero() {
         )
 
         # add face graphemes
+        local -a face
         case "$mood" in
         neutral)
             face=(' ' '蓬' '•' 'ｏ' '•' '')
@@ -122,7 +121,54 @@ hero() {
         fi
     }
 
-    gum format --type template "$(printf '%s' "${graphemes[@]}")"
+    case "$format" in
+    template) printf '%s' "${graphemes[@]}" ;;
+    *) gum format --type template "$(printf '%s' "${graphemes[@]}")" ;;
+    esac
+}
+
+# Deeplink for print debugging, invocable with $0 @hero
+@hero() {
+    [ "$#" -gt 0 ] || die --code 2 'The required parameter %p is missing.' command
+    local command=$1 && shift
+    case "$command" in
+    moods)
+        local rows=() mood m k row
+        for mood in neutral happy sad unknown; do
+            m=$(gum style --faint "$mood")
+            k=$(CLICOLOR_FORCE=${CLICOLOR_FORCE-1} hero --mood "$mood" "$@")
+            row=$(gum join --vertical --align center "$k" '' "$m")
+            rows+=("$(gum style --padding "1 2" "$row")")
+        done
+        gum join --vertical "${rows[@]}"
+        ;;
+    frames)
+        CLICOLOR_FORCE=1 hero_frames "$@"
+        ;;
+    animate)
+        hero_animate --vertical-padding 2 --loops 1 "$@" <(CLICOLOR_FORCE=1 hero_frames || true)
+        ;;
+    animate-record)
+        local recording
+        recording=$(mktemp) || die --code 'Failed to create a temporary file to record the animation.'
+        @hero animate --record-to "$recording" "$@"
+        if command -v pbcopy >/dev/null; then
+            pbcopy <"$recording"
+            printf '%s\n' "RECORDING: COPIED TO CLIPBOARD"
+        else
+            printf '%s\n' "RECORDING: START"
+            cat "$recording"
+            printf '\n%s\n' "RECORDING: END"
+        fi >&2
+        rm "$recording"
+        ;;
+    animate-pre-rendered)
+        hero_animate_pre_rendered "$@"
+        ;;
+    *)
+        die --code 2 'Unknown %s command %p' "${FUNCNAME[0]}" "$1"
+        ;;
+    esac
 }
 
 # Prints all frames line by line that create the animation of
@@ -158,16 +204,17 @@ hero_frames() {
     done
 }
 
-# Prints all frames line by line that create the animation of
-# the Pi Hero kaomoji flying-in from the left.
+# Renders the given frames (consumed by cat) as specified by the given arguments
+# line by line.
 # Globals:
 #   None
 # Arguments:
-#   vertical-padding (int, default: 0): Number of empty lines to add before and after the animation.
-#   ideal-frame-ms (int, default: 50): Number of milliseconds to pass between frames. If the number is too ambitious, the frames are dropped as required.
-#   loops (int, default: 0): How many times to repeat the part where's no horizontal movement, or –1 for infinite.
-#   cleanup (bool, default: 1): Whether to restore the terminal's state afterward.
-#   $@: file ...: files containing the frames of the animation; use - for stdin
+#   --vertical-padding (int, default: 0): Number of empty lines to add before and after the animation.
+#   --ideal-frame-ms (int, default: 50): Number of milliseconds to pass between frames. If the number is too ambitious, the frames are dropped as required.
+#   --loops (int, default: 0): How many times to repeat the part where's no horizontal movement, or –1 for infinite.
+#   --cleanup (bool, default: 1): Whether to restore the terminal's state afterward.
+#   --record-to (file, optional): Writes the rendered screens to the given file. Each screen is %q encoded and separated by |.
+#   $@: file ...: files containing the frames of the animation; use '-' for stdin
 # Outputs:
 #   1: The terminal output for the animation.
 # Returns:
@@ -186,6 +233,7 @@ hero_animate() {
     local ideal_frame_ms=50
     local -i loops=0
     local cleanup=1
+    local record_to
     while [ $# -gt 0 ]; do
         case "$1" in
         --vertical-padding=*)
@@ -211,6 +259,12 @@ hero_animate() {
             ;;
         --cleanup)
             shift && cleanup=${1?cleanup: parameter value not set} && shift
+            ;;
+        --record-to=*)
+            record_to="${1#*=}" && shift
+            ;;
+        --record-to)
+            shift && record_to=${1?record-to: parameter value not set} && shift
             ;;
         *)
             break
@@ -241,46 +295,62 @@ hero_animate() {
     tput_sgr0=$(tput sgr0)
 
     # setup cleanup trap
-    {
-        local cleanup_steps=()
-        if [ ! "$cleanup" = 0 ]; then
-            cleanup_steps+=('printf "'$'\n''"')
-            cleanup_steps+=('printf %s "'"$tput_cub_cols"'" "'"$tput_el"'"')
-            if [ "$py" -gt 0 ]; then
-                for ((i = 0; i < py; i++)); do
-                    cleanup_steps+=('printf %s "'"$tput_cuu1"'" "'"$tput_el"'"')
-                done
-            fi
-            cleanup_steps+=('printf %s "'"$tput_sgr0"'" "'"$tput_cnorm"'"')
-        fi
-        # shellcheck disable=SC2064
-        trap "$(printf '%s\n' "${cleanup_steps[@]}")" EXIT
-    }
+    local cleanup_sequence
+    if [ ! "$cleanup" = 0 ]; then
+        # Assumption: each rendered screen restores the cursor to the original position
+        cleanup_sequence=''
+
+        # Part 1: move the cursor to the last line, given the animation didn't add any lines (otherwise would have to them add here)
+        # move down by the top padding
+        for ((i = 0; i < py; i++)); do cleanup_sequence+=$'\n'; done
+        # move down by the bottom padding
+        for ((i = 0; i < py; i++)); do cleanup_sequence+=$'\n'; done
+
+        # Part 2: clear all lines from the bottom to the top
+        # jump to the start of the line and clear it (from the start)
+        cleanup_sequence+="$tput_cub_cols$tput_el"
+        # for each bottom padding: move up one line and clear it (from the start)
+        for ((i = 0; i < py; i++)); do cleanup_sequence+="$tput_cuu1$tput_el"; done
+        # for each top padding: move up one line and clear it (from the start)
+        for ((i = 0; i < py; i++)); do cleanup_sequence+="$tput_cuu1$tput_el"; done
+
+        # Part 3: reset colors and show cursor
+        cleanup_sequence+="$tput_cnorm$tput_sgr0"
+        trap "printf '%s' '""$cleanup_sequence""'" EXIT
+    fi
 
     printf %s "$tput_civis" # hide cursor
-    local remaining_output last_frame_time current_time elapsed_time available_frame_time
+    local rendered_screen last_frame_time current_time elapsed_time available_frame_time
     last_frame_time=$((${EPOCHREALTIME/./} / 1000))
-    #    if [ -f "/tmp/hero.ansi" ]; then rm /tmp/hero.ansi; fi
+    if [ -n "$record_to" ] && [ -f "$record_to" ]; then rm "$record_to"; fi
     while read -r frame; do
         current_time=$((${EPOCHREALTIME/./} / 1000))
         elapsed_time=$((current_time - last_frame_time))
         available_frame_time=$((ideal_frame_ms - elapsed_time))
 
-        # prints the frame + padding and moves the cursor back to the original position
-        printf -v remaining_output %s "$pt" "$frame" "$pb" "$tput_cub_cols" "$tput_cuu_py" "$tput_cuu_py"
-        #        printf '%b|' "$remaining_output" >>/tmp/hero.ansi
+        # renders the screen, which is the frame + padding + moving the cursor back to the original position
+        printf -v rendered_screen %s "$pt" "$frame" "$pb" "$tput_cub_cols" "$tput_cuu_py" "$tput_cuu_py"
+        [ -z "$record_to" ] || printf '%q' "$rendered_screen|" >>"$record_to"
 
-        if [ $available_frame_time -gt 0 ]; then
-            printf %s "$remaining_output"
-            remaining_output=''
+        # only print the screen if there's enough time left
+        if [ "$available_frame_time" -gt 0 ]; then
+            printf %s "$rendered_screen"
+            rendered_screen=''
             sleep $((available_frame_time / 1000))."$(printf "%03d" $((available_frame_time % 1000)))"
         fi
 
         last_frame_time=$current_time
     done < <(caching -- looped_frames --loops "$loops" "$@")
 
-    if [ "$remaining_output" ]; then
-        printf %s "$remaining_output"
+    # print the last screen if was skipped due to lack of time
+    if [ -n "$rendered_screen" ]; then
+        printf %s "$rendered_screen"
+    fi
+
+    if [ ! "$cleanup" = 0 ]; then
+        trap - EXIT
+        printf %s "$cleanup_sequence"
+        [ -z "$record_to" ] || printf '%q' "$cleanup_sequence|" >>"$record_to"
     fi
 }
 
@@ -327,93 +397,15 @@ looped_frames() {
 }
 
 hero_animate_pre_rendered() {
-    local file="/tmp/pihero.pre-rendered.ansi"
-    [ -f "$file" ] || printf %s "$_hero_pre_rendered" >"$file"
-    hero_animate "$@" "$file"
-}
-
-# to create, type: pihero --hero-frames | pbcopy
-_hero_pre_rendered='
-[93m⫎[0m
-[30;43m][0m[93m⫎[0m
-[30;43m•[0m[30;43m][0m[93m⫎[0m
-[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
- [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
- [33m [0m[33m-[0m[33m─[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
- [33m [0m[33m-[0m[33m─[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
- [33m [0m[33m-[0m[33m─[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
- [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
- [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
- [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
- [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
- [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
- [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-'
-
-hero_animate_pre_rendered2() {
     tput civis
-    while IFS='|' read -r output; do
-        printf '%s' "$output"
-        sleep 0.05
-    done <<<"
-[112D[A[A|
-[93m⫎[0m
-[112D[A[A|
-[30;43m][0m[93m⫎[0m
-[112D[A[A|
-[30;43m•[0m[30;43m][0m[93m⫎[0m
-[112D[A[A|
-[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[112D[A[A|
-[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[112D[A[A|
-[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[112D[A[A|
-[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[112D[A[A|
-[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[112D[A[A|
-[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[112D[A[A|
-[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[112D[A[A|
-[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[112D[A[A|
-[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[112D[A[A|
-[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[112D[A[A|
-[33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[112D[A[A|
- [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[112D[A[A|
- [33m [0m[33m-[0m[33m─[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[112D[A[A|
- [33m [0m[33m-[0m[33m─[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[112D[A[A|
- [33m [0m[33m-[0m[33m─[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⫎[0m
-[112D[A[A|
- [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[112D[A[A|
- [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[112D[A[A|
- [33m-[0m[33m─[0m[33m=[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[112D[A[A|
- [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[112D[A[A|
- [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[112D[A[A|
- [33m─[0m[33m=[0m[33m≡[0m[91mΣ[0m[90;101m([0m[90;101m([0m[30;43m[[0m[30;43m [0m[31;43m蓬[0m[30;43m•[0m[91;43mｏ[0m[30;43m•[0m[30;43m][0m[93m⊐[0m
-[112D[A[A|"
-    tput cnorm
+    local skip=0
+    while IFS='|' read -r -d'|' output; do
+        if [ "$skip" -gt 0 ]; then
+            skip=$((skip - 1))
+            continue
+        fi
+        echo -n "$output"
+        sleep 0.06
+        skip=0
+    done <<<$'\n\n\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[33m≡\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[33m─\E[0m\E[33m=\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\E[33m-\E[0m\E[33m─\E[0m\E[33m=\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m-\E[0m\E[33m─\E[0m\E[33m=\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m \E[0m\E[33m-\E[0m\E[33m─\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m \E[0m\E[33m-\E[0m\E[33m─\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m \E[0m\E[33m-\E[0m\E[33m─\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m-\E[0m\E[33m─\E[0m\E[33m=\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m-\E[0m\E[33m─\E[0m\E[33m=\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m-\E[0m\E[33m─\E[0m\E[33m=\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m─\E[0m\E[33m=\E[0m\E[33m≡\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m─\E[0m\E[33m=\E[0m\E[33m≡\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m─\E[0m\E[33m=\E[0m\E[33m≡\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m-\E[0m\E[33m─\E[0m\E[33m=\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m \E[0m\E[33m-\E[0m\E[33m─\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m \E[0m\E[33m-\E[0m\E[33m─\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m \E[0m\E[33m-\E[0m\E[33m─\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⫎\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m-\E[0m\E[33m─\E[0m\E[33m=\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m-\E[0m\E[33m─\E[0m\E[33m=\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m-\E[0m\E[33m─\E[0m\E[33m=\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m─\E[0m\E[33m=\E[0m\E[33m≡\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n \E[33m─\E[0m\E[33m=\E[0m\E[33m≡\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m\n\n\E[112D\E[A\E[A\E[A\E[A|'$'\n\n\n\n\E[112D\E[K\E[A\E[K\E[A\E[K\E[A\E[K\E[A\E[K\E[?12l\E[?25h\E(B\E[m|'
 }

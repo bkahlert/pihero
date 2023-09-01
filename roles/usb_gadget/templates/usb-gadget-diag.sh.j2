@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
@@ -9,14 +9,14 @@ main() {
   local result
 
   checks_start "USB gadget diagnostics"
-  CONFIGFS_HOME=$(findmnt --output TARGET --noheadings configfs) || { printf "\e[31mERROR: Failed to find \e[3m%s\e[23m\e[0m\n" configfs >&2 && exit 1; }
+  CONFIGFS_HOME=$(findmnt --output TARGET --noheadings configfs) || die "Failed to find %p" configfs
 
   local -r gadget_name=${1:?gadget name missing}
   local -r config_name=${2:?config name missing}
   local -r instance_name=${3:?instance name missing}
   local -r gadget_dir="$CONFIGFS_HOME/usb_gadget/$gadget_name"
 
-  printf "\e[1mChecking USB gadget \e[3m%s\e[23m...\e[0m\n" "$gadget_name" >&2
+  printf "\e[1mChecking USB gadget \e[3m%s\e[23m...\e[0m\n" "$gadget_name"
 
   check "/boot/config.txt contains dtoverlay=dwc2" grep -q '^dtoverlay=dwc2\(,dr_mode=.*\)\?$' /boot/config.txt
   check "/boot/cmdline.txt contains modules-load=dwc2" grep -q "modules-load=dwc2" /boot/cmdline.txt
@@ -37,12 +37,12 @@ main() {
   check "usb-gadget is running" grep -q "^$(ls /sys/class/udc)$" "$gadget_dir"/UDC
 
   {% if usb_gadget_features.serial is defined %}
-  printf "\e[1mChecking serial port...\e[0m\n" >&2
+  printf "\e[1mChecking serial port...\e[0m\n"
   check "usb-gadget's serial port is active" systemctl -q is-active serial-getty@ttyGS0.service
   {% endif %}
 
   {% if usb_gadget_features.ethernet is defined %}
-  printf "\e[1mChecking ethernet...\e[0m\n" >&2
+  printf "\e[1mChecking ethernet...\e[0m\n"
   check "dnsmasq is installed" which dnsmasq >/dev/null
   check "dnsmasq is active" systemctl -q is-active dnsmasq.service
   check "usb0 interface exists" ip link show usb0 >/dev/null
@@ -74,7 +74,7 @@ main() {
     done
     #{% endif %}
     :
-  } | sed 's/^/  /' >&2
+  } | sed 's/^/  /'
 
   return $result
 }

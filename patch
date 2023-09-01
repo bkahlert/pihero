@@ -18,7 +18,7 @@ p() {
     elif [ "$default" ]; then
         printf -v "$var" '%s' "$default"
     else
-        printf '\e[31mRequired parameter \e[3m%s\e[23m is missing.\e[0m\n' "$prefixed" >&2
+        printf '\e[31mThe required parameter \e[3m%s\e[23m is missing.\e[0m\n' "$prefixed" >&2
         printf 'Either use \e[3m%s\e[23m or run \e[3m%s\e[23m to provide it.\n' "export $prefixed=..." "$prefixed=... ${0##*/}"
         exit 1
     fi
@@ -54,7 +54,7 @@ r() {
         printf '\e[31Failed to copy \e[3m%s\e[23m to \e[3m%s\e[23m\n' "${src[*]}" "$dst"
         exit 1
     }
-    printf '\e[32m✔︎\e[0m\n'
+    printf '\e[32;1m✔\e[0m\n'
 }
 
 # Runs this patch command with the same parameters as the current execution,
@@ -65,12 +65,8 @@ continuous() {
     local env_args=("${params_disabled[@]}") paths=()
     while [ "$#" -gt 0 ]; do
         case "$1" in
-        *=*)
-            env_args+=("${PREFIX}$1") && shift
-            ;;
-        *)
-            break
-            ;;
+        *=*) env_args+=("${PREFIX}$1") && shift ;;
+        *) break ;;
         esac
     done
     env_args+=("${PREFIX}CONTINUOUS=0")
@@ -82,7 +78,7 @@ continuous() {
         "${paths[@]}"  # paths to watch
     )
 
-    printf '\e[2mWatching \e[3m%s\e[22;23m\n' "${paths[*]}" >&2
+    printf '\e[2mWatching \e[3m%s\e[22;23m\n' "${paths[*]}"
     fswatch --print0 "${fswatch_args[@]}" | xargs -0 -n 1 -I {} env "${env_args[@]}" "$0"
 }
 

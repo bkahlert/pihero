@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # USB Gadget: https://www.kernel.org/doc/html/latest/usb/index.html
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
@@ -11,11 +11,11 @@ declare -r gadget_name=pihero
 declare -r config_name=c.1
 declare -r instance_name=usb0
 
-CONFIGFS_HOME=$(findmnt --output TARGET --noheadings configfs) || { printf "\e[31mERROR: Failed to find \e[3m%s\e[23m\e[0m\n" configfs >&2 && exit 1; }
+CONFIGFS_HOME=$(findmnt --output TARGET --noheadings configfs) || die "Failed to find %p" configfs
 declare -r gadget_dir="$CONFIGFS_HOME/usb_gadget/$gadget_name"
 
 start_gadget() {
-  printf "\e[1mStarting USB gadget \e[3m%s\e[23m...\e[0m\n" "$gadget_name" >&2
+  printf "\e[1mStarting USB gadget \e[3m%s\e[23m...\e[0m\n" "$gadget_name"
 
   create_gadget
   create_config
@@ -62,11 +62,12 @@ start_gadget() {
   # Post scripts
   {% raw %}
   while (( ${#post_scripts[@]} > 0 )); do
-    printf "Running post script for function \e[3m%s.%s\e[23m...\n" "${post_scripts[0]}" "${post_scripts[1]}" >&2
-    bash -x "${post_scripts[2]}"
+    printf "Running post script for function \e[3m%s.%s\e[23m...\n" "${post_scripts[0]}" "${post_scripts[1]}"
+    local exit_code
+    bash "${post_scripts[2]}"
     exit_code=$?
     if [ $exit_code -eq 0 ]; then
-      printf "Post script for function \e[3m%s.%s\e[23m completed successfully.\n" "${post_scripts[0]}" "${post_scripts[1]}" >&2
+      printf "Post script for function \e[3m%s.%s\e[23m completed successfully.\n" "${post_scripts[0]}" "${post_scripts[1]}"
       rm "${post_scripts[2]}"
     else
       printf "\e[31mERROR: Post script \e[3m%s\e[23m for function \e[3m%s.%s\e[23m terminated with exit code \e[3m%d\e[23m.\e[0m\n" \
@@ -76,15 +77,15 @@ start_gadget() {
   done
   {% endraw %}
 
-  printf "\e[1mStarted USB gadget \e[3m%s\e[23m.\e[0m\n" "$gadget_name" >&2
+  printf "\e[1mStarted USB gadget \e[3m%s\e[23m.\e[0m\n" "$gadget_name"
 }
 
 # see https://www.kernel.org/doc/html/latest/usb/gadget_configfs.html#creating-the-gadgets
 create_gadget() {
-  printf "\e[1mCreating gadget \e[3m%s\e[23m...\e[0m\n" "$gadget_name" >&2
+  printf "\e[1mCreating gadget \e[3m%s\e[23m...\e[0m\n" "$gadget_name"
 
-  mkdir -p "$gadget_dir" || { printf "\e[31mERROR: Failed to create directory \e[3m%s\e[23m.\e[0m\n" "$gadget_dir" >&2 && exit 1; }
-  cd "$gadget_dir" || { printf "\e[31mERROR: Failed to change directory to \e[3m%s\e[23m.\e[0m\n" "$gadget_dir" >&2 && exit 1; }
+  mkdir -p "$gadget_dir" || die "Failed to create directory %p." "$gadget_dir"
+  cd "$gadget_dir" || die "Failed to change directory to %p." "$gadget_dir"
 
   echo '0x1d6b' >idVendor  # The Linux Foundation,
                            # see https://www.usb.org/sites/default/files/usb_vids_080223.pdf
@@ -105,7 +106,7 @@ create_gadget() {
 
 # see https://www.kernel.org/doc/html/latest/usb/gadget_configfs.html#creating-the-configurations
 create_config() {
-  printf "\e[1mCreating configuration \e[3m%s\e[23m...\e[0m\n" "$config_name" >&2
+  printf "\e[1mCreating configuration \e[3m%s\e[23m...\e[0m\n" "$config_name"
 
   case "$config_name" in
   *.*)
@@ -125,8 +126,7 @@ create_config() {
     esac >configs/c.1/MaxPower
     ;;
   *)
-    printf "\e[31mERROR: The configuration needs to have the format \e[3m<name>\e[23m.\e[3m<number>\e[23m.\e[0m\n" >&2
-    exit 1
+      die "The configuration name %p is invalid. It needs to have the format <name>.<number>." "$config_name"
     ;;
   esac
 }
@@ -136,7 +136,7 @@ create_function() {
   local -r function_name=${1:?function name missing}
   local -r function="$function_name.$instance_name"
 
-  printf "\e[1mCreating function \e[3m%s\e[23m...\e[0m\n" "$function" >&2
+  printf "\e[1mCreating function \e[3m%s\e[23m...\e[0m\n" "$function"
 
   mkdir -p "functions/$function"
 
@@ -146,7 +146,7 @@ create_function() {
 
     port_num_file="$PWD/functions/$function/port_num"
     echo 'if [ -f "'$port_num_file'" ]; then
-        N="$(cat "'$port_num_file'")"
+        N="$(<"'$port_num_file'")"
         systemctl start "serial-getty@ttyGS${N}.service" &
     fi'
     ;;
@@ -163,7 +163,7 @@ create_function() {
 
     ifname_file="$PWD/functions/$function/ifname"
     echo 'if [ -f "'$ifname_file'" ]; then
-        N="$(cat "'$ifname_file'")"
+        N="$(<"'$ifname_file'")"
         ifconfig "$N" {{ usb0_cidr_address }} netmask {{ usb0_cidr_netmask }}
     fi'
     ;;
@@ -182,48 +182,48 @@ create_function() {
 
     ifname_file="$PWD/functions/$function/ifname"
     echo 'if [ -f "'$ifname_file'" ]; then
-        N="$(cat "'$ifname_file'")"
+        N="$(<"'$ifname_file'")"
         ifconfig "$N" {{ usb0_cidr_address }} netmask {{ usb0_cidr_netmask }}
     fi'
     ;;
   *)
-    printf "\e[1mDelegating creation of function \e[3m%s\e[23m to \e[3m%s\e[23m...\e[0m\n" "$function" 'usb-gadget-custom' >&2
+    printf "\e[1mDelegating creation of function \e[3m%s\e[23m to \e[3m%s\e[23m...\e[0m\n" "$function" 'usb-gadget-custom'
     ({{ package_dir }}/usb-gadget-custom create_custom_function "$@")
     ;;
   esac
 }
 
 bind_gadget() {
-  printf "Binding gadget in \e[3m%s\e[23m... " "$PWD" >&2
-  if [ "$(cat "$gadget_dir"/UDC)" ]; then
-    printf "\e[33mWARNING: Gadget in \e[3m%s\e[23m is already bound.\e[0m\n" "$PWD" >&2
+  printf "Binding gadget in \e[3m%s\e[23m... " "$PWD"
+  if [ "$(<"$gadget_dir"/UDC)" ]; then
+    printf "\e[33mWARNING: Gadget in \e[3m%s\e[23m is already bound.\e[0m\n" "$PWD"
   else
     ls /sys/class/udc >UDC
-    printf "\e[32m✔︎\e[0m\n" >&2
+    printf "\e[32;1m✔\e[0m\n"
   fi
 }
 
 unbind_gadget() {
-  printf "Unbinding gadget in \e[3m%s\e[23m... " "$PWD" >&2
-  if [ "$(cat "$gadget_dir"/UDC)" ]; then
+  printf "Unbinding gadget in \e[3m%s\e[23m... " "$PWD"
+  if [ "$(<"$gadget_dir"/UDC)" ]; then
     echo '' >UDC
-    printf "\e[32m✔︎\e[0m\n" >&2
+    printf "\e[32;1m✔\e[0m\n"
   else
-    printf "\e[33mWARNING: No bound gadget found in \e[3m%s\e[23m.\e[0m\n" "$PWD" >&2
+    printf "\e[33mWARNING: No bound gadget found in \e[3m%s\e[23m.\e[0m\n" "$PWD"
   fi
 }
 
 # see https://www.kernel.org/doc/html/latest/usb/gadget_configfs.html#cleaning-up
 stop_gadget() {
 
-  printf "\e[1mStopping USB gadget \e[3m%s\e[23m...\e[0m\n" "$gadget_name" >&2
+  printf "\e[1mStopping USB gadget \e[3m%s\e[23m...\e[0m\n" "$gadget_name"
 
-  [ -d "$gadget_dir" ] || { printf "\e[31mERROR: USB gadget \e[3m%s\e[23m is already stopped.\e[0m\n" "$gadget_name" >&2 && exit 1; }
+  [ -d "$gadget_dir" ] || die "The USB gadget %p is already stopped." "$gadget_name"
 
-  printf "\e[1mStopping serial devices...\e[0m\n" >&2
+  printf "\e[1mStopping serial devices...\e[0m\n"
   while IFS= read -r -d '' f; do
     if [ -f "$f/port_num" ]; then
-      N="$(cat "$f/port_num")"
+      N="$(<"$f/port_num")"
       systemctl stop "serial-getty@ttyGS${N}.service" || true
     fi
   done < <(find "$gadget_dir/functions" -type "d" -name "acm.*" -print0)
@@ -231,52 +231,52 @@ stop_gadget() {
   # Unbind
   (cd "$gadget_dir" && unbind_gadget)
 
-  printf "\e[1mRemoving functions from configurations...\e[0m\n" >&2
+  printf "\e[1mRemoving functions from configurations...\e[0m\n"
   for c in "$gadget_dir"/configs/*.*; do # configs/c.1
     for f in "$c"/*.*; do # configs/c.1/acm.0
       [ -h "$f" ] || continue
-      printf "Removing function \e[3m%s\e[23m from configuration \e[3m%s\e[23m.\e[0m\n" "${f##*/}" "${c##*/}" >&2
+      printf "Removing function \e[3m%s\e[23m from configuration \e[3m%s\e[23m.\e[0m\n" "${f##*/}" "${c##*/}"
       rm -f "$f"
     done
   done
 
-  printf "\e[1mRemoving os_desc configurations...\e[0m\n" >&2
+  printf "\e[1mRemoving os_desc configurations...\e[0m\n"
   for c in "$gadget_dir"/os_desc/*.*; do # os_desc/c.1
     [ -h "$c" ] || continue
-    printf "Removing os_desc configuration \e[3m%s\e[23m.\e[0m\n" "${c##*/}" >&2
+    printf "Removing os_desc configuration \e[3m%s\e[23m.\e[0m\n" "${c##*/}"
     rm -f "$c"
   done
 
-  printf "\e[1mRemoving strings directories from configurations...\e[0m\n" >&2
+  printf "\e[1mRemoving strings directories from configurations...\e[0m\n"
   for c in "$gadget_dir"/configs/*.*; do # configs/c.1
     for strings in "$c"/strings/*; do
-      printf "Removing strings directory \e[3m%s\e[23m from configuration \e[3m%s\e[23m.\e[0m\n" "${strings##*/}" "${c##*/}" >&2
+      printf "Removing strings directory \e[3m%s\e[23m from configuration \e[3m%s\e[23m.\e[0m\n" "${strings##*/}" "${c##*/}"
       rmdir "$strings"
     done
   done
 
-  printf "\e[1mRemoving configurations...\e[0m\n" >&2
+  printf "\e[1mRemoving configurations...\e[0m\n"
   for c in "$gadget_dir"/configs/*.*; do
-    printf "Removing configuration \e[3m%s\e[23m.\e[0m\n" "${c##*/}" >&2
+    printf "Removing configuration \e[3m%s\e[23m.\e[0m\n" "${c##*/}"
     rmdir "$c"
   done
 
-  printf "\e[1mRemoving functions from the gadget...\e[0m\n" >&2
+  printf "\e[1mRemoving functions from the gadget...\e[0m\n"
   for f in "$gadget_dir"/functions/*; do
-    printf "Removing function \e[3m%s\e[23m.\e[0m\n" "${f##*/}" >&2
+    printf "Removing function \e[3m%s\e[23m.\e[0m\n" "${f##*/}"
     rmdir "$f"
   done
 
-  printf "\e[1mRemoving strings directories from the gadget...\e[0m\n" >&2
+  printf "\e[1mRemoving strings directories from the gadget...\e[0m\n"
   for strings in "$gadget_dir"/strings/*; do
-    printf "Removing strings directory \e[3m%s\e[23m from the gadget.\e[0m\n" "${strings##*/}" >&2
+    printf "Removing strings directory \e[3m%s\e[23m from the gadget.\e[0m\n" "${strings##*/}"
     rmdir "$strings"
   done
 
-  printf "\e[1mRemoving the gadget \e[3m%s\e[23m...\e[0m\n" "$gadget_name" >&2
+  printf "\e[1mRemoving the gadget \e[3m%s\e[23m...\e[0m\n" "$gadget_name"
   rmdir "$gadget_dir"
 
-  printf "\e[1mStopped USB gadget \e[3m%s\e[23m.\e[0m\n" "$gadget" >&2
+  printf "\e[1mStopped USB gadget \e[3m%s\e[23m.\e[0m\n" "$gadget"
 }
 
 main() {
@@ -294,8 +294,8 @@ main() {
           {{ package_dir }}/usb-gadget-diag "$gadget_name" "$config_name" "$instance_name"
       ;;
       *)
-        printf "\e[33mUsage: %s \e[3m%s\e[23m|\e[3m%s\e[23m|\e[3m%s\e[23m\e[0m\n" "$0" start stop diag >&2
-        exit 1
+        printf "\e[33mUsage: %s \e[3m%s\e[23m|\e[3m%s\e[23m|\e[3m%s\e[23m\e[0m\n" "$0" start stop diag
+        die "The provided command %p is unknown." "$1"
       ;;
   esac
 }
