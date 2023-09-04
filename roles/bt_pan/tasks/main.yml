@@ -99,10 +99,9 @@
       loop: "{{ group_members['users'] | default([]) }}"
 
     - name: copy files
-      ansible.builtin.copy:
+      ansible.posix.synchronize:
         src: files/
         dest: "{{ package_dir }}/"
-        force: true
       become: true
 
     - name: restart services
@@ -190,7 +189,7 @@
       become: true
       vars:
         marker_begin_latin1: "MARKER_BEGIN"
-        marker_begin_unicode: "─=≡Σ(([ 蓬•ｏ•]⊐"
+        marker_begin_unicode: "─=≡▰▩▩[ 蓬•ｏ•]⊐"
         marker_end_latin1: "MARKER_END"
         marker_end_unicode: "​​​"
         path: /etc/motd

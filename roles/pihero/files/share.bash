@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev/null 2>&1 && pwd)"
 
 # shellcheck source=./../../pihero/files/lib/lib.bash
 . "$SCRIPT_DIR/lib/lib.bash"
@@ -8,15 +8,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # TODO call share with sudo
 
 +diag() {
-    local result
-
-    checks_start "Share diagnostics"
+    check_start "Share diagnostics"
     check "dnsmasq is running" systemctl -q is-active dnsmasq.service
-
     check_summary
-    result=$?
-
-    return "$result"
 }
 
 +start() {
@@ -41,7 +35,7 @@ sharectl() {
             printf "Done \e[32;1m✔\e[0m\n"
             printf "\e[1mDon't forget to activate routing on \e[3m%s\e[23m!\e[0m\n" "$host_name"
         else
-            die "Failed to prepare %p to use %p (%p) as upstream." "$self_name" "$host_name" "$host_ip"
+            die "Failed to prepare %s to use %s (%s) as upstream." "$self_name" "$host_name" "$host_ip"
         fi
     else
         printf "Stopping \e[3m%s\e[23m from using \e[3m%s\e[23m (\e[3m%s\e[23m) as upstream...\e[0m\n" \
@@ -50,7 +44,7 @@ sharectl() {
             printf "Done \e[32;1m✔\e[0m\n"
             printf "\e[1mDon't forget to deactivate routing on \e[3m%s\e[23m!\e[0m\n" "$host_name"
         else
-            die "Failed to stop %p from using %p (%p) as upstream." "$self_name" "$host_name" "$host_ip"
+            die "Failed to stop %s from using %s (%s) as upstream." "$self_name" "$host_name" "$host_ip"
         fi
     fi
     ip route show

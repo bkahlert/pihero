@@ -11,12 +11,16 @@
     dest: "/etc/samba/{{ item | basename | regex_replace('.j2$', '') }}"
     mode: "0644"
     force: true
-  with_fileglob:
-    - templates/*.conf.j2
-  notify: "restart samba"
+  with_fileglob: [ templates/*.conf.j2 ]
+  notify: restart samba
+
+- name: get samba passwords (if not done already due to not yet installed samba)
+  include_tasks: get-samba-password.yml
+  loop: "{{ group_members['users'] | default([]) }}"
+  when: smb_passwords is not defined
 
 - name: set passwords
-  include_tasks: set_samba_password.yml
+  include_tasks: set-samba-password.yml
   loop: "{{ smb_passwords | default({}) | dict2items }}"
 
 - name: copy avahi services
@@ -26,14 +30,14 @@
     dest: "/etc/avahi/services/{{ item | basename | regex_replace('.j2$', '') }}"
     mode: "0644"
     force: true
-  with_fileglob:
-    - templates/*.service.j2
-  notify: "restart avahi"
+  with_fileglob: [ templates/*.service.j2 ]
+  notify: restart avahi
 
 - name: explain shares
+  become: true
   vars:
     marker_begin_latin1: "MARKER_BEGIN"
-    marker_begin_unicode: "─=≡Σ(([ 蓬•ｏ•]⊐"
+    marker_begin_unicode: "─=≡▰▩▩[ 蓬•ｏ•]⊐"
     marker_end_latin1: "MARKER_END"
     marker_end_unicode: "​​​"
     path: /etc/motd

@@ -135,23 +135,16 @@
       notify: reboot
 
     - name: copy files
-      ansible.builtin.copy:
+      ansible.posix.synchronize:
         src: files/
         dest: "{{ package_dir }}/"
-        force: true
       become: true
 
-    - name: copy usb-gadget diagnosis script
-      ansible.builtin.template:
-        src: templates/usb-gadget-diag.sh.j2
-        dest: "{{ package_dir }}/usb-gadget-diag"
-        mode: "0755"
-        force: true
-
     - name: explain usb-gadget
+      become: true
       vars:
         marker_begin_latin1: "MARKER_BEGIN"
-        marker_begin_unicode: "─=≡Σ(([ 蓬•ｏ•]⊐"
+        marker_begin_unicode: "─=≡▰▩▩[ 蓬•ｏ•]⊐"
         marker_end_latin1: "MARKER_END"
         marker_end_unicode: "​​​"
         path: /etc/motd
@@ -226,9 +219,10 @@
             - { option: leasefile-ro }
 
     - name: explain usb0 network interface
+      become: true
       vars:
         marker_begin_latin1: "MARKER_BEGIN"
-        marker_begin_unicode: "─=≡Σ(([ 蓬•ｏ•]⊐"
+        marker_begin_unicode: "─=≡▰▩▩[ 蓬•ｏ•]⊐"
         marker_end_latin1: "MARKER_END"
         marker_end_unicode: "​​​"
         path: /etc/motd

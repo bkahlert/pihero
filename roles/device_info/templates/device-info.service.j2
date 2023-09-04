@@ -4,7 +4,7 @@
   <name replace-wildcards="yes">{{ device_info.pretty_hostname | default('%h', true) }}</name>
   <service>
     <type>_device-info._tcp</type>
-    <txt-record value-format="binary-base64">model={{ device_info.model | b64encode }}</txt-record>
+    <txt-record value-format="binary-base64">model={{ device_info.model | default(default_model, true) | b64encode }}</txt-record>
     <txt-record value-format="binary-base64">machine={{ device_info.machine | b64encode }}</txt-record>
   </service>
 </service-group>

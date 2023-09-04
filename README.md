@@ -246,18 +246,18 @@ with a message containing information about the configured features:
 ```text
 Linux gadget 6.1.21-v8+ #1642 SMP PREEMPT aarch64
 
-─=≡Σ(([ 蓬•ｏ•]⊐ Shares
+─=≡▰▩▩[ 蓬•ｏ•]⊐ Shares
     smb://foo.local/pi → /home/pi
     smb://foo.local/rootfs → / (read-only)
 
-─=≡Σ(([ 蓬•ｏ•]⊐ USB gadget
+─=≡▰▩▩[ 蓬•ｏ•]⊐ USB gadget
     FEATURES: mass_storage, serial, ethernet
 
-─=≡Σ(([ 蓬•ｏ•]⊐ USB ethernet
+─=≡▰▩▩[ 蓬•ｏ•]⊐ USB ethernet
     INTERFACE: usb0 — IP 10.10.10.10 / 255.255.255.248 — DHCP: 10.10.10.11 - 10.10.10.14
     HELP: pihero gadget
 
-─=≡Σ(([ 蓬•ｏ•]⊐ Bluetooth PAN
+─=≡▰▩▩[ 蓬•ｏ•]⊐ Bluetooth PAN
     INTERFACE: usb0 — IP 10.11.10.10 / 255.255.255.248 — DHCP: 10.11.10.11 - 10.11.10.14
     HELP: pihero pan
 

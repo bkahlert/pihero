@@ -1,6 +1,6 @@
-# A minimal framework for writing bash extensions.
+# A minimal framework for writing lazily loadable extensions.
 #
-# - get_extensions: prints all found extensions
+# - find_extensions: finds extensions at the specified locations
 # - run_extension: runs the given extension with the parameters
 
 # Prints the all found extensions files found in the given directories, their provided commands, and name in the format:
@@ -16,7 +16,16 @@
 # Returns:
 #   0: Extensions printed.
 #   1: An error occurred.
-get_extensions() {
+find_extensions() {
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --) shift && break ;;
+        --*) die --code 2 "%s: invalid option" "$1" ;;
+        -*) die --code 2 "%s: invalid flag" "$1" ;;
+        *) break ;;
+        esac
+    done
+
     local directory real_directory extension_file extension_commands extension_name
     while [ $# -gt 0 ]; do
         directory=$1 && shift
@@ -39,17 +48,17 @@ get_extensions() {
 # If no command is given, no "main" command exists, and the STDIN is found not to be a terminal;
 # this function exits with 125.
 #
-# If unknown parameters are provided, or required parameters aren't provided,
+# If unknown parameters are provided or required parameters aren't,
 # this function exits with 1.
 #
 # Globals:
 #   None
 # Arguments:
-#   --extensions (string): extension descriptions returned by get_extensions
-#   --extension-name (string): name of the extension to run
-#   --
+#   --interactive (boolean, default: 1 if STDIN is terminal): whether to prompt the user to choose a command, if no command is given and no "main" command exists
+#   --extensions (string): extension descriptions returned by find_extensions
+#   --extension (string): name of the extension to run
 #   $1 (string, default: main): command to run
-#   $@ (string): arguments to pass to the command
+#   $@ (string ...): arguments to pass to the command
 # Outputs:
 #   Same as the executed extension command.
 # Returns:
@@ -58,44 +67,37 @@ get_extensions() {
 #   130: user cancelled command prompt
 #     *: Exit code of the executed extension.
 run_extension() {
-    local extensions extension_name
+    local interactive=0 extensions extension
+    [ ! -t 0 ] || interactive=1
     while [ $# -gt 0 ]; do
-        case "$1" in
-        --extensions=*)
-            extensions="${1#*=}" && shift
-            ;;
-        --extensions)
-            shift && extensions=${1?extensions: parameter value not set} && shift
-            ;;
-        --extension-name=*)
-            extension_name="${1#*=}" && shift
-            ;;
-        --extension-name)
-            shift && extension_name=${1?extension-name: parameter value not set} && shift
-            ;;
-        --)
-            shift && break
-            ;;
-        *)
-            die "The provided parameter %p is unknown." "$1"
-            ;;
+        case $1 in
+        --interactive) interactive=1 && shift ;;
+        --interactive=*) interactive=${1#*=} && shift ;;
+        --extensions) extensions=${2?$1: parameter value not set} && shift 2 ;;
+        --extensions=*) extensions=${1#*=} && shift ;;
+        --extension) extension=${2?$1: parameter value not set} && shift 2 ;;
+        --extension=*) extension=${1#*=} && shift ;;
+        --) shift && break ;;
+        --*) die --code 2 "%s: invalid option" "$1" ;;
+        -*) die --code 2 "%s: invalid flag" "$1" ;;
+        *) break ;;
         esac
     done
 
-    : "${extensions:?}"
-    : "${extension_name:?}"
+    [ -n "$extensions" ] || die --code 2 'extensions missing'
+    [ -n "$extension" ] || die --code 2 'extension missing'
 
     local extension_file has_main
     local -a extension_commands=()
-    local curr_ext_file curr_ext_commands curr_ext_command curr_ext_name
-    while IFS=: read -r curr_ext_file curr_ext_commands curr_ext_name; do
-        if [ "$curr_ext_name" = "$extension_name" ]; then
-            extension_file=$curr_ext_file
-            for curr_ext_command in $curr_ext_commands; do
-                if [ "$curr_ext_command" = "main" ]; then
+    local loop_extension_file loop_extension_commands loop_extension_command loop_extension_name
+    while IFS=: read -r loop_extension_file loop_extension_commands loop_extension_name; do
+        if [ "$loop_extension_name" = "$extension" ]; then
+            extension_file=$loop_extension_file
+            for loop_extension_command in $loop_extension_commands; do
+                if [ "$loop_extension_command" = "main" ]; then
                     has_main=1
                 else
-                    extension_commands+=("$curr_ext_command")
+                    extension_commands+=("$loop_extension_command")
                 fi
             done
             break
@@ -109,7 +111,7 @@ run_extension() {
         cmd=$1 && shift
     elif [ "$has_main" = 1 ]; then
         cmd=main
-    elif is_interactive; then
+    elif [ ! "${interactive:-0}" = 0 ]; then
         local cursor_length=2 default_header
         if [ -n "$GUM_CHOOSE_CURSOR" ]; then
             local stripped
@@ -127,14 +129,15 @@ run_extension() {
                 gum choose --selected="${extension_commands[0]}" "${extension_commands[@]}"
         ) || return 130
     else
-        die --code 125 "The parameter %p is required because the extension %p has no default command." command "$extension_name"
+        die --code 125 '%s: command missing' "$extension"
     fi
 
     # subshell to avoid polluting the environment due to sourcing
     (
         # shellcheck disable=SC1090
-        . "$extension_file" || die --code 126 "Failed to load extension %p." "$extension_file"
-        declare -F -- "+$cmd" >/dev/null || die --code 127 "Failed to find command %p." "$cmd"
-        "+$cmd" "${args[@]}"
+        . "$extension_file" || die --code 126 '%s: loading extension failed' "$extension_file"
+        declare -F -- "+$cmd" >/dev/null || die --code 127 '%s: %s: command not found' "$extension" "$cmd"
+        export EXTENSION="$extension"
+        "+$cmd" "$@"
     )
 }

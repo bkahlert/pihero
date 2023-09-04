@@ -8,8 +8,7 @@
     src: "{{ item }}"
     dest: "{{ package_dir }}/{{ item | basename }}"
     force: true
-  with_fileglob:
-    - files/*.bash
+  with_fileglob: [ files/*.bash ]
 
 # themes are located at /usr/share/plymouth/themes
 # for custom themes, https://github.com/HerbFargus/plymouth-themes seems to be a good starting point
@@ -21,10 +20,9 @@
 
 - name: copy themes
   become: true
-  ansible.builtin.copy:
-    src: "files/themes/"
-    dest: "{{ plymouth_themes_dir }}/"
-    force: true
+  ansible.posix.synchronize:
+    src: files/themes/
+    dest: "{{ plymouth_themes_dir }}"
 
 - name: set plymouth theme
   ansible.builtin.shell: plymouth-set-default-theme --rebuild-initrd pihero

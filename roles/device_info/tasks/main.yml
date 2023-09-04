@@ -9,13 +9,6 @@
 
 - name: set defaults
   block:
-    - name: set default device_info.model
-      when: device_info.model is undefined
-      block:
-        - name: set device_info.model
-          set_fact:
-            device_info: "{{ device_info | default({}) | combine({'model': 'AirPort4'}) }}"
-
     - name: set default device_info.machine
       when: device_info.machine is undefined
       block:
@@ -33,7 +26,7 @@
     - name: set pretty hostname
       when: device_info.pretty_hostname is defined
       shell: hostnamectl --pretty set-hostname "{{ device_info.pretty_hostname }}"
-      notify: "restart avahi"
+      notify: restart avahi
 
     - name: get pretty hostname
       register: device_info_pretty_hostname_result
@@ -58,7 +51,7 @@
     - { section: server, option: disallow-other-stacks, value: 'no' }
     - { section: publish, option: publish-hinfo, value: 'yes' }
     - { section: publish, option: publish-workstation, value: 'no' }
-  notify: "restart avahi"
+  notify: restart avahi
 
 - name: copy avahi services
   become: true
@@ -67,6 +60,5 @@
     dest: "/etc/avahi/services/{{ item | basename | regex_replace('.j2$', '') }}"
     mode: "0644"
     force: true
-  with_fileglob:
-    - templates/*.service.j2
-  notify: "restart avahi"
+  with_fileglob: [ templates/*.service.j2 ]
+  notify: restart avahi

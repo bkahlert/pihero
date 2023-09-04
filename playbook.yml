@@ -2,13 +2,13 @@
 - hosts: "{{ inventory if inventory is defined else 'all' }}"
   gather_facts: false
   max_fail_percentage: 0
-  become: true
+
   pre_tasks:
     - name: ensure the group_members fact is set
       import_tasks: tasks/ensure-group_members-fact.yml
 
-    - name: request passwords
-      include_tasks: tasks/request-password.yml
+    - name: get samba passwords
+      include_tasks: roles/smb_shares/tasks/get-samba-password.yml
       loop: "{{ group_members['users'] | default([]) }}"
 
     - name: update apt packages and allow release info changes

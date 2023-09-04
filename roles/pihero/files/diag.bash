@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev/null 2>&1 && pwd)"
 
 # shellcheck source=./../../pihero/files/lib/lib.bash
 . "$SCRIPT_DIR/lib/lib.bash"
 
 # Diagnostics consisting of the diagnostics of all discovered extensions
 +main() {
-    trap 'tput cnorm || true' EXIT
-    tput civis || true
+    if [ -t 2 ]; then
+        trap 'tput cnorm >&2 || true' EXIT
+        tput civis >&2 || true
+    fi
 
     local extension_dirs=("$SCRIPT_DIR/..") extensions
-    extensions=$(caching -- get_extensions "${extension_dirs[@]}") || die "Failed to load the extensions at %p." "${extension_dirs[*]}"
+    extensions=$(run_caching find_extensions "${extension_dirs[@]}") || die '%s: loading extensions failed' "${extension_dirs[*]}"
 
     local -a extensions_with_diag_command=()
     local curr_ext_file curr_ext_commands curr_ext_command curr_ext_name
@@ -26,67 +28,93 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
     done <<<"$extensions"
 
     local exit_code=0 summary=()
-
-    local columns && columns=$(tput cols) || columns=80
+    local -i columns && columns=$(tput cols) || columns=80
     local extension
     for extension in "${extensions_with_diag_command[@]}"; do
         local result
-        printf '\n'
-        run_diag "$extension" "$columns"
+        COLUMNS=$columns run_command_line "$0" "$extension" diag
         result=$?
-        tput civis || true
+        if [ -t 2 ]; then
+            tput civis >&2 || true
+        fi
         [ "$result" -le "$exit_code" ] || exit_code=$result
-
-        summary+=(
-            "  {{ Bold \"$extension\" }} $(case "$result" in
-                0) icon --format template success || true ;;
-                1) icon --format template error || true ;;
-                2) icon --format template failure || true ;;
-                *) printf '?' ;;
-                esac)"
-        )
+        summary+=("$(summary_component "$result" "$extension")")
     done
 
-    CLICOLOR_FORCE=${CLICOLOR_FORCE-1} gum format --type template \
-        '' " $(hero --mood="$exit_code" --format template || true) ${summary[*]}" '' ''
+    case ${CHECKS_OUTPUT_FORMAT:-ansi} in
+    none) : ;;
+    markdown) gum format --type template '' " $(hero_template --mood="$exit_code" || true) ${summary[*]}" '' '' ;;
+    *) gum format --type template '' " $(hero_template --mood="$exit_code" || true) ${summary[*]}" '' '' ;;
+    esac
 
     exit "$exit_code"
 }
+summary_component() {
+    local result=${1?}
+    local title=${2?}
+    local icon
+    case "$result" in
+    0) icon=$(icon_template success || true) ;;
+    1) icon=$(icon_template error || true) ;;
+    2) icon=$(icon_template failure || true) ;;
+    *) icon='?' ;;
+    esac
+    printf '  {{ Bold "%s" }} %s\n' "$title" "$icon"
+}
 
-run_diag() {
-    local extension=${1:?} && shift
-    local -i width=${1:?} && shift
+run_command_line() {
+    local -i width=${COLUMNS:-80}
     local -i mx=4 px=1
-    local -i left_offset=$((mx + 1 + px)) right_offset=$((mx + 1 + px))
-    local -i inner_width=$((width - left_offset - right_offset))
-    local title="${extension^} diagnostics..."
+    local -i left_offset=$((mx + 1 + px))
+    local -i outer_width=$((width - (mx + px + mx + px)))
+    local -i inner_width=$((width - (mx + 1 + px + mx + 1 + px)))
+    local title="${*##*/}..."
     local exit_code outfile errfile
     outfile=$(mktemp) || die "Failed to create output file."
     errfile=$(mktemp) || die "Failed to create error file."
-    gum spin --title="$title" --spinner.align=right --spinner.width="$left_offset" -- \
-        bash -c "COLUMNS=$((inner_width)) $0 '$extension' diag 2>'$errfile' >'$outfile'"
-    exit_code=$?
-    tput civis >&2 || true
+
+    if [ -t 2 ]; then
+        printf '\n' >&2
+        gum spin --title="$title" --spinner.align=right --spinner.width="$left_offset" -- \
+            env COLUMNS=$((inner_width)) bash -c "$(printf "%q " "$@") 2>'$errfile' >'$outfile'"
+        exit_code=$?
+        tput cuu1 >&2 || true
+        tput civis >&2 || true
+    else
+        env COLUMNS=$((inner_width)) "$@" 2>"$errfile" >"$outfile"
+        exit_code=$?
+    fi
 
     local style_args=(
         --border rounded
         --margin "0 $mx"
         --padding "0 $px"
-        --width "$((inner_width))"
+        --width "$((outer_width))"
     )
 
     if [ "$exit_code" -eq 0 ]; then
-        gum style "${style_args[@]}" --border-foreground 2 "$(<"$outfile")"
+        local formatted
+        [ ! -f "$outfile" ] || formatted=$(format <"$outfile")
+        if [ -n "$formatted" ]; then
+            printf '\n'
+            gum style "${style_args[@]}" --border-foreground 2 "$formatted"
+        fi
         exit_code=0
     else
         local err_output
         err_output=$(<"$errfile")
         if [ -z "$err_output" ]; then
-            gum style "${style_args[@]}" --border-foreground 1 "$(<"$outfile")"
+            local formatted
+            [ ! -f "$outfile" ] || formatted=$(format <"$outfile")
+            if [ -n "$formatted" ]; then
+                printf '\n'
+                gum style "${style_args[@]}" --border-foreground 1 "$formatted"
+            fi
             exit_code=1
         else
-            CLICOLOR_FORCE=${CLICOLOR_FORCE-1} gum format --type template \
-                "$(printf '%*s' "$mx" '') $(icon --format template failure || true) {{ Bold \"$extension diagnostics failed\" }} " ''
+            printf '\n'
+            gum format --type template \
+                "$(printf '%*s' "$mx" '') $(icon_template failure || true) {{ Bold \"${*##*/} failed\" }} " ''
             gum style "${style_args[@]}" --border-foreground 1 "${err_output/#$'\n'/}"
             exit_code=2
         fi

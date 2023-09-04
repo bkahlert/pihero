@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev/null 2>&1 && pwd)"
 
 # shellcheck source=./../../pihero/files/lib/lib.bash
 . "$SCRIPT_DIR/lib/lib.bash"
 
 +diag() {
-    local result
-    checks_start "Bluetooth PAN diagnostics"
+    check_start "Bluetooth PAN diagnostics"
 
     check "/lib/systemd/system/hciuart.service exists" test -f /lib/systemd/system/hciuart.service
 
@@ -26,25 +25,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
     check "pan0 dnsmasq config is not malformed" grep -v -q "^interface$" /etc/dnsmasq.d/pan0.conf
     check "pan0 dnsmasq config is not malformed" grep -v -q "^leasefile-ro=" /etc/dnsmasq.d/pan0.conf
 
-    check_summary
-    result=$?
-
+    # shellcheck disable=SC2016
     {
-        printf -- "\n\e[4mUseful commands:\e[0m\n"
-        printf -- "- print name of bluetooth adapter: \e[3m%s\e[23m\n" 'hciconfig hci0 name'
-        printf -- "- print class of bluetooth adapter: \e[3m%s\e[23m\n" 'hciconfig hci0 class'
-        printf -- "- print features of bluetooth adapter: \e[3m%s\e[23m\n" 'hciconfig hci0 features'
-        printf -- "- list bluetooth adapter information: \e[3m%s\e[23m\n" 'bt-adapter --info'
-        printf -- "- list connected devices: \e[3m%s\e[23m\n" 'bt-device --list'
-        printf -- "- info about connected device: \e[3m%s\e[23m\n" 'bt-device --info=<name|mac>'
+        check_further '- print name of bluetooth adapter:\n  `%s`' 'hciconfig hci0 name'
+        check_further '- print class of bluetooth adapter:\n  `%s`' 'hciconfig hci0 class'
+        check_further '- print features of bluetooth adapter:\n  `%s`' 'hciconfig hci0 features'
+        check_further '- list bluetooth adapter information:\n  `%s`' 'bt-adapter --info'
+        check_further '- list connected devices:\n  `%s`' 'bt-device --list'
+        check_further '- info about connected device:\n  `%s`' 'bt-device --info=<name|mac>'
         for service in bt-network bt-agent dnsmasq; do
-            printf -- "\e[1m- regarding service \e[3m%s\e[23m:\e[0m\n" "$service"
-            printf -- "  - check status: \e[3m%s\e[23m\n" "systemctl status $service.service"
-            printf -- "  - check logs: \e[3m%s\e[23m\n" "journalctl -b -e -u $service.service"
-            printf -- "  - stop service: \e[3m%s\e[23m\n" "sudo systemctl stop $service.service"
-            printf -- "  - start service interactively: \e[3m%s\e[23m\n" "$(service_start_cmdline "$service.service")"
+            check_further_unit '%s service' "$service"
+            check_further '- check status:\n  `%s`' "systemctl status $service.service"
+            check_further '- check logs:\n  `%s`' "journalctl -b -e -u $service.service"
+            check_further '- stop service:\n  `%s`' "sudo systemctl stop $service.service"
+            check_further '- start service interactively:\n  `%s`' "$(service_start_cmdline "$service.service")"
         done
-    } | sed 's/^/  /'
-
-    return $result
+    }
+    check_summary
 }

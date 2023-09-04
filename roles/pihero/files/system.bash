@@ -1,30 +1,27 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev/null 2>&1 && pwd)"
 
 # shellcheck source=./../../pihero/files/lib/lib.bash
 . "$SCRIPT_DIR/lib/lib.bash"
 
 +diag() {
-    local result
+    check_start "System diagnostics"
 
-    checks_start "System diagnostics"
-
-    local os
-    os=$(uname -o) || die "Failed to determine the operating system"
-    case "$os" in
-    *Linux*) : ;;
-    *) die "The operating system %p is not supported." "$os" ;;
+    case $OSTYPE in
+    linux*) : ;;
+    *) die '%s: operating system unsupported' "$OSTYPE" ;;
     esac
 
     local init_system
     init_system=$(</proc/1/comm) || die "Failed to determine the init system"
 
-    case "$init_system" in
+    case $init_system in
     systemd) ;;
     *)
-        printf "\e[2mSkipping unsupported \e[3m%s\e[23m init system... \e[32;1m✔\e[0m\n" "$init_system"
-        return 0
+        check_raw '%s\n' '```' "UNSUPPORTED INIT SYSTEM: $init_system" '```'
+        check_summary
+        return
         ;;
     esac
 
@@ -33,35 +30,32 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
     check_unit "$init_system"
     if check --brief "system is operational" systemctl -q is-system-running --wait; then
-        printf 'Getting the units that take the most time to initialize...\n'
-        systemd-analyze blame | head -n4
+        local slowest_units=()
+        readarray -t slowest_units < <(systemd-analyze blame | head -n4 || true)
+        check_raw '%s\n' '```' 'SLOWEST UNITS:' "${slowest_units[@]}" '```'
     else
         local failed_unit failed_units=()
-        while read -r line; do
-            failed_units=("${failed_units[@]}" "$(echo "$line" | awk '{print $1}')")
-        done < <(systemctl --failed --no-legend --no-pager)
-        printf 'The following units failed: \e[3m%s\e[23m' "${failed_units[0]}"
-        [ "${#failed_units[@]}" -le 1 ] || printf ', \e[3m%s\e[23m' "${failed_units[@]:1}"
-        printf '\n'
+        while read -r failed_unit; do
+            failed_units+=("${failed_unit}")
+        done < <(systemctl --failed --no-legend --no-pager | awk '{print $2}' || true)
+        check_raw '%s\n' '```' "FAILED: ${failed_units[*]}" '```'
 
         for failed_unit in "${failed_units[@]}"; do
-            printf '\n'
-            systemctl --no-pager status "$failed_unit"
+            local -a output=()
+            readarray -t output < <(systemctl --no-pager status "$failed_unit" | remove_ansi_escapes | sed 's/^/  /' || true)
+            check_raw '%s\n' '```' "$failed_unit:" "${output[@]}" '```'
         done
     fi
 
-    check_summary
-    result=$?
-
+    # shellcheck disable=SC2016
     {
-        printf "\n\e[4mUseful commands:\e[0m\n"
-        printf -- "- check boot log: \e[3m%s\e[23m\n" 'sudo cat /var/log/boot.log'
-        printf -- "- check time to boot: \e[3m%s\e[23m\n" 'systemd-analyze'
-        printf -- "- list running units ordered by their initialization time: \e[3m%s\e[23m\n" 'systemd-analyze blame'
-        printf -- "- check time-critical chain of units: \e[3m%s\e[23m\n" 'systemd-analyze critical-chain'
-        printf -- "- list all unit files: \e[3m%s\e[23m\n" 'systemctl list-unit-files'
-        printf -- "- list failed units: \e[3m%s\e[23m\n" 'systemctl list-units --state=failed'
-        printf -- "- check logs: \e[3m%s\e[23m\n" 'journalctl -b'
-    } | sed 's/^/  /'
-    return "$result"
+        check_further '- check boot log:\n  `%s`' 'sudo cat /var/log/boot.log'
+        check_further '- check time to boot:\n  `%s`' 'systemd-analyze'
+        check_further '- list running units ordered by their initialization time:\n  `%s`' 'systemd-analyze blame'
+        check_further '- check time-critical chain of units:\n  `%s`' 'systemd-analyze critical-chain'
+        check_further '- list all unit files:\n  `%s`' 'systemctl list-unit-files'
+        check_further '- list failed units:\n  `%s`' 'systemctl list-units --state=failed'
+        check_further '- check logs:\n  `%s`' 'journalctl -b'
+    }
+    check_summary
 }

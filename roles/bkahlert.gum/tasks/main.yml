@@ -1,7 +1,24 @@
 ---
+- name: check if Gum is installed
+  ansible.builtin.shell: |
+    command -v gum >/dev/null 2>&1
+  register: gum_installed
+  changed_when: false
+  failed_when: false
+
 - name: install Go
-  import_tasks: install-go.yml
+  ansible.builtin.apt:
+    name: golang-go
+    state: present
+  when: gum_installed.rc != 0
+
+- name: verify Go installation
+  ansible.builtin.shell: |
+    . /etc/profile
+    go version
+  when: gum_installed.rc != 0
 
 - name: install Gum
   ansible.builtin.shell: |
-    command -v gum >/dev/null 2>&1 || GOBIN='{{ go_bin_dir }}' '{{ go_root_dir }}/bin/go' install github.com/charmbracelet/gum@latest
+    go install github.com/charmbracelet/gum@latest
+  when: gum_installed.rc != 0

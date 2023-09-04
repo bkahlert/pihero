@@ -75,6 +75,3 @@
     section: all
     option: disable_splash
     value: '1'
-
-- name: remove third-party splash screen services
-  import_tasks: no-splashscreen-services.yml

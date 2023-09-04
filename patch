@@ -3,7 +3,6 @@
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 PREFIX=${PATCH_PREFIX-PIHERO_}
-declare params_defaulted=(PREFIX="$PREFIX")
 declare params_disabled=(PREFIX="$PREFIX")
 # Sets variable with name $1 to the value of variable $PREFIX_$1 if it exists.
 # If it doesn't, uses $2 as the default value or exits with an error message.
@@ -24,7 +23,6 @@ p() {
     fi
     local val=${!prefixed:-$default}
     printf -v "$var" '%s' "$val"
-    params_defaulted+=("$prefixed=$val")
     if [ "$val" = 1 ]; then
         params_disabled+=("$prefixed=0")
     else
@@ -37,24 +35,31 @@ p() {
 m() {
     local module=${1?module missing} && shift
     local args="$*"
-    ansible "$HOST" --become -m "$module" -a "$args"
+    local host
+    # shellcheck disable=SC2153
+    for host in $HOST; do
+        ansible "$host" --become -m "$module" -a "$args"
+    done
 }
 
 # rsync command wrapper which runs:
 # rsync --recursive --compress --delete --rsh='ssh -o ConnectTimeout=120' --rsync-path='sudo rsync' "${@:1:$#-1}" "$HOST:${*: -1}"
 r() {
-    [ "$#" -ge 2 ] || {
+    [ $# -ge 2 ] || {
         printf '\e[31mAt least two parameters—the files to copy, and the destination—are required\n'
         exit 1
     }
     local src=("${@:1:$#-1}")
-    local dst="$HOST:${*: -1}"
-    printf "Copying \e[3m%s\e[23m to \e[3m%s\e[23m... " "${src[*]}" "$dst"
-    rsync --recursive --compress --delete --rsh='ssh -o ConnectTimeout=10' --rsync-path='sudo rsync' "${src[@]}" "$dst" || {
-        printf '\e[31Failed to copy \e[3m%s\e[23m to \e[3m%s\e[23m\n' "${src[*]}" "$dst"
-        exit 1
-    }
-    printf '\e[32;1m✔\e[0m\n'
+    local host
+    for host in $HOST; do
+        local dst="$host:${*: -1}"
+        printf "Copying \e[3m%s\e[23m to \e[3m%s\e[23m... " "${src[*]}" "$dst"
+        rsync --recursive --compress --delete --rsh='ssh -o ConnectTimeout=10' --rsync-path='sudo rsync' "${src[@]}" "$dst" || {
+            printf '\e[31Failed to copy \e[3m%s\e[23m to \e[3m%s\e[23m\n' "${src[*]}" "$dst"
+            exit 1
+        }
+        printf '\e[32;1m✔\e[0m\n'
+    done
 }
 
 # Runs this patch command with the same parameters as the current execution,
@@ -63,8 +68,8 @@ r() {
 # - given parameters, for example, MAIN=1, overrides the corresponding parameter
 continuous() {
     local env_args=("${params_disabled[@]}") paths=()
-    while [ "$#" -gt 0 ]; do
-        case "$1" in
+    while [ $# -gt 0 ]; do
+        case $1 in
         *=*) env_args+=("${PREFIX}$1") && shift ;;
         *) break ;;
         esac
@@ -97,12 +102,13 @@ main() {
     # set params
     p CONTINUOUS 0                                         # Whether to run the patch operations whenever a relevant file changes
     p HOST                                                 # The host to patch
-    p MAIN 1                                               # Whether to update the pihero entrypoint
-    p MAIN_FILES "$SCRIPT_DIR/roles/pihero/files"          # The directory containing the bin and lib directory of the pihero entrypoint
+    p MAIN 1                                               # Whether to update the pihero main component
+    p MAIN_FILES "$SCRIPT_DIR/roles/pihero/files"          # The directory containing the pihero main component files
     p SPLASH 1                                             # Whether to update the pihero splash component
-    p SPLASH_FILES "$SCRIPT_DIR/roles/pihero_splash/files" # The directory containing the files of the pihero splash component
+    p SPLASH_FILES "$SCRIPT_DIR/roles/pihero_splash/files" # The directory containing the pihero splash component files
 
     if [ "$MAIN" = 0 ] && [ "$SPLASH" = 0 ]; then
+        local params
         printf -v params '\e[3m%s\e[23m ' "${PREFIX}HOST=foo.local" "$PREFIX...=..."
         printf '\e[1mUsage: %s %s\e[0m\n' "$params" "${0##*/}"
         printf ' Hints: Add -t / --continuous to run the corresponding patch operations whenever a relevant file changes.\n'

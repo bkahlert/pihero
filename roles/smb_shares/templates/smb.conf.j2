@@ -25,7 +25,7 @@
         vfs objects = catia fruit streams_xattr
         fruit:metadata = stream
         fruit:resource = stream
-        fruit:model = {{ device_info.model }}
+        fruit:model = {{ device_info.model | default(default_model, true) }}
         fruit:posix_rename = Yes
         fruit:veto_appledouble = No
         fruit:nfs_aces = No

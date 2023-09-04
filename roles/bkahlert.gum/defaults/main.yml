@@ -1,4 +1,0 @@
----
-go_version: 1.20.7 # don't use 1.21.0, the armv6 build requires armv7
-go_root_dir: /usr/local/go
-go_bin_dir: /usr/local/bin

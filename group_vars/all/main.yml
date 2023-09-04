@@ -1,1 +1,2 @@
 package_dir: /opt/pihero
+default_model: AirPort4

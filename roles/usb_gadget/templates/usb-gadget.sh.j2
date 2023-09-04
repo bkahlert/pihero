@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # USB Gadget: https://www.kernel.org/doc/html/latest/usb/index.html
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev/null 2>&1 && pwd)"
 
 # shellcheck source=./../../pihero/files/lib/lib.bash
 . "$SCRIPT_DIR/lib/lib.bash"
@@ -11,7 +11,7 @@ declare -r gadget_name=pihero
 declare -r config_name=c.1
 declare -r instance_name=usb0
 
-CONFIGFS_HOME=$(findmnt --output TARGET --noheadings configfs) || die "Failed to find %p" configfs
+CONFIGFS_HOME=$(findmnt --output TARGET --noheadings configfs) || die '%s: not found' configfs
 declare -r gadget_dir="$CONFIGFS_HOME/usb_gadget/$gadget_name"
 
 start_gadget() {
@@ -84,8 +84,8 @@ start_gadget() {
 create_gadget() {
   printf "\e[1mCreating gadget \e[3m%s\e[23m...\e[0m\n" "$gadget_name"
 
-  mkdir -p "$gadget_dir" || die "Failed to create directory %p." "$gadget_dir"
-  cd "$gadget_dir" || die "Failed to change directory to %p." "$gadget_dir"
+  mkdir -p "$gadget_dir" || die '%s: directory creation failed' "$gadget_dir"
+  cd "$gadget_dir" || die '%s: directory change failed' "$gadget_dir"
 
   echo '0x1d6b' >idVendor  # The Linux Foundation,
                            # see https://www.usb.org/sites/default/files/usb_vids_080223.pdf
@@ -108,7 +108,7 @@ create_gadget() {
 create_config() {
   printf "\e[1mCreating configuration \e[3m%s\e[23m...\e[0m\n" "$config_name"
 
-  case "$config_name" in
+  case $config_name in
   *.*)
     mkdir -p "configs/$config_name"
     mkdir -p "configs/$config_name"/strings/0x409
@@ -126,7 +126,7 @@ create_config() {
     esac >configs/c.1/MaxPower
     ;;
   *)
-      die "The configuration name %p is invalid. It needs to have the format <name>.<number>." "$config_name"
+      die '%s: configuration name not matching <name>.<number>' "$config_name"
     ;;
   esac
 }
@@ -140,7 +140,7 @@ create_function() {
 
   mkdir -p "functions/$function"
 
-  case "$function_name" in
+  case $function_name in
   acm)
     # see https://www.kernel.org/doc/html/latest/usb/gadget-testing.html#acm-function
 
@@ -218,7 +218,7 @@ stop_gadget() {
 
   printf "\e[1mStopping USB gadget \e[3m%s\e[23m...\e[0m\n" "$gadget_name"
 
-  [ -d "$gadget_dir" ] || die "The USB gadget %p is already stopped." "$gadget_name"
+  [ -d "$gadget_dir" ] || die '%s: gadget already stopped' "$gadget_name"
 
   printf "\e[1mStopping serial devices...\e[0m\n"
   while IFS= read -r -d '' f; do
@@ -280,24 +280,38 @@ stop_gadget() {
 }
 
 main() {
-  case "${1:-}" in
-      start)
-          shift
-          start_gadget
-      ;;
-      stop)
-          shift
-          stop_gadget
-      ;;
-      diag)
-          shift
-          {{ package_dir }}/usb-gadget-diag "$gadget_name" "$config_name" "$instance_name"
-      ;;
-      *)
-        printf "\e[33mUsage: %s \e[3m%s\e[23m|\e[3m%s\e[23m|\e[3m%s\e[23m\e[0m\n" "$0" start stop diag
-        die "The provided command %p is unknown." "$1"
-      ;;
-  esac
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --help | -h) usage --arg=command start stop && return 0 ;;
+        *) break ;;
+        esac
+    done
+
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --) shift && break ;;
+        --*) die --code 2 "%s: invalid option" "$1" ;;
+        -*) die --code 2 "%s: invalid flag" "$1" ;;
+        *) break ;;
+        esac
+    done
+
+    local command
+    if [ $# -gt 0 ]; then
+        command=$1 && shift
+    else
+        "${FUNCNAME[0]}" --help
+        die --code 2 'command missing'
+    fi
+
+    case $command in
+    start) start_gadget "$@" ;;
+    stop) stop_gadget "$@" ;;
+    *)
+        "${FUNCNAME[0]}" --help
+        die --code 2 '%s: invalid command' "$command"
+        ;;
+    esac
 }
 
 main "$@"

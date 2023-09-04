@@ -1,124 +1,148 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev/null 2>&1 && pwd)"
 
 # shellcheck source=./../lib/lib.bash
 . "$SCRIPT_DIR/../lib/lib.bash"
 
-# Start the application.
-# If called with a terminal connected and no provided command, a menu is displayed.
-# Otherwise, the provided command is executed, or an error is thrown.
 main() {
+    init_gum
     exec_deeplink "$@"
 
-    local command
+    local extension_dirs=("$SCRIPT_DIR/..") extensions
+    extensions=$(run_caching find_extensions "${extension_dirs[@]}") || die '%s: loading extensions failed' "${extension_dirs[*]}"
+
+    local extension_names=() _ en
+    while IFS=: read -r _ _ en; do extension_names+=("$en"); done <<<"$extensions"
+
     while [ $# -gt 0 ]; do
         case $1 in
-        --*)
-            die "The provided option %p is unknown." "$1"
+        --help | -h)
+            usage --header "Ansible setup companion tool" \
+                --arg=command "${extension_names[@]}"
+            return 0
             ;;
-        *)
-            command=$1 && shift && break
-            ;;
+        *) break ;;
         esac
     done
 
-    if is_interactive; then
-        trap 'tput cnorm' EXIT
-        print_loading_screen "Loading extensions ..." >&2
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --) shift && break ;;
+        --*) die --code 2 "%s: invalid option" "$1" ;;
+        -*) die --code 2 "%s: invalid flag" "$1" ;;
+        *) break ;;
+        esac
+    done
 
-        local extensions && init_extensions
-        local commands=() _ extension_name
-        while IFS=: read -r _ _ extension_name; do
-            commands+=("$extension_name")
-        done <<<"$extensions"
-
-        init_gum
-        while true; do
-            set_gum_choose_header \
-                "" "$(tput bold || true)Pi Hero" "Esc"
-
-            if [ -z "$command" ]; then
-                if command=$(
-                    # Loading title must be less or equal the shortest extension name to make sure its overwritten by gum
-                    print_loading_screen "..." >&2
-                    gum choose --selected="${commands[0]}" "${commands[@]}"
-                ); then
-                    tput civis >&2
-                else
-                    exit 130
-                fi
-            fi
-
-            set_gum_choose_header \
-                "" "$(tput dim || true)Pi Hero" "" \
-                "" "$(tput bold || true)$command" "Esc"
-
-            local exit_code
-            run_extension --extensions "$extensions" --extension-name "$command" -- "$@"
-            exit_code=$?
-            if [ "$exit_code" -eq 130 ]; then
-                print_loading_screen "..." >&2
-                command=''
-            else
-                exit "$exit_code"
+    local command
+    if [ $# -gt 0 ]; then
+        local extension_name
+        for extension_name in "${extension_names[@]}"; do
+            if [ "$extension_name" = "$1" ]; then
+                command=$1 && shift
+                break
             fi
         done
+        if [ -z "$command" ]; then
+            "${FUNCNAME[0]}" --help
+            die --code 2 '%s: invalid command' "$1"
+        fi
+    elif is_interactive; then
+        interactive "$@"
+        return
     else
-        : "${command:?}"
-
-        local extensions && init_extensions
-
-        local exit_code
-        run_extension --extensions "$extensions" --extension-name "$command" -- "$@"
+        "${FUNCNAME[0]}" --help
+        die --code 2 'command missing'
     fi
+
+    local exit_code
+    run_extension --extensions "$extensions" --extension "$command" -- "$@"
+    exit_code=$?
+    return "$exit_code"
 }
 
-# Set the extension variable to contain the specification of all discovered extensions.
-# Looks similar to this:
-# file1:command1_a command1_b:name1
-# file2:command2_a command2_b:name2
-init_extensions() {
-    local extension_dirs=("$SCRIPT_DIR/..")
-    extensions=$(caching -- get_extensions "${extension_dirs[@]}") || die "Failed to load the extensions at %p." "${extension_dirs[*]}"
+interactive() {
+    local extension
+    trap 'tput cnorm' EXIT
+    while true; do
+        set_gum_choose_header 'Pi Hero'
+        if [ -z "$extension" ]; then
+            if extension=$(
+                # Loading title must be less or equal the shortest extension name to make sure its overwritten by gum
+                print_loading_screen "..." >&2
+                gum choose --selected="${extension_names[0]}" "${extension_names[@]}"
+            ); then
+                tput civis >&2
+            else
+                return 130
+            fi
+        fi
+
+        set_gum_choose_header 'Pi Hero' "$extension"
+        local -a extension_commands=()
+        local _ loop_extension_commands loop_extension_command loop_extension_name
+        while IFS=: read -r _ loop_extension_commands loop_extension_name; do
+            if [ "$loop_extension_name" = "$extension" ]; then
+                for loop_extension_command in $loop_extension_commands; do extension_commands+=("$loop_extension_command"); done
+                break
+            fi
+        done <<<"$extensions"
+
+        if [ "${#extension_commands[@]}" -eq 1 ] && [ "${extension_commands[0]}" = "main" ]; then
+            run_extension --extensions "$extensions" --extension "$extension"
+            extension=''
+        else
+            local extension_command
+            if extension_command=$(
+                print_loading_screen "..." >&2
+                gum choose --selected="${extension_commands[0]}" "${extension_commands[@]}"
+            ); then
+                tput civis >&2
+            else
+                extension=''
+                continue
+            fi
+
+            run_extension --extensions "$extensions" --extension "$extension" -- "$extension_command"
+            extension_command=''
+        fi
+    done
 }
 
 # Sets various environment variables that are used by the command line interface.
 # bashsupport disable=BP2001
 init_gum() {
-    local bright=8 black=0 red=1 green=2 yellow=3 blue=4 magenta=5 cyan=6 white=7
+    local neutral_hero_template && neutral_hero_template=$(hero_template --mood=neutral || true)
+    local sad_hero_template && sad_hero_template=$(hero_template --mood=sad || true)
+
+    export DIE_TEMPLATE
+    printf -v DIE_TEMPLATE '\n %s {{ Foreground "%s" "%%s" }}\n' "$sad_hero_template" "$HERO_PINK"
+
+    export CHECKS_HEADER_FOREGROUND=$HERO_YELLOW
+    export CHECKS_HORIZONTAL_LINE_FOREGROUND=$HERO_YELLOW
+    export CHECKS_CODE_FOREGROUND=$HERO_YELLOW
 
     export GUM_CHOOSE_CURSOR
-    export GUM_CHOOSE_CURSOR_FOREGROUND=$((yellow + bright))
+    printf -v GUM_CHOOSE_CURSOR ' %s ' "$(run_caching --tty gum format --type template "$neutral_hero_template" || true)"
+    export GUM_CHOOSE_CURSOR_LENGTH=18
+    export GUM_CHOOSE_HEADER_FOREGROUND=$HERO_ORANGE
+    export GUM_CHOOSE_CURSOR_FOREGROUND=$HERO_YELLOW
+    export GUM_CHOOSE_ITEM_FOREGROUND=''
 
-    export GUM_PAGER_BORDER_FOREGROUND=$((black + bright))
-    export GUM_PAGER_HELP_FOREGROUND=$((yellow))
+    export GUM_PAGER_BORDER_FOREGROUND=$HERO_ORANGE
+    export GUM_PAGER_HELP_FOREGROUND=$HERO_YELLOW
     export GUM_PAGER_HELP_FAINT=1
-    export GUM_PAGER_LINE_NUMBER_FOREGROUND=$((yellow))
+    export GUM_PAGER_LINE_NUMBER_FOREGROUND=$HERO_YELLOW
     export GUM_PAGER_LINE_NUMBER_FAINT=true
-    export GUM_PAGER_MATCH_FOREGROUND=$((red))
+    export GUM_PAGER_MATCH_FOREGROUND=$HERO_PINK
     export GUM_PAGER_MATCH_BACKGROUND=''
     export GUM_PAGER_MATCH_HIGH_FOREGROUND=''
-    export GUM_PAGER_MATCH_HIGH_BACKGROUND=$((red))
+    export GUM_PAGER_MATCH_HIGH_BACKGROUND=$HERO_PINK
 
     export GUM_SPIN_SPINNER=pulse
-    export GUM_SPIN_SPINNER_FOREGROUND=$((yellow))
+    export GUM_SPIN_SPINNER_FOREGROUND=$HERO_YELLOW
     export GUM_SPIN_TITLE_BOLD=1
-
-    export GUM_CHOOSE_CURSOR_LENGTH=18
-    if is_tty; then
-        local neutral_hero
-        neutral_hero=$(CLICOLOR_FORCE=1 caching tty -- hero --mood=neutral)
-        GUM_CHOOSE_CURSOR=" $neutral_hero "
-
-        local sad_hero
-        sad_hero=$(CLICOLOR_FORCE=1 caching tty -- hero --mood=sad)
-        export DIE_TEMPLATE=$'\n'" $sad_hero "'{{ Foreground "1" "%s" }}'$'\n'
-    else
-        local neutral_hero
-        neutral_hero=$(CLICOLOR_FORCE=1 caching notty -- hero --mood=neutral)
-        GUM_CHOOSE_CURSOR=" $neutral_hero "
-    fi
 }
 
 # Prints a loading screen that is overwritten once "gum" prints
@@ -126,32 +150,45 @@ init_gum() {
 # The loading screen can be used to provide feedback to the user,
 # for the time the app itself and the gum menu take to load.
 print_loading_screen() {
-    local title=${1+ $1}
+    local title=$1
 
     tput civis
 
-    # This is the last "screen" in the hero animation, the cleanup escape sequence—without sgr0 and cnorm.
-    # That is, it clears leftovers of previous loading screens.
-    printf $'\n\n\n\n\E[112D\E[K\E[A\E[K\E[A\E[K\E[A\E[K\E[A\E[K'
+    # Escape sequence that clears the area of the loading screen
+    # without restoring the cursor.
+    local clear_sequence
+    clear_sequence=${_HERO_ANIMATE_PRE_RENDERED[*]: -1:1}
+    clear_sequence=${clear_sequence#*:}
+    clear_sequence=${clear_sequence%%"$(tput cnorm)"*}
+    printf %s "$clear_sequence"
 
-    # This is the last screen in the hero animation.
-    # Type "pihero @hero animate-record" to make a recording and copy the second last screen.
-    # The last screen is the cleanup escape sequence.
-    # bashsupport disable=LongLine
-    printf $'\n\n \E[33m─\E[0m\E[33m=\E[0m\E[33m≡\E[0m\E[91mΣ\E[0m\E[90;101m(\E[0m\E[90;101m(\E[0m\E[30;43m[\E[0m\E[30;43m \E[0m\E[31;43m蓬\E[0m\E[30;43m•\E[0m\E[91;43mｏ\E[0m\E[30;43m•\E[0m\E[30;43m]\E[0m\E[93m⊐\E[0m'
-    [ -z "$title" ] || printf ' %s' "$title"
-    printf $'\n\n\E[112D\E[A\E[A\E[A\E[A'
+    # screen is something like \n\nXXX\n\n
+    # optional title goes here        ↑
+    local last_screen=${_HERO_ANIMATE_PRE_RENDERED[*]: -2:1}
+    last_screen=${last_screen#*:}
+    {
+        printf %s "${last_screen%$'\n'$'\n'*}"
+        [ -z "$title" ] || printf ' %s' "$title"
+        printf '\n\n'
+        printf %s "${last_screen##*$'\n'$'\n'}"
+    } >&2
 }
 
 # Sets the header used by the gum choose menu.
-# Each triple of arguments is a row with
-# - the first argument placed at the start,
-# - the second argument placed at the same column as the menu options, and
-# - the third argument placed right aligned at the end of the row.
 set_gum_choose_header() {
+    local fields=()
+    while [ $# -gt 0 ]; do
+        if [ $# -gt 1 ]; then
+            fields+=('' "$1" '')
+        else
+            fields+=('' "$1" 'Esc ⤴')
+        fi
+        shift
+    done
+
     # bashsupport disable=BP2001
     export GUM_CHOOSE_HEADER
-    printf -v GUM_CHOOSE_HEADER "\n%$((GUM_CHOOSE_CURSOR_LENGTH - 1))s %-10s %8s" "$@"
+    printf -v GUM_CHOOSE_HEADER "\n%$((${GUM_CHOOSE_CURSOR_LENGTH:-2} - 1))s %-10s %8s" "${fields[@]}"
 }
 
 main "$@"

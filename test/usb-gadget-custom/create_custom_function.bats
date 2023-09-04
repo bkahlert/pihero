@@ -5,6 +5,8 @@ setup() {
     bats_load_library bats-assert
     bats_load_library bats-file
 
+    create_usb_gadget_custom_wrapper "$PROJECT_DIR"
+
     cd "$BATS_TEST_TMPDIR" || exit 1
 }
 
@@ -14,28 +16,28 @@ fake_function_dir() {
     mkdir -p "functions/$function"
 }
 
-@test 'Fails on missing function name' {
+@test 'should fail on missing function name' {
     run usb-gadget-custom create_custom_function
 
     assert_output --partial 'function name missing'
     assert_failure
 }
 
-@test 'Fails on missing instance name' {
+@test 'should fail on missing instance name' {
     run usb-gadget-custom create_custom_function mass_storage
 
     assert_output --partial 'instance name missing'
     assert_failure
 }
 
-@test 'Fails on missing script' {
+@test 'should fail on missing script' {
     run usb-gadget-custom create_custom_function mass_storage usb0
 
     assert_output --partial 'script missing'
     assert_failure
 }
 
-@test 'Fails on invalid script' {
+@test 'should fail on invalid script' {
     run usb-gadget-custom create_custom_function mass_storage usb0 invalid
 
     assert_output --partial 'Script'
@@ -45,7 +47,7 @@ fake_function_dir() {
     assert_failure
 }
 
-@test 'Fails on non-executable script in function directory' {
+@test 'should fail on non-executable script in function directory' {
     echo '#!/bin/bash
 echo $PWD >stall
 ' >no-executable
@@ -58,7 +60,7 @@ echo $PWD >stall
     assert_failure
 }
 
-@test 'Only prints first line of script' {
+@test 'should only print first line of script' {
     run usb-gadget-custom create_custom_function mass_storage usb0 'foo
 bar'
 
@@ -70,7 +72,7 @@ bar'
     assert_failure
 }
 
-@test 'Executes inline script in function directory' {
+@test 'should execute inline script in function directory' {
     fake_function_dir mass_storage.usb0
     run usb-gadget-custom create_custom_function mass_storage usb0 '#!/bin/bash
 echo $PWD >stall
@@ -81,7 +83,7 @@ echo $PWD >stall
     assert_equal "$BATS_TEST_TMPDIR/functions/mass_storage.usb0" "$(<functions/mass_storage.usb0/stall)"
 }
 
-@test 'Executes script in function directory' {
+@test 'should execute script in function directory' {
     echo '#!/bin/bash
 echo $PWD >stall
 ' >script
@@ -94,7 +96,7 @@ echo $PWD >stall
     assert_equal "$BATS_TEST_TMPDIR/functions/mass_storage.usb0" "$(<functions/mass_storage.usb0/stall)"
 }
 
-@test 'Passes through STDOUT' {
+@test 'should pass through STDOUT' {
     cat <<'EOF' >script
 echo 42 >port_num
 
@@ -119,7 +121,7 @@ fi'
     assert_output 'serial-getty@ttyGS42.service'
 }
 
-@test 'Escalates script errors' {
+@test 'should escalate script errors' {
     fake_function_dir mass_storage.usb0
     inline_script='#!/bin/bash
 echo "doing something"
