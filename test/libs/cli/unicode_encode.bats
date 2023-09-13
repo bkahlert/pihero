@@ -27,7 +27,7 @@ debug_output() {
     printf 'a \e' >file1
     printf 'x\n' >file2
     run unicode_encode file1 file2
-    assert_output '\u0061\u0020\u001b\u0078\u0000'
+    assert_output '\u0061\u0020\u001b\u0078'
     assert_success
 }
 

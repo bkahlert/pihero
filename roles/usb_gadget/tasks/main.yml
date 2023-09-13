@@ -23,8 +23,8 @@
       when: usb_gadget.product is undefined
       block:
         - name: compute usb_gadget.product
-          become: true
           shell: cat /proc/device-tree/model
+          become: true
           register: usb_gadget_product_result
         - name: set usb_gadget.product
           set_fact:
@@ -41,8 +41,8 @@
       when: usb_gadget.serialnumber is undefined
       block:
         - name: compute usb_gadget.serialnumber
-          become: true
           shell: grep 'Serial' /proc/cpuinfo | awk '{print $3}' # TODO how unique is /proc/device-tree/serial-number
+          become: true
           register: usb_gadget_serialnumber_result
 
         - name: set usb_gadget.serialnumber
@@ -72,16 +72,15 @@
 - name: set up system
   block:
     - name: update /boot/config.txt
-      become: true
       community.general.ini_file:
         path: /boot/config.txt
         no_extra_spaces: true
         section: all
-        option: "{{ item.option }}"
-        value: "{{ item.value }}"
-      loop:
-        - option: dtoverlay # to get current dr_mode: find /sys/ -name dr_mode; cat /sys/kernel/debug/usb/20980000.usb/dr_mode
-          value: "dwc2{% if usb_gadget.dr_mode is defined %},dr_mode={{ usb_gadget.dr_mode }}{% endif %}"
+        option: dtoverlay # to get current dr_mode: find /sys/ -name dr_mode; cat /sys/kernel/debug/usb/20980000.usb/dr_mode
+        value: "dwc2{% if usb_gadget.dr_mode is defined %},dr_mode={{ usb_gadget.dr_mode }}{% endif %}"
+        exclusive: false
+        state: present
+      become: true
       notify: reboot
 
     - name: load dwc2 module in /boot/cmdline.txt
@@ -92,18 +91,17 @@
       notify: reboot
 
     - name: create /etc/modprobe.d/dwc2.conf
-      become: true
       ansible.builtin.copy:
         content: |
           install dwc2 /sbin/modprobe --ignore-install dwc2;  /sbin/modprobe libcomposite;
         dest: /etc/modprobe.d/dwc2.conf
         mode: "0644"
         force: true
+      become: true
       notify: reboot
 
 
 - name: install usb-gadget
-  become: true
   block:
     - name: copy usb-gadget script
       ansible.builtin.template:
@@ -111,6 +109,7 @@
         dest: "{{ package_dir }}/usb-gadget"
         mode: "0755"
         force: true
+      become: true
       notify: reboot
     - name: copy usb-gadget custom script
       ansible.builtin.template:
@@ -118,6 +117,7 @@
         dest: "{{ package_dir }}/usb-gadget-custom"
         mode: "0755"
         force: true
+      become: true
       notify: reboot
 
     - name: copy usb-gadget service
@@ -126,12 +126,14 @@
         dest: /etc/systemd/system/usb-gadget.service
         mode: "0644"
         force: true
+      become: true
 
     - name: enable usb-gadget service
-      ansible.builtin.systemd_service:
+      ansible.builtin.systemd:
         name: usb-gadget.service
         daemon_reload: true
         enabled: true
+      become: true
       notify: reboot
 
     - name: copy files
@@ -141,7 +143,6 @@
       become: true
 
     - name: explain usb-gadget
-      become: true
       vars:
         marker_begin_latin1: "MARKER_BEGIN"
         marker_begin_unicode: "─=≡▰▩▩[ 蓬•ｏ•]⊐"
@@ -175,22 +176,24 @@
           loop:
             - { regexp: "{{ marker_begin_latin1 }}", replace: "{{ marker_begin_unicode }}" }
             - { regexp: "{{ marker_end_latin1 }}", replace: "{{ marker_end_unicode }}" }
+      become: true
 
 
 - name: set up usb0 network interface
   when: usb_gadget_features.ethernet is defined
-  become: true
   block:
     # dhcpcd: DHCP Client Daemon
     - name: prevent dhcpcd from configuring usb0 network interface
       ansible.builtin.lineinfile:
         path: /etc/dhcpcd.conf
         line: denyinterfaces usb0
+      become: true
 
     - name: install dnsmasq
       ansible.builtin.apt:
         name: [ dnsmasq ]
         state: present
+      become: true
 
     # Documentation: https://dnsmasq.org/docs/dnsmasq-man.html
     - name: configure usb0 network interface for dnsmasq
@@ -208,6 +211,7 @@
             - { option: dhcp-range, value: "{{ usb0_cidr_first_usable }},{{ usb0_cidr_last_usable }},{{ usb0_cidr_netmask }},1h" }
             - { option: dhcp-option, value: "3" }
             - { option: dhcp-option, value: "6" }
+          become: true
         - name: set options without values
           ansible.builtin.lineinfile:
             path: /etc/dnsmasq.d/usb0.conf
@@ -217,9 +221,9 @@
             - { option: dhcp-authoritative }
             - { option: dhcp-rapid-commit }
             - { option: leasefile-ro }
+          become: true
 
     - name: explain usb0 network interface
-      become: true
       vars:
         marker_begin_latin1: "MARKER_BEGIN"
         marker_begin_unicode: "─=≡▰▩▩[ 蓬•ｏ•]⊐"
@@ -254,3 +258,4 @@
           loop:
             - { regexp: "{{ marker_begin_latin1 }}", replace: "{{ marker_begin_unicode }}" }
             - { regexp: "{{ marker_end_latin1 }}", replace: "{{ marker_end_unicode }}" }
+      become: true

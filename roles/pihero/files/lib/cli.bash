@@ -218,6 +218,99 @@ pluralize() {
     done
 }
 
+# Returns whether the given variable is declared with the optional attributes.
+# Globals:
+#   None
+# Arguments:
+#   $1 (string): The name of the variable to check.
+#   $@ (string ...): The optional attributes to check for.
+# Outputs:
+#   2: Error message
+# Returns:
+#   0: The variable is declared.
+#   1: The variable is not declared.
+#   2: Illegal usage
+is_declared() {
+    local variable
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --) shift && break ;;
+        --*) die --code 2 "%s: invalid option" "$1" ;;
+        -*) die --code 2 "%s: invalid flag" "$1" ;;
+        *) break ;;
+        esac
+    done
+
+    if [ $# -gt 0 ]; then
+        variable=$1 && shift
+    else
+        die --code 2 '%s: variable name missing' "${FUNCNAME[0]}"
+    fi
+
+    local declaration
+    if declaration=$(declare -p "$variable" 2>/dev/null); then
+        local attributes=${declaration#declare -} && attributes=${attributes%% *}
+        while [ $# -gt 0 ]; do
+            local -i i=0
+            while true; do
+                [ ! "${attributes:$i:1}" = "$1" ] || break
+                i=$((i + 1))
+                [ "$i" -lt "${#attributes}" ] || return 1
+            done
+            shift
+        done
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Returns whether each of the given variables is declared as an array.
+# Globals:
+#   None
+# Arguments:
+#   $@ (string ...): The names of the variables to check.
+# Outputs:
+#   2: Error message
+# Returns:
+#   0: All variables are declared as arrays.
+#   1: At least one variable is not declared as an array.
+#   2: Illegal usage
+is_array() {
+    while [ $# -gt 0 ]; do
+        is_declared "$1" a || return 1
+        shift
+    done
+    return 0
+}
+
+# Returns whether the given variable contains all given values.
+# Globals:
+#   None
+# Arguments:
+#   $1 (string): The name of the variable to check.
+#   $@ (string ...): The values to check for.
+# Outputs:
+#   2: Error message
+# Returns:
+#   0: The variable contains all given values.
+#   1: The variable doesn't contain all given values.
+#   2: Illegal usage
+array_contains() {
+    [ $# -gt 0 ] || die --code 2 '%s: array name missing' "${FUNCNAME[0]}"
+    local -n array=$1 && shift
+    while [ $# -gt 0 ]; do
+        local item
+        for item in "${array[@]}"; do
+            if [ "$item" = "$1" ]; then
+                shift && continue 2
+            fi
+        done
+        return 1
+    done
+    return 0
+}
+
 # Returns whether interaction with the user is possible.
 # Globals:
 #   None
@@ -316,6 +409,7 @@ icon_template() {
 unicode_encode() {
     local char
     while IFS= read -r -n1 char; do
+        [ -n "$char" ] || continue
         printf '\\u%04x' "'$char"
     done < <(cat "$@" || true)
 }
@@ -340,4 +434,71 @@ remove_ansi_escapes() {
     )
     printf -v pattern 's|%s||g;' "${patterns[@]}"
     LC_ALL=C sed "$pattern"
+}
+
+# Reads the STDIN as an INI file,
+# and for each given option, for which a value is encountered,
+# a variable with the name of the option is set to that value.
+#
+# If a variable with the name of a given option is declared
+# as an array, values are appended to that array.
+# Otherwise, the variable is set to the last value encountered.
+#
+# Globals:
+#   None
+# Arguments:
+#   --section (string, optional): The name of the section the given options belong to.
+#   $@ (string...): The options to read.
+# Inputs:
+#   0: The contents of the INI file.
+# Outputs:
+#   2: Error message, if the given option was not found.
+# Returns:
+#   0: If the INI file was read successfully.
+#   1: Unknown error
+#   2: Illegal usage
+read_ini() {
+    local __section __in_section=1
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --section) __section=${2?$1: parameter value not set} && shift 2 ;;
+        --section=*) __section=${1#*=} && shift ;;
+        --) shift && break ;;
+        --*) die --code 2 "%s: invalid option" "$1" ;;
+        -*) die --code 2 "%s: invalid flag" "$1" ;;
+        *) break ;;
+        esac
+    done
+    local __line
+    while read -r __line; do
+        case "$__line" in
+        *=*)
+            [ -n "$__in_section" ] || continue
+            local __o=${__line%%=*}
+            local __v=${__line#*=}
+            local __option
+            for __option in "$@"; do
+                if [ "$__option" = "$__o" ]; then
+                    if is_declared "$__option" a; then
+                        local -n __var=$__option
+                        __var+=("$__v")
+                    else
+                        printf -v "$__option" '%s' "$__v"
+                    fi
+                    break
+                fi
+            done
+            ;;
+        \[*\]*)
+            [ -n "$__section" ] || continue
+            local __s=${__line#*[} && __s=${__s%]*}
+            if [ "$__s" = "$__section" ]; then
+                __in_section=1
+            else
+                __in_section=''
+            fi
+            ;;
+        *) ;;
+        esac
+    done
 }

@@ -4,12 +4,12 @@
 # See kernel parameters are documented at https://www.kernel.org/doc/html/latest/admin-guide/kernel-parameters.html
 
 - name: set kernel parameters
-  become: true
   block:
     - name: suppress most log messages
       kernel_parameters:
         option: quiet
         before: rootwait
+      become: true
 
     # dmesg output of the form: [ 8.973972] random: crng init done
     # 0 (KERN_EMERG): system is unusable
@@ -25,18 +25,21 @@
         option: loglevel
         after: quiet
         value: "{{ loglevel | default('3') }}"
+      become: true
 
     - name: stop systemd from printing its version number
       kernel_parameters:
         option: udev.log_level
         after: loglevel
         value: '3'
+      become: true
 
     - name: stop initramfs systemd from printing its version number
       kernel_parameters:
         option: rd.udev.log_level
         after: udev.log_level
         value: '3'
+      become: true
 
     # systemd output of the form: [ STARTED ] Login Service.
     # true: show all messages
@@ -47,31 +50,34 @@
         option: systemd.show_status
         after: rd.udev.log_level
         value: 'auto'
+      become: true
 
     - name: stop cursor from blinking by disabling the creation of cursors for new VTs
       kernel_parameters:
         option: vt.global_cursor_default
         before: rootwait
         value: '0'
+      become: true
 
     - name: disable the console blank (screen saver) timer
       kernel_parameters:
         option: consoleblank
         before: rootwait
         value: '0'
+      become: true
 
 - name: suppress Raspberry Pi logos at top of screen
-  become: true
   kernel_parameters:
     option: logo.nologo
     before: rootwait
     state: present
+  become: true
 
 - name: suppress rainbow splash screen on boot
-  become: true
   community.general.ini_file:
     path: /boot/config.txt
     no_extra_spaces: true
     section: all
     option: disable_splash
     value: '1'
+  become: true

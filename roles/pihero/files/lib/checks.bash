@@ -49,10 +49,26 @@ check_start() {
 #   0: If the unit name is specified
 #   1: If the unit name is missing or empty
 check_unit() {
-    local unit
-    # shellcheck disable=SC2059
-    printf -v unit -- "$@"
-    __check_results+=("$(printf '### %s...' "$unit")")
+    local name
+    if [ $# -gt 0 ]; then
+        name=$1 && shift
+    else
+        die --code 2 'check: message missing'
+    fi
+
+    if [ $# -gt 0 ]; then
+        local __eval_condition_exit_code
+        __eval_condition "$@" || die --code 2 'check: %s: invalid condition' "$*"
+        if [ "$__eval_condition_exit_code" -eq 0 ]; then
+            __check_results+=("$(printf '### %s...' "$name")")
+        else
+            __check_results+=("$(printf '### ~~%s~~' "$name")")
+            __check_results+=("$(printf '—')")
+            return 1
+        fi
+    else
+        __check_results+=("$(printf '### %s...' "$name")")
+    fi
 }
 
 # Checks a condition and prints the result, for example,
@@ -73,9 +89,6 @@ check() {
         case $1 in
         --brief) brief=1 && shift ;;
         --brief=*) brief=${1#*=} && shift ;;
-        --) shift && break ;;
-        --*) die --code 2 "%s: invalid option" "$1" ;;
-        -*) die --code 2 "%s: invalid flag" "$1" ;;
         *) break ;;
         esac
     done
@@ -84,17 +97,13 @@ check() {
     if [ $# -gt 0 ]; then
         message=$1 && shift
     else
-        die --code 2 'message missing'
+        die --code 2 'check: message missing'
     fi
 
-    local success=0 error
-    if [ "$1" = "!" ]; then
-        error=$("${@:2}" 2>/dev/null) || success=1
-    else
-        error=$("${@}" 2>&1 >/dev/null) && success=1
-    fi
+    local __eval_condition_exit_code __eval_condition_error_output
+    __eval_condition "$@" || die --code 2 'check: %s: invalid condition' "$*"
 
-    if [ "$success" -eq 1 ]; then
+    if [ "$__eval_condition_exit_code" -eq 0 ]; then
         __check_results+=("$(printf -- '- [x] %s' "$message")")
         __checks_total=$((__checks_total + 1))
         return 0
@@ -108,10 +117,9 @@ check() {
                 printf -v details -- '`%s` failed' "${*}"
             fi
 
-            if [ -n "$error" ]; then
-                local trimmed_error=${error%%$'\n'} && trimmed_error=${error##$'\n'}
+            if [ -n "$__eval_condition_error_output" ]; then
                 details+=$'\n'
-                details+=$(printf '%s' "$trimmed_error" | sed -e 's/^$/ /' -e 's/^/> /')
+                details+=$(printf '%s' "$__eval_condition_error_output" | sed -e 's/^$/ /' -e 's/^/> /')
             fi
         fi
         #        __check_results+=("$(printf -- '- [ ] %s%s' "$message" "${details:+$'\n'"  ${details//$'\n'/$'\n'  }"}")")
@@ -119,6 +127,33 @@ check() {
         __checks_total=$((__checks_total + 1))
         __checks_failed=$((__checks_failed + 1))
         return 1
+    fi
+}
+
+# Runs the given command with the given arguments, and saves
+# the exit code in `__eval_condition_exit_code`, and
+# the error output in `__eval_condition_error_output`.
+#
+# If the first argument is the exclamation mark (!),
+# the exit code is negated, and
+# the standard output is used as the error output.
+__eval_condition() {
+    local negate trim=1
+    if [ $# -gt 0 ] && [ "$1" = '!' ]; then negate=1 && shift; fi
+
+    if [ -n "$negate" ]; then
+        # bashsupport disable=BP2001
+        __eval_condition_error_output=$("$@" 2>/dev/null)
+        # bashsupport disable=BP2001
+        __eval_condition_exit_code=$((!$?))
+    else
+        __eval_condition_error_output=$("$@" 2>&1 >/dev/null)
+        __eval_condition_exit_code=$?
+    fi
+
+    if [ -n "$trim" ]; then
+        __eval_condition_error_output=${__eval_condition_error_output%%$'\n'}
+        __eval_condition_error_output=${__eval_condition_error_output##$'\n'}
     fi
 }
 
@@ -164,7 +199,7 @@ check_further() {
 #   1: At least one check failed
 check_summary() {
     if [ "${#__check_results[@]}" -gt 0 ]; then
-        __check_report+=("## Results")
+        __check_report+=('## Results')
         __check_report+=("${__check_results[@]}")
         __check_report+=("---")
     fi

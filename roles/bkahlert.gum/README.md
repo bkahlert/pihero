@@ -25,7 +25,9 @@ Including an example of how to use your role (for instance, with variables passe
 
     - hosts: servers
       roles:
-         - { role: bkahlert.gum, become: true }
+         - role: bkahlert.gum
+           become: true
+           tags: [ gum ]
 
 License
 -------

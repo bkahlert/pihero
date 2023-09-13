@@ -15,10 +15,28 @@
       import_tasks: tasks/apt-update.yml
 
   roles:
-    - { role: bkahlert.gum, become: true }
-    - { role: pihero }
-    - { role: pihero_splash }
-    - { role: device_info }
-    - { role: smb_shares }
-    - { role: usb_gadget }
-    - { role: bt_pan }
+    # configures Kernel HDMI settings
+    - role: hdmi
+      tags: [ hdmi ]
+    # installs Gum—A tool for glamorous shell scripts
+    - role: bkahlert.gum
+      become: true
+      tags: [ gum ]
+    # installs the CLI component
+    - role: pihero
+      tags: [ pihero-cli ]
+    # installs the splash component
+    - role: splash
+      tags: [ splash ]
+    # configures device info
+    - role: device_info
+      tags: [ device-info ]
+    # configures Samba shares
+    - role: smb_shares
+      tags: [ smb ]
+    # configures USB gadget
+    - role: usb_gadget
+      tags: [ gadget ]
+    # configures Bluetooth PAN
+    - role: bt_pan
+      tags: [ pan ]

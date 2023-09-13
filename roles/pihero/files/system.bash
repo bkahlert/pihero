@@ -26,7 +26,10 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev
     esac
 
     check_unit "/boot/cmdline.txt"
-    check "it contains no line breaks" grep -q "\n" /boot/cmdline.txt
+    check "contains no line breaks" grep -q "\n" /boot/cmdline.txt
+
+    check_unit "/boot/config.txt"
+    check "contains no line longer than 98 characters" awk 'length > 98 { exit 1 }' /boot/config.txt
 
     check_unit "$init_system"
     if check --brief "system is operational" systemctl -q is-system-running --wait; then
@@ -37,7 +40,7 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev
         local failed_unit failed_units=()
         while read -r failed_unit; do
             failed_units+=("${failed_unit}")
-        done < <(systemctl --failed --no-legend --no-pager | awk '{print $2}' || true)
+        done < <(systemctl --failed --no-legend --no-pager | sed -E 's,^●\s*,,g' | awk '{print $1}' || true)
         check_raw '%s\n' '```' "FAILED: ${failed_units[*]}" '```'
 
         for failed_unit in "${failed_units[@]}"; do
@@ -49,6 +52,7 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev
 
     # shellcheck disable=SC2016
     {
+        check_further '- read documentation:\n  [%s](%s)' 'raspberrypi.com' 'https://www.raspberrypi.com/documentation/computers/os.html#introduction'
         check_further '- check boot log:\n  `%s`' 'sudo cat /var/log/boot.log'
         check_further '- check time to boot:\n  `%s`' 'systemd-analyze'
         check_further '- list running units ordered by their initialization time:\n  `%s`' 'systemd-analyze blame'

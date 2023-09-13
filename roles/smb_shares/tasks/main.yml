@@ -5,13 +5,13 @@
     state: present
 
 - name: copy samba configs
-  become: true
   ansible.builtin.template:
     src: "{{ item }}"
     dest: "/etc/samba/{{ item | basename | regex_replace('.j2$', '') }}"
     mode: "0644"
     force: true
   with_fileglob: [ templates/*.conf.j2 ]
+  become: true
   notify: restart samba
 
 - name: get samba passwords (if not done already due to not yet installed samba)
@@ -24,17 +24,16 @@
   loop: "{{ smb_passwords | default({}) | dict2items }}"
 
 - name: copy avahi services
-  become: true
   ansible.builtin.template:
     src: "{{ item }}"
     dest: "/etc/avahi/services/{{ item | basename | regex_replace('.j2$', '') }}"
     mode: "0644"
     force: true
   with_fileglob: [ templates/*.service.j2 ]
+  become: true
   notify: restart avahi
 
 - name: explain shares
-  become: true
   vars:
     marker_begin_latin1: "MARKER_BEGIN"
     marker_begin_unicode: "─=≡▰▩▩[ 蓬•ｏ•]⊐"
@@ -71,3 +70,4 @@
       loop:
         - { regexp: "{{ marker_begin_latin1 }}", replace: "{{ marker_begin_unicode }}" }
         - { regexp: "{{ marker_end_latin1 }}", replace: "{{ marker_end_unicode }}" }
+  become: true

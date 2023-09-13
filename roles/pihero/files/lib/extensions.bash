@@ -34,7 +34,7 @@ find_extensions() {
         for extension_file in "$real_directory"/*.bash; do
             [ -f "$extension_file" ] || continue
             # shellcheck disable=SC2312
-            readarray -t extension_commands < <(sed -n -E 's/^\+([a-zA-Z0-9_]+)\(\).*/\1/p' "$extension_file")
+            readarray -t extension_commands < <(sed -n -E 's/^\+([a-zA-Z0-9_-]+)\(\).*/\1/p' "$extension_file")
             extension_name=$(basename "${extension_file%.bash}")
             printf '%s:%s:%s\n' "$extension_file" "${extension_commands[*]}" "$extension_name"
         done

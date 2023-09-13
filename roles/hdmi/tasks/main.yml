@@ -1,0 +1,75 @@
+---
+- name: copy bash files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ package_dir }}/{{ item | basename }}"
+    force: true
+  with_fileglob: [ files/*.bash ]
+  become: true
+
+- name: disable overscan
+  community.general.ini_file:
+    path: /boot/config.txt
+    no_extra_spaces: true
+    section: ''
+    option: disable_overscan
+    value: '1'
+  become: true
+  notify: reboot
+
+- name: configure HDMI
+  community.general.ini_file:
+    path: /boot/config.txt
+    no_extra_spaces: true
+    section: ''
+    option: "hdmi_{{ item.key }}"
+    value: "{{ item.value }}"
+    mode: "0644"
+  loop: "{{ hdmi | dict2items }}"
+  when: hdmi is defined
+  become: true
+  notify: reboot
+
+- name: remove gpu_mem setting
+  community.general.ini_file:
+    path: /boot/config.txt
+    no_extra_spaces: true
+    section: all
+    option: gpu_mem
+    state: absent
+  become: true
+  notify: reboot
+
+- name: disable vc4-kms-v3d overlay for custom resolution
+  # this overlay causes problems together with custom resolution
+  # see https://github.com/raspberrypi/linux/issues/4516
+  ansible.builtin.lineinfile:
+    path: /boot/config.txt
+    regexp: '^dtoverlay=vc4-kms-v3d'
+    state: absent
+  when: hdmi is defined and hdmi.group|string == '2' and hdmi.mode|string == '87'
+  become: true
+  notify: reboot
+
+- name: enable vc4-fkms-v3d for custom resolution
+  community.general.ini_file:
+    path: /boot/config.txt
+    no_extra_spaces: true
+    section: all
+    option: dtoverlay
+    value: 'vc4-fkms-v3d'
+    exclusive: false
+    state: present
+  when: hdmi is defined and hdmi.group|string == '2' and hdmi.mode|string == '87'
+  become: true
+  notify: reboot
+
+- name: enable display_auto_detect
+  community.general.ini_file:
+    path: /boot/config.txt
+    no_extra_spaces: true
+    section: all
+    option: display_auto_detect
+    value: '1'
+  become: true
+  notify: reboot

@@ -27,7 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev
     check "plymouth-themes are installed" dpkg -s plymouth-themes >/dev/null
     local available_themes=()
     readarray -t available_themes < <(plymouth-set-default-theme --list)
-    check_raw '%s\n' '```' 'AVAILABLE PLYMOUTH THEMES:' "${available_themes[@]}" '```'
+    check_raw '%s\n' '```' 'AVAILABLE PLYMOUTH THEMES:' "${available_themes[*]}" '```'
 
     # shellcheck disable=SC2016
     {

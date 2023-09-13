@@ -31,14 +31,14 @@ p() {
 }
 
 # Ansible ad-hoc command wrapper which runs:
-# ansible $HOST --become -m $1 -a "$2 $3 $4 ..."
+# ansible $HOST -v --become -m $1 -a "$2 $3 $4 ..."
 m() {
     local module=${1?module missing} && shift
     local args="$*"
     local host
     # shellcheck disable=SC2153
     for host in $HOST; do
-        ansible "$host" --become -m "$module" -a "$args"
+        ansible "$host" -v --become -m "$module" -a "$args"
     done
 }
 
@@ -62,10 +62,20 @@ r() {
     done
 }
 
+# ssh command wrapper which runs:
+# ssh -t $HOST "$@"
+s() {
+    local host
+    # shellcheck disable=SC2153
+    for host in $HOST; do
+        ssh -t "$host" "$@"
+    done
+}
+
 # Runs this patch command with the same parameters as the current execution,
 # but:
 # - if parameter is 1, sets it to 0
-# - given parameters, for example, MAIN=1, overrides the corresponding parameter
+# - given parameters, for example, CLI=1, overrides the corresponding parameter
 continuous() {
     local env_args=("${params_disabled[@]}") paths=()
     while [ $# -gt 0 ]; do
@@ -87,10 +97,10 @@ continuous() {
     fswatch --print0 "${fswatch_args[@]}" | xargs -0 -n 1 -I {} env "${env_args[@]}" "$0"
 }
 
-deploy_main() {
-    r "$MAIN_FILES/bin/" /opt/pihero/bin/
-    r "$MAIN_FILES/lib/" /opt/pihero/lib/
-    r "$MAIN_FILES/"*.bash /opt/pihero
+deploy_cli() {
+    r "$CLI_FILES/bin/" /opt/pihero/bin/
+    r "$CLI_FILES/lib/" /opt/pihero/lib/
+    r "$CLI_FILES/"*.bash /opt/pihero
 }
 
 deploy_splash() {
@@ -98,16 +108,22 @@ deploy_splash() {
     r "$SPLASH_FILES/themes/"* /usr/share/plymouth/themes
 }
 
+deploy_hdmi() {
+    r "$HDMI_FILES/"*.bash /opt/pihero
+}
+
 main() {
     # set params
-    p CONTINUOUS 0                                         # Whether to run the patch operations whenever a relevant file changes
-    p HOST                                                 # The host to patch
-    p MAIN 1                                               # Whether to update the pihero main component
-    p MAIN_FILES "$SCRIPT_DIR/roles/pihero/files"          # The directory containing the pihero main component files
-    p SPLASH 1                                             # Whether to update the pihero splash component
-    p SPLASH_FILES "$SCRIPT_DIR/roles/pihero_splash/files" # The directory containing the pihero splash component files
+    p CONTINUOUS 0                                  # Whether to run the patch operations whenever a relevant file changes
+    p HOST                                          # The host to patch
+    p CLI 1                                         # Whether to update the pihero CLI component
+    p CLI_FILES "$SCRIPT_DIR/roles/pihero/files"    # The directory containing the pihero CLI component files
+    p SPLASH 1                                      # Whether to update the pihero splash component
+    p SPLASH_FILES "$SCRIPT_DIR/roles/splash/files" # The directory containing the splash component files
+    p HDMI 1                                        # Whether to update the HDMI component
+    p HDMI_FILES "$SCRIPT_DIR/roles/hdmi/files"     # The directory containing the HDMI component files
 
-    if [ "$MAIN" = 0 ] && [ "$SPLASH" = 0 ]; then
+    if [ "$CLI" = 0 ] && [ "$SPLASH" = 0 ] && [ "$HDMI" = 0 ]; then
         local params
         printf -v params '\e[3m%s\e[23m ' "${PREFIX}HOST=foo.local" "$PREFIX...=..."
         printf '\e[1mUsage: %s %s\e[0m\n' "$params" "${0##*/}"
@@ -118,21 +134,20 @@ main() {
     fi
 
     if [ "$CONTINUOUS" = 0 ]; then
-        [ "$MAIN" = 0 ] || deploy_main
+        [ "$CLI" = 0 ] || deploy_cli
         [ "$SPLASH" = 0 ] || deploy_splash
+        [ "$HDMI" = 0 ] || deploy_hdmi
     else
         command -v fswatch >/dev/null 2>&1 || HOMEBREW_NO_ENV_HINTS=TRUE brew install fswatch
         trap "trap - SIGTERM && kill -- -"$$ SIGINT SIGTERM EXIT
         printf 'Watching for changes... '
         printf '\e[2m%s\e[22m' 'Press Ctrl+C to stop'
         printf '\n'
-        [ "$MAIN" = 0 ] || continuous MAIN=1 "$MAIN_FILES" &
+        [ "$CLI" = 0 ] || continuous CLI=1 "$CLI_FILES" &
         [ "$SPLASH" = 0 ] || continuous SPLASH=1 "$SPLASH_FILES" &
+        [ "$HDMI" = 0 ] || continuous HDMI=1 "$HDMI_FILES" &
         wait
     fi
 }
 
 main "$@"
-
-# TODO ask for smb password only if samba is installed
-# TODO make plymouth configurable, at least deactivatable

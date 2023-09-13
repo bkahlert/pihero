@@ -19,6 +19,98 @@ debug_output() {
     printf %s "$output" | od -c >&3
 }
 
+#
+# UNIT TESTS
+#
+
+@test 'check_unit should print given name' {
+    run checks check_unit name
+    assert_success
+    assert_output --partial '### name...'$'\n'$'\n'
+}
+
+@test 'check_unit should evaluate condition if given' {
+    run checks check_unit name true
+    assert_output --partial '### name...'$'\n'$'\n'
+    run checks check_unit name false
+    assert_output --partial '### ~~name~~'$'\n'$'\n''—'$'\n'$'\n'
+    assert_success
+}
+
+@test 'succeeded check should print result and message' {
+    run checks check 'message' true
+    assert_output --partial '- [x] message'$'\n'$'\n'
+    assert_success
+}
+
+@test 'failed check should print result, message and command line' {
+    run checks check 'message' false
+    assert_output --partial '- [ ] message'$'\n''  `false` failed'$'\n'$'\n'
+    assert_failure
+}
+
+@test 'failed check should print result, message, command line and error output' {
+    run checks check 'message' ls foo
+    assert_output --partial '- [ ] message'$'\n''  `ls foo` failed'$'\n''> ls: foo: No such file or directory'$'\n'$'\n'
+    assert_failure
+}
+
+@test 'failed check should print result, message only if specified' {
+    run checks check --brief 'message' false
+    assert_output --partial '- [ ] message'$'\n'$'\n'
+    run checks check --brief 'message' ls foo
+    assert_output --partial '- [ ] message'$'\n'$'\n'
+}
+
+@test 'succeeded negative check should print result and message' {
+    run checks check 'message' ! false
+    assert_output --partial '- [x] message'$'\n'$'\n'
+    assert_success
+}
+
+@test 'failed negative check should print result, message and command line' {
+    run checks check 'message' ! true
+    assert_output --partial '- [ ] message'$'\n''  `true` didn'"'"'t fail'$'\n'$'\n'
+    assert_failure
+}
+
+@test 'failed negative check should print result, message, command line and error output' {
+    run checks check 'message' ! command -v ls
+    assert_output --partial '- [ ] message'$'\n''  `command -v ls` didn'"'"'t fail'$'\n''> /bin/ls'$'\n'$'\n'
+    assert_failure
+}
+
+@test 'failed negative check should print result, message only if specified' {
+    run checks check --brief 'message' ! true
+    assert_output --partial '- [ ] message'$'\n'$'\n'
+    run checks check --brief 'message' ! command -v ls
+    assert_output --partial '- [ ] message'$'\n'$'\n'
+}
+
+#    check 'true is not true' ! true
+#    check --brief 'true is not true *(--brief)*' ! true
+#    check_unit cat
+#    check 'command exists' command -v cat
+#    check --brief 'command exists *(--brief)*' command -v cat
+#    check 'command not exists' ! command -v cat
+#    check --brief 'command not exists *(--brief)*' ! command -v cat
+#    check_unit foo
+#    check 'command exists' command -v foo
+#    check --brief 'command exists *(--brief)*' command -v foo
+#    check 'command not exists' ! command -v foo
+#    check --brief 'command not exists *(--brief)*' ! command -v foo
+
+# Generates a check report with no colors in Markdown format.
+checks() {
+    NO_COLOR=1 CHECKS_OUTPUT_FORMAT=markdown check_start "Single"
+    NO_COLOR=1 CHECKS_OUTPUT_FORMAT=markdown "$@"
+    NO_COLOR=1 CHECKS_OUTPUT_FORMAT=markdown check_summary
+}
+
+#
+# INTEGRATIONS TESTS
+#
+
 @test 'should perform no checks' {
     NO_COLOR=1 CHECKS_OUTPUT_FORMAT=markdown run no_checks
     assert_success

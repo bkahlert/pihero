@@ -2,4 +2,6 @@
 - hosts: localhost
   remote_user: root
   roles:
-    - { role: bkahlert.gum, become: true }
+    - role: bkahlert.gum
+      become: true
+      tags: [ gum ]

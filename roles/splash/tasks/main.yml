@@ -1,56 +1,60 @@
 ---
 - name: silence boot
   import_tasks: silent-boot.yml
+  when: plymouth_theme is not false
 
 - name: copy bash files
-  become: true
   ansible.builtin.copy:
     src: "{{ item }}"
     dest: "{{ package_dir }}/{{ item | basename }}"
     force: true
   with_fileglob: [ files/*.bash ]
+  become: true
 
 # themes are located at /usr/share/plymouth/themes
 # for custom themes, https://github.com/HerbFargus/plymouth-themes seems to be a good starting point
 - name: install plymouth and plymouth-themes
-  become: true
   ansible.builtin.apt:
     name: [ plymouth, plymouth-themes ]
-    state: present
+    state: "{{ plymouth_theme is not false | ternary('present', 'absent') }}"
+  become: true
 
 - name: copy themes
-  become: true
   ansible.posix.synchronize:
     src: files/themes/
     dest: "{{ plymouth_themes_dir }}"
+  when: plymouth_theme is not false
+  become: true
 
 - name: set plymouth theme
-  ansible.builtin.shell: plymouth-set-default-theme --rebuild-initrd pihero
+  ansible.builtin.shell: "plymouth-set-default-theme --rebuild-initrd {{ plymouth_theme }}"
+  when: plymouth_theme is not false
   become: true
 
-- name: enable splash screen
-  become: true
+- name: enable splash screen via the Plymouth module
   kernel_parameters:
     option: splash
     before: rootwait
-    state: present
+    state: "{{ plymouth_theme is not false | ternary('present', 'absent') }}"
+  become: true
 
 - name: enable plymouth
-  become: true
   kernel_parameters:
     option: plymouth.enable
-    value: '1'
+    value: "{{ plymouth_theme is not false | ternary('1', '0') }}"
     after: splash
+  become: true
 
 - name: enable plymouth debug logs to /var/log/plymouth-debug.log
-  become: true
   kernel_parameters:
     option: plymouth.debug
     after: plymouth.enable
-    state: absent
-
-- name: stop plymouth from displaying anything on the serial console
+    state: "{{ plymouth_theme is not false | ternary('absent', 'absent') }}"
   become: true
+
+- name: don't prevent boot messages from appearing on serial consoles
   kernel_parameters:
     option: plymouth.ignore-serial-consoles
     after: plymouth.enable
+    state: "{{ plymouth_theme is not false | ternary('present', 'absent') }}"
+  become: true

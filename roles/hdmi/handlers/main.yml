@@ -1,0 +1,5 @@
+---
+- name: reboot
+  ansible.builtin.reboot:
+    msg: "Rebooting system to finalize HDMI setup."
+  become: true

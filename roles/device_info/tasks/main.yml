@@ -1,10 +1,10 @@
 ---
 - name: install avahi
-  become: true
   ansible.builtin.apt:
     name:
       - avahi-daemon
     state: present
+  become: true
 
 
 - name: set defaults
@@ -24,8 +24,9 @@
 - name: meta
   block:
     - name: set pretty hostname
-      when: device_info.pretty_hostname is defined
       shell: hostnamectl --pretty set-hostname "{{ device_info.pretty_hostname }}"
+      when: device_info.pretty_hostname is defined
+      become: true
       notify: restart avahi
 
     - name: get pretty hostname
@@ -38,6 +39,7 @@
 
     - name: set chassis
       shell: hostnamectl set-chassis embedded
+      become: true
 
 
 - name: configure avahi
@@ -51,14 +53,15 @@
     - { section: server, option: disallow-other-stacks, value: 'no' }
     - { section: publish, option: publish-hinfo, value: 'yes' }
     - { section: publish, option: publish-workstation, value: 'no' }
+  become: true
   notify: restart avahi
 
 - name: copy avahi services
-  become: true
   ansible.builtin.template:
     src: "{{ item }}"
     dest: "/etc/avahi/services/{{ item | basename | regex_replace('.j2$', '') }}"
     mode: "0644"
     force: true
   with_fileglob: [ templates/*.service.j2 ]
+  become: true
   notify: restart avahi

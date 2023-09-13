@@ -11,8 +11,6 @@
         has_bluetooth_hardware: "{{ bluetooth_dir.stat.exists }}"
 
 - name: uninstall bluetooth services
-  when: not has_bluetooth_hardware
-  become: true
   ansible.builtin.apt:
     name:
       - bluetooth
@@ -21,6 +19,8 @@
       - bluez-tools
       - bridge-utils
     state: absent
+  when: not has_bluetooth_hardware
+  become: true
 
 - name: install bluetooth services
   when: has_bluetooth_hardware and bt_pan is defined
@@ -30,7 +30,6 @@
     trusted: "{{ bt_pan.devices if bt_pan.devices is defined else [] }}"
   block:
     - name: install dependencies
-      become: true
       ansible.builtin.apt:
         name:
           - bluetooth
@@ -38,9 +37,9 @@
           - bluez-tools
           - bridge-utils
         state: present
+      become: true
 
     - name: set up bt-network
-      become: true
       block:
         - name: copy bt-network service
           ansible.builtin.template:
@@ -50,13 +49,13 @@
             force: true
 
         - name: enable bt-network service
-          ansible.builtin.systemd_service:
+          ansible.builtin.systemd:
             name: bt-network.service
             daemon_reload: true
             enabled: true
+      become: true
 
     - name: set up bt-agent
-      become: true
       block:
         - name: copy bt-agent service
           ansible.builtin.template:
@@ -66,7 +65,7 @@
             force: true
 
         - name: enable bt-agent service
-          ansible.builtin.systemd_service:
+          ansible.builtin.systemd:
             name: bt-agent.service
             daemon_reload: true
             enabled: true
@@ -80,23 +79,24 @@
             state: present
             mode: "0640"
           loop: "{{ pins }}"
+      become: true
 
     - name: set bluetooth options
-      become: true
       community.general.ini_file:
         path: /etc/bluetooth/main.conf
         section: "{{ item.section | default('General', true) }}"
         option: "{{ item.option }}"
         value: "{{ item.value }}"
       loop: "{{ bt_pan.options }}"
+      become: true
 
     - name: add users to bluetooth group
-      become: true
       ansible.builtin.user:
         append: true
         name: "{{ item }}"
         groups: [ lp ]
       loop: "{{ group_members['users'] | default([]) }}"
+      become: true
 
     - name: copy files
       ansible.posix.synchronize:
@@ -105,14 +105,14 @@
       become: true
 
     - name: restart services
-      become: true
-      ansible.builtin.systemd_service:
+      ansible.builtin.systemd:
         name: "{{ item }}"
         state: restarted
       loop:
         - bluetooth.service
         - bt-network.service
         - bt-agent.service
+      become: true
 
 
 - name: set up pan0 network interface
@@ -139,15 +139,14 @@
         pan0_cidr_broadcast: "{{ pan0_cidr | ansible.utils.ipaddr('broadcast') }}"       #  10. 11. 10. 15
 
     - name: install dependencies
-      become: true
       ansible.builtin.apt:
         name:
           - dnsmasq
         state: present
+      become: true
 
     # Documentation: https://dnsmasq.org/docs/dnsmasq-man.html
     - name: configure pan0 network interface for dnsmasq
-      become: true
       block:
         - name: set options with values
           community.general.ini_file:
@@ -169,24 +168,24 @@
             - { option: dhcp-authoritative }
             - { option: dhcp-rapid-commit }
             - { option: leasefile-ro }
+      become: true
 
     - name: copy pan0 network interface config
-      become: true
       ansible.builtin.template:
         src: templates/pan0.network.j2
         dest: /etc/network/interfaces.d/pan0
         force: true
+      become: true
 
     - name: restart services
-      become: true
-      ansible.builtin.systemd_service:
+      ansible.builtin.systemd:
         name: "{{ item }}"
         state: restarted
       loop:
         - dnsmasq.service
+      become: true
 
     - name: explain pan0 network interface
-      become: true
       vars:
         marker_begin_latin1: "MARKER_BEGIN"
         marker_begin_unicode: "─=≡▰▩▩[ 蓬•ｏ•]⊐"
@@ -221,3 +220,4 @@
           loop:
             - { regexp: "{{ marker_begin_latin1 }}", replace: "{{ marker_begin_unicode }}" }
             - { regexp: "{{ marker_end_latin1 }}", replace: "{{ marker_end_unicode }}" }
+      become: true
