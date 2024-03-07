@@ -7,9 +7,11 @@
   failed_when: false
 
 - name: install Go
-  ansible.builtin.apt:
-    name: golang-go
-    state: present
+  ansible.builtin.shell: |
+    if ! command -v /usr/local/go/bin/go >/dev/null 2>&1; then
+      curl -L https://go.dev/dl/go1.22.1.linux-armv6l.tar.gz | tar -C /usr/local -xzf -
+      echo 'export PATH=$PATH:/usr/local/go/bin' > /etc/profile.d/goenv.sh
+    fi
   when: gum_installed.rc != 0
 
 - name: verify Go installation
@@ -20,5 +22,5 @@
 
 - name: install Gum
   ansible.builtin.shell: |
-    go install github.com/charmbracelet/gum@latest
+    GOBIN=/usr/local/bin GO111MODULE=on /usr/local/go/bin/go install github.com/charmbracelet/gum@v0.13.0
   when: gum_installed.rc != 0

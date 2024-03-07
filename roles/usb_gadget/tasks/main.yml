@@ -187,6 +187,18 @@
       ansible.builtin.lineinfile:
         path: /etc/dhcpcd.conf
         line: denyinterfaces usb0
+        state: present
+        create: true
+      become: true
+
+    - name: prevent network-manager from configuring usb0 network interface
+      community.general.ini_file:
+        path: /etc/NetworkManager/conf.d/99-unmanaged-devices.conf
+        no_extra_spaces: true
+        section: 'keyfile'
+        option: 'unmanaged-devices'
+        value: 'interface-name:usb0'
+        mode: "0644"
       become: true
 
     - name: install dnsmasq

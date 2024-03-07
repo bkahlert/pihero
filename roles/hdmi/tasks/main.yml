@@ -1,4 +1,10 @@
 ---
+- name: create package directory
+  ansible.builtin.file:
+    path: "{{ package_dir }}"
+    state: directory
+  become: true
+
 - name: copy bash files
   ansible.builtin.copy:
     src: "{{ item }}"

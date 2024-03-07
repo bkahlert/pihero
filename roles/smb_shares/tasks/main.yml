@@ -3,6 +3,7 @@
   ansible.builtin.apt:
     name: samba
     state: present
+  become: true
 
 - name: copy samba configs
   ansible.builtin.template:

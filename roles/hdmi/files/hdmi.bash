@@ -54,6 +54,8 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev
         check_further_unit 'find modes'
         check_further '- `%s`' 'raspinfo'
         check_further '- dump EDID data:\n```\n%s\n```' 'sudo apt-get install -y edid-decode'$'\n''tvservice -d edit.dat'$'\n''edid-decode edit.dat'
+        check_further_unit 'X11'
+        check_further '- set X11 configuration to use your hdmi_* options: `%s`' 'pihero hdmi sync-x11-conf'
     }
     check_summary
 }
