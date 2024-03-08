@@ -226,6 +226,25 @@ If you'd like to go with a different configuration, these are the ones I'd recom
     - If you used the provided [sample inventory](inventory/sample/hosts.yml) with two Raspberry Pis,   
       the output should look like the one in [sample-installation.md](sample-installation.md).
 
+    - Alternatively, you can integrate Pi Hero in your playbook with the following snippet:
+      ```yaml
+      - hosts: "{{ inventory if inventory is defined else 'all' }}"
+        gather_facts: false
+        tasks:
+          - name: check if plymouth-themes directory exists
+            ansible.builtin.stat: { path: "{{ playbook_dir }}/plymouth-themes/" } # ← used to store custom splash screens
+            register: plymouth_themes_stat
+          - name: set fact for local_plymouth_themes_dir
+            set_fact: { local_plymouth_themes_dir: "{{ playbook_dir }}/plymouth-themes/" }
+            when: plymouth_themes_stat.stat.isdir is defined and plymouth_themes_stat.stat.isdir
+            tags: [ never, pihero ]
+    
+      - name: run Pi Hero playbook, if --tags pihero is specified
+        ansible.builtin.import_playbook: ../../pihero/playbook.yml                # ← location of Pi Hero
+        tags: [ never, pihero ]
+      ```
+      To run the Pi Hero playbook, add `--tags pihero` to your `ansible-playbook` command.
+
 - Wait for the playbook to finish and your Raspberry Pi to reboot.
 
     - If you used a USB to Ethernet adapter, you should remove the adapter and connect to your computer directly.
