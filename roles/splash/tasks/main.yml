@@ -21,7 +21,7 @@
 
 - name: copy themes
   ansible.posix.synchronize:
-    src: files/themes/
+    src: "{{ local_plymouth_themes_dir | default('files/themes/') }}"
     dest: "{{ plymouth_themes_dir }}"
   when: plymouth_theme is not false
   become: true
