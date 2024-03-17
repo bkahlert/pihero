@@ -235,7 +235,7 @@ If you'd like to go with a different configuration, these are the ones I'd recom
             ansible.builtin.stat: { path: "{{ playbook_dir }}/plymouth-themes/" } # ← used to store custom splash screens
             register: plymouth_themes_stat
           - name: set fact for local_plymouth_themes_dir
-            set_fact: { local_plymouth_themes_dir: "{{ playbook_dir }}/plymouth-themes/" }
+            ansible.builtin.set_fact: { local_plymouth_themes_dir: "{{ playbook_dir }}/plymouth-themes/" }
             when: plymouth_themes_stat.stat.isdir is defined and plymouth_themes_stat.stat.isdir
             tags: [ never, pihero ]
     

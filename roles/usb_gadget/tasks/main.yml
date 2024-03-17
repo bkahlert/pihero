@@ -10,12 +10,12 @@
 - name: set defaults
   block:
     - name: set usb_gadget_features
-      set_fact:
+      ansible.builtin.set_fact:
         usb_gadget_features: "{{ usb_gadget | default({},true) | dict2items | rejectattr('key', 'in', ['dr_mode', 'product', 'manufacturer', 'serialnumber']) | list | items2dict }}"
 
     - name: set dr_mode_value
       when: usb_gadget.dr_mode is defined
-      set_fact:
+      ansible.builtin.set_fact:
         usb_gadget: "{{ usb_gadget | default({},true) | combine({'dr_mode': usb_gadget.dr_mode)}) }}"
       failed_when: usb_gadget.dr_mode is defined and usb_gadget.dr_mode not in usb_dr_mode_options
 
@@ -34,7 +34,7 @@
       when: usb_gadget.manufacturer is undefined
       block:
         - name: set usb_gadget.manufacturer
-          set_fact:
+          ansible.builtin.set_fact:
             usb_gadget: "{{ usb_gadget | default({},true) | combine({'manufacturer': 'Raspberry Pi Foundation'}) }}"
 
     - name: set default usb_gadget.serialnumber
@@ -46,13 +46,13 @@
           register: usb_gadget_serialnumber_result
 
         - name: set usb_gadget.serialnumber
-          set_fact:
+          ansible.builtin.set_fact:
             usb_gadget: "{{ usb_gadget | default({},true) | combine({'serialnumber': (usb_gadget_serialnumber_result.stdout | hash('md5'))[:16]}) }}"
 
     - name: compute IP settings
       vars:
         usb0_cidr: "{{ usb_gadget_features.ethernet.cidr | default(default_usb0_cidr) }}"
-      set_fact:
+      ansible.builtin.set_fact:
         usb0_cidr: "{{ usb0_cidr }}"                                                     #  10. 10. 10. 10/29
         usb0_cidr_netmask: "{{ usb0_cidr | ansible.utils.ipaddr('netmask') }}"           # 255.255.255.248 ↵
         # If the specified CIDR is the network address itself

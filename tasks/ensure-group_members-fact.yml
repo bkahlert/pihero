@@ -6,6 +6,6 @@
       shell: "getent group"
       register: group_entries
     - name: set fact group_members
-      set_fact:
+      ansible.builtin.set_fact:
         group_members: "{{ group_members | default({}) | combine({item.split(':')[0]: item.split(':')[3].split(',') if item.split(':')[3] else []}) }}"
       loop: "{{ group_entries.stdout_lines }}"

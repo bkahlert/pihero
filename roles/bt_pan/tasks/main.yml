@@ -7,7 +7,7 @@
       register: bluetooth_dir
 
     - name: set has_bluetooth_hardware
-      set_fact:
+      ansible.builtin.set_fact:
         has_bluetooth_hardware: "{{ bluetooth_dir.stat.exists }}"
 
 - name: uninstall bluetooth services
@@ -121,7 +121,7 @@
     pan0_cidr: "{{ bt_pan.cidr | default(default_pan0_cidr) }}"
   block:
     - name: compute IP settings
-      set_fact:
+      ansible.builtin.set_fact:
         pan0_cidr: "{{ pan0_cidr }}"                                                     #  10. 11. 10. 10/29
         pan0_cidr_netmask: "{{ pan0_cidr | ansible.utils.ipaddr('netmask') }}"           # 255.255.255.248 ↵
         # If the specified CIDR is the network address itself

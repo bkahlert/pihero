@@ -1,35 +1,65 @@
 #!/usr/bin/env bash
 
-# sudo until the script has finished
-sudo -v
-while true; do
-    sudo -n true
-    sleep 60
-    kill -0 "$" || exit
-done 2>/dev/null &
+DEBUG_CMDLINE=(pfctl -s nat)
 
-# IP forwarding and NAT
+# Prints all downstream interfaces selected by the passed predicate (default: grep -q 'inet 10\.')
+upstream_interface() {
+    local route_output
+    route_output=$(route -n get default) || return 1
+    awk '/interface:/ {print $2}' <<<"$route_output"
+}
 
-DEBUG_CMDLINE=(sudo pfctl -s nat)
-UPSTREAM_IFACE=${1:-$(route -n get default | awk '/interface:/ {print $2}')} # for example, en0
-DOWNSTREAM_IFACE=${DOWNSTREAM_IFACE:-}                                       # for example, en11
-
-if [ "$DOWNSTREAM_IFACE" = '' ]; then
-    DOWNSTREAM_IP_PREFIX=${2:-10.0.0.}
+# Prints all downstream interfaces selected by the passed predicate (default: grep -q 'inet 10\.')
+downstream_interfaces() {
+    local -a predicate
+    local ifconfig_output none
+    if [ "$#" -eq 0 ]; then
+        predicate=(grep -q 'inet 10\.')
+    else
+        predicate=("$@")
+    fi
+    local interface
     for interface in $(ifconfig -lu); do
-        if ifconfig "$interface" | grep -q "$DOWNSTREAM_IP_PREFIX"; then DOWNSTREAM_IFACE=$interface; fi
+        ifconfig_output=$(ifconfig "$interface") || continue
+        if printf %s "$ifconfig_output" | "${predicate[@]}" 2>/dev/null; then
+            none=0
+            echo "$interface"
+        fi
     done
-fi
+    [ -n "$none" ]
+}
 
-[ -n "$DOWNSTREAM_IFACE" ] || { printf "\e[31mERROR: Downstream interface for \e[3m%s\e[23m not found.\e[0m\n" "$DOWNSTREAM_IP_PREFIX" >&2 && exit 1; }
+main() {
+    [ "$(id -u || true)" -eq 0 ] || { printf "\e[31mERROR: This script must be run as root.\e[0m\n" >&2 && exit 1; }
 
-sudo sysctl -w net.inet.ip.forwarding=1 || { printf "\e[31mERROR: Failed to enable IP forwarding.\e[0m\n" >&2 && exit 1; }
-sudo pfctl -d || true
-sudo pfctl -F all || true
-printf "Enabling NAT on \e[3m%s\e[23m from \e[3m%s\e[23m... " "$UPSTREAM_IFACE" "$DOWNSTREAM_IFACE"
-if echo "nat on $UPSTREAM_IFACE from $DOWNSTREAM_IFACE:network to any -> ($UPSTREAM_IFACE)" | sudo pfctl -f - -e 2>/dev/null; then
-    printf "\e[32;1m✔\e[0m\n"
-else
-    printf "\e[31mFailed to enable NAT on \e[3m%s\e[23m from \e[3m%s\e[23m.\nOutput of \e[3m%s\e[23m:\n%s\e[0m\n" "$UPSTREAM_IFACE" "$DOWNSTREAM_IFACE" "${DEBUG_CMDLINE[*]}" "$("${DEBUG_CMDLINE[@]}" 2>&1)" >&2
-    exit 1
-fi
+    local u_interface
+    u_interface=$(upstream_interface) || { printf "\e[31mERROR: No upstream interface found.\e[0m\n" >&2 && exit 1; }
+
+    local d_interfaces
+    d_interfaces=$(downstream_interfaces "$@") || { printf "\e[31mERROR: No downstream interfaces found.\e[0m\n" >&2 && exit 1; }
+
+    printf '%s' 'Enabling IP forwarding... ' >&2
+    if sysctl -w net.inet.ip.forwarding=1 2>/dev/null >&2; then
+        printf "\e[32;1m✔\e[0m\n" >&2
+    else
+        printf "\e[31mERROR: Failed to enable IP forwarding.\e[0m\n" >&2
+        exit 1
+    fi
+    pfctl -d 2>/dev/null >&2 || true
+    pfctl -F all 2>/dev/null >&2 || true
+
+    local d_interface
+    while read -r d_interface; do
+        printf "Enabling NAT on \e[3m%s\e[23m from \e[3m%s\e[23m... " "$u_interface" "$d_interface" >&2
+        if echo "nat on $u_interface from $d_interface:network to any -> ($u_interface)" | pfctl -f - -e >&2 2>/dev/null; then
+            printf "\e[32;1m✔\e[0m\n" >&2
+            [ ! -p /dev/stdout ] || printf '%s\n' "$d_interface" # print interface if piped
+        else
+            printf "\e[31mFailed to enable NAT on \e[3m%s\e[23m from \e[3m%s\e[23m.\nOutput of \e[3m%s\e[23m:\n%s\e[0m\n" \
+                "$u_interface" "$d_interface" "${DEBUG_CMDLINE[*]}" "$("${DEBUG_CMDLINE[@]}" 2>&1 || true)" >&2
+            exit 1
+        fi
+    done < <(printf "%s\n" "${d_interfaces[@]}")
+}
+
+main "$@"
