@@ -9,6 +9,7 @@
     dest: "{{ package_dir }}/{{ item | basename }}"
     force: true
   with_fileglob: [ files/*.bash ]
+  when: plymouth_theme is not false
   become: true
 
 # themes are located at /usr/share/plymouth/themes
