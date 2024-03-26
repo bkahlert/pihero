@@ -27,7 +27,7 @@
           become: true
           register: usb_gadget_product_result
         - name: set usb_gadget.product
-          set_fact:
+          ansible.builtin.set_fact:
             usb_gadget: "{{ usb_gadget | default({},true) | combine({'product': (usb_gadget_product_result.stdout | replace('\x00', ''))}) }}"
 
     - name: set default usb_gadget.manufacturer
@@ -93,7 +93,7 @@
     - name: create /etc/modprobe.d/dwc2.conf
       ansible.builtin.copy:
         content: |
-          install dwc2 /sbin/modprobe --ignore-install dwc2;  /sbin/modprobe libcomposite;
+          install dwc2 /sbin/modprobe --ignore-install dwc2; /sbin/modprobe libcomposite;
         dest: /etc/modprobe.d/dwc2.conf
         mode: "0644"
         force: true
@@ -129,12 +129,17 @@
       become: true
 
     - name: enable usb-gadget service
-      ansible.builtin.systemd:
+      ansible.builtin.systemd_service:
         name: usb-gadget.service
         daemon_reload: true
         enabled: true
       become: true
-      notify: reboot
+
+    - name: start usb-gadget service
+      ansible.builtin.systemd_service:
+        name: usb-gadget.service
+        state: restarted
+      become: true
 
     - name: copy files
       ansible.posix.synchronize:
