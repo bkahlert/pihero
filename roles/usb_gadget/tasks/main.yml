@@ -100,6 +100,19 @@
       become: true
       notify: reboot
 
+    - name: load libcomposite (until rebooted) if not already loaded
+      ansible.builtin.shell: |
+        if lsmod | grep libcomposite; then
+          exit 0
+        else
+          install dwc2 /sbin/modprobe --ignore-install dwc2
+          /sbin/modprobe libcomposite
+          exit 2
+        fi
+      register: modprobe_libcomposite_result
+      changed_when: modprobe_libcomposite_result.rc == 2
+      failed_when: modprobe_libcomposite_result.rc == 1
+
 
 - name: install usb-gadget
   block:
@@ -213,31 +226,34 @@
       become: true
 
     # Documentation: https://dnsmasq.org/docs/dnsmasq-man.html
-    - name: configure usb0 network interface for dnsmasq
+    - name: configure DHCP for usb0
       block:
-        - name: set options with values
-          community.general.ini_file:
+        - name: remove existing configuration
+          ansible.builtin.file:
             path: /etc/dnsmasq.d/usb0.conf
-            no_extra_spaces: true
-            section: ''
-            option: "{{ item.option }}"
-            value: "{{ item.value }}"
-            mode: "0644"
-          loop:
-            - { option: interface, value: usb0 }
-            - { option: dhcp-range, value: "{{ usb0_cidr_first_usable }},{{ usb0_cidr_last_usable }},{{ usb0_cidr_netmask }},1h" }
-            - { option: dhcp-option, value: "3" }
-            - { option: dhcp-option, value: "6" }
+            state: absent
           become: true
-        - name: set options without values
-          ansible.builtin.lineinfile:
-            path: /etc/dnsmasq.d/usb0.conf
-            line: "{{ item.option }}"
-            state: present
-          loop:
-            - { option: dhcp-authoritative }
-            - { option: dhcp-rapid-commit }
-            - { option: leasefile-ro }
+
+        - name: copy usb-dhcp service
+          ansible.builtin.template:
+            src: templates/usb-dhcp.service.j2
+            dest: /etc/systemd/system/usb-dhcp.service
+            mode: "0644"
+            force: true
+          become: true
+
+        - name: enable usb-dhcp service
+          ansible.builtin.systemd_service:
+            name: usb-dhcp.service
+            daemon_reload: true
+            enabled: true
+          become: true
+
+        - name: start usb-dhcp service
+          ansible.builtin.systemd_service:
+            name: usb-dhcp.service
+            state: restarted
+            no_block: true
           become: true
 
     - name: explain usb0 network interface

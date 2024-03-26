@@ -18,12 +18,9 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev
     check "bt-agent is active" systemctl -q is-active bt-agent.service
 
     check "dnsmasq is installed" which dnsmasq >/dev/null
-    check "dnsmasq is active" systemctl -q is-active dnsmasq.service
+    check "pan-dhcp is active" systemctl -q is-active pan-dhcp.service
     check "pan0 interface exists" ip link show pan0 >/dev/null
     check "pan0 interface is configured" grep -q "^auto pan0$" /etc/network/interfaces.d/pan0
-    check "pan0 interface is configured for dnsmasq" grep -q "^interface=pan0$" /etc/dnsmasq.d/pan0.conf
-    check "pan0 dnsmasq config is not malformed" grep -v -q "^interface$" /etc/dnsmasq.d/pan0.conf
-    check "pan0 dnsmasq config is not malformed" grep -v -q "^leasefile-ro=" /etc/dnsmasq.d/pan0.conf
 
     # shellcheck disable=SC2016
     {
@@ -33,7 +30,7 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev
         check_further '- list bluetooth adapter information:\n  `%s`' 'bt-adapter --info'
         check_further '- list connected devices:\n  `%s`' 'bt-device --list'
         check_further '- info about connected device:\n  `%s`' 'bt-device --info=<name|mac>'
-        for service in bt-network bt-agent dnsmasq; do
+        for service in bt-network bt-agent usb-dhcp; do
             check_further_unit '%s service' "$service"
             check_further '- check status:\n  `%s`' "systemctl status $service.service"
             check_further '- check logs:\n  `%s`' "journalctl -b -e -u $service.service"

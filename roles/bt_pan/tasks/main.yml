@@ -146,43 +146,41 @@
       become: true
 
     # Documentation: https://dnsmasq.org/docs/dnsmasq-man.html
-    - name: configure pan0 network interface for dnsmasq
+    - name: configure DHCP for pan0
       block:
-        - name: set options with values
-          community.general.ini_file:
+        - name: remove existing configuration
+          ansible.builtin.file:
             path: /etc/dnsmasq.d/pan0.conf
-            no_extra_spaces: true
-            section: ''
-            option: "{{ item.option }}"
-            value: "{{ item.value }}"
+            state: absent
+          become: true
+
+        - name: copy pan-dhcp service
+          ansible.builtin.template:
+            src: templates/pan-dhcp.service.j2
+            dest: /etc/systemd/system/pan-dhcp.service
             mode: "0644"
-          loop:
-            - { option: interface, value: pan0 }
-            - { option: dhcp-range, value: "{{ pan0_cidr_first_usable }},{{ pan0_cidr_last_usable }},{{ pan0_cidr_netmask }},1h" }
-        - name: set options without values
-          ansible.builtin.lineinfile:
-            path: /etc/dnsmasq.d/pan0.conf
-            line: "{{ item.option }}"
-            state: present
-          loop:
-            - { option: dhcp-authoritative }
-            - { option: dhcp-rapid-commit }
-            - { option: leasefile-ro }
-      become: true
+            force: true
+          become: true
+
+        - name: enable pan-dhcp service
+          ansible.builtin.systemd_service:
+            name: pan-dhcp.service
+            daemon_reload: true
+            enabled: true
+          become: true
+
+        - name: start pan-dhcp service
+          ansible.builtin.systemd_service:
+            name: pan-dhcp.service
+            state: restarted
+            no_block: true
+          become: true
 
     - name: copy pan0 network interface config
       ansible.builtin.template:
         src: templates/pan0.network.j2
         dest: /etc/network/interfaces.d/pan0
         force: true
-      become: true
-
-    - name: restart services
-      ansible.builtin.systemd:
-        name: "{{ item }}"
-        state: restarted
-      loop:
-        - dnsmasq.service
       become: true
 
     - name: explain pan0 network interface

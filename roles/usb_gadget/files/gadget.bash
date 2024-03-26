@@ -70,13 +70,10 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev
                 check_unit 'ethernet'
                 check "instance name is $instance_name" test "$instance_name" = "${function#*.}"
                 check "dnsmasq is installed" which dnsmasq >/dev/null
-                check "dnsmasq is active" systemctl -q is-active dnsmasq.service
+                check "usb-dhcp is active" systemctl -q is-active usb-dhcp.service
                 check "usb0 interface exists" ip link show usb0 >/dev/null
                 check "usb0 interface is configured" ip -4 -o addr show usb0 | grep -q ' {{ usb0_cidr }} '
                 check "usb0 interface is dhcpcd-excluded" grep -q "^denyinterfaces usb0$" /etc/dhcpcd.conf
-                check "usb0 interface is configured for dnsmasq" grep -q "^interface=usb0$" /etc/dnsmasq.d/usb0.conf
-                check "usb0 dnsmasq config is not malformed" grep -v -q "^interface$" /etc/dnsmasq.d/usb0.conf
-                check "usb0 dnsmasq config is not malformed (key-only entries with =)" grep -v -q "^leasefile-ro=" /etc/dnsmasq.d/usb0.conf
                 ;;
             *.*)
                 check_unit "${function%.*}"
@@ -99,7 +96,7 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev
         if [ -n "$gadget_dir" ] && [ -d "$gadget_dir/functions/ecm.$instance_name" ]; then
             check_further '- scan for connected hosts:\n  `%s`' "command -v nmap >/dev/null 2>&1 || sudo apt-get install -yqq nmap; nmap -sn 10.10.10.11-14"
             check_further '- check networking:\n  `%s`' "systemctl status networking"
-            for service in dnsmasq; do
+            for service in usb-dhcp; do
                 check_further_unit '%s service' "$service"
                 check_further '- check status:\n  `%s`' "systemctl status $service.service"
                 check_further '- check logs:\n  `%s`' "journalctl -b -e -u $service.service"

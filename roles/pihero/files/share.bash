@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || true)")" >/dev
 
 +diag() {
     check_start "Share diagnostics"
-    check "dnsmasq is running" systemctl -q is-active dnsmasq.service
+    check "dnsmasq is installed" dpkg -s dnsmasq >/dev/null
     check_summary
 }
 
