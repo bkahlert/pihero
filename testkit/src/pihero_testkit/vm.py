@@ -28,6 +28,10 @@ SSH_OPTS = ["-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=no", "-o", 
 SSH_CONNECTION_FAILED = 255
 
 
+class QemuExited(RuntimeError):
+    pass
+
+
 class Vm:
     def __init__(self, base: prepare.BaseImage, bootfs: Path, workdir: Path, accel: str = "hvf", user: str = "pihero", memory_mb: int = 1024, debs: list[Path] = ()):
         self.base, self.bootfs, self.workdir, self.accel, self.user, self.memory_mb, self.debs = base, bootfs, workdir, accel, user, memory_mb, list(debs)
@@ -69,7 +73,7 @@ class Vm:
         deadline = time.time() + timeout
         while time.time() < deadline:
             if self.process.poll() is not None:
-                raise RuntimeError(f"QEMU exited during boot {self.boots}; see {self.serial_log}\n{self.process.stderr.read()}")
+                raise QemuExited(f"QEMU exited during boot {self.boots}; see {self.serial_log}\n{self.process.stderr.read()}")
             if self.ssh("true", timeout=15).returncode == 0:
                 return
             time.sleep(2)
@@ -82,22 +86,37 @@ class Vm:
         """Follows cloud-init to the end, including the reboot its power_state requests, until no reboot is pending."""
         deadline = time.time() + timeout
         while time.time() < deadline:
-            self.wait_ssh(timeout=max(30, int(deadline - time.time())))
-            status = self.ssh("cloud-init status --wait --long", timeout=600)
-            if status.returncode == SSH_CONNECTION_FAILED or self._exited_within(15):
+            try:
+                self.wait_ssh(timeout=max(30, int(deadline - time.time())))
+            except QemuExited:
+                # Under -no-reboot a guest reboot before the first login also ends QEMU, with exit status 0.
+                if self.process.returncode != 0:
+                    raise
                 self.start()
+                continue
+            status = self.ssh("cloud-init status --wait --long", timeout=600)
+            if self._recovered(status):
                 continue
             if status.returncode != 0:
                 raise RuntimeError(f"cloud-init failed (exit {status.returncode}):\n{status.stdout}{status.stderr}\n{self.ssh('sudo tail -n 60 /var/log/cloud-init.log').stdout}")
             pending = self.ssh("test -f /run/reboot-required")
-            if pending.returncode == SSH_CONNECTION_FAILED or self._exited_within(15):
-                self.start()
+            if self._recovered(pending):
                 continue
             if pending.returncode == 0:
                 self.reboot()
                 continue
             return
         raise TimeoutError(f"provisioning did not settle within {timeout}s; see {self.serial_log}")
+
+    def _recovered(self, result: subprocess.CompletedProcess) -> bool:
+        """Restarts QEMU if it exited around this SSH call; returns whether the caller must go around again."""
+        # Under -no-reboot QEMU exits only after the guest reboot drops SSH; a QEMU started earlier loses the hostfwd port race.
+        dropped = result.returncode == SSH_CONNECTION_FAILED
+        exited = self._exited_within(60 if dropped else 15)
+        if exited:
+            self.start()
+            return True
+        return dropped
 
     def _exited_within(self, seconds: int) -> bool:
         try:

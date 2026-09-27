@@ -25,6 +25,8 @@ write_files:
   - path: /etc/pihero/device-info.conf
     content: MODEL=MacPro7,1@ECOLOR=226,226,224
 runcmd:
+  # Request the reboot a feature package would, so provisioning exercises the power_state path.
+  - touch /run/reboot-required
   - hostnamectl set-hostname --pretty "All Features"
 power_state:
   mode: reboot
