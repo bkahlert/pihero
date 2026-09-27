@@ -1,0 +1,30 @@
+#cloud-config
+# board: QEMU virt (tier 2)  image: Raspberry Pi OS Lite 64-bit (Trixie)
+hostname: all-features
+manage_etc_hosts: true
+enable_ssh: true
+ssh_pwauth: false
+users:
+  - name: pihero
+    groups: users,adm,sudo,gpio,spi,i2c,netdev,plugdev
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPLACEHOLDERREPLACEDINTASK10 pihero-testkit
+package_update: true
+apt:
+  sources:
+    pihero-local:
+      source: deb [trusted=yes] http://10.0.2.2:8000/ ./
+packages:
+  - avahi-utils
+  - pihero
+write_files:
+  - path: /etc/pihero/device-info.conf
+    content: MODEL=MacPro7,1@ECOLOR=226,226,224
+runcmd:
+  - hostnamectl set-hostname --pretty "All Features"
+power_state:
+  mode: reboot
+  condition: test -f /run/reboot-required
