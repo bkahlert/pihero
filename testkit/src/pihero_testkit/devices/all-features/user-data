@@ -11,9 +11,10 @@ users:
     lock_passwd: true
     sudo: ALL=(ALL) NOPASSWD:ALL
     ssh_authorized_keys:
-      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPLACEHOLDERREPLACEDINTASK10 pihero-testkit
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJDiuqm2ktQeCoYMDWkft4sJsbpS/OtBezHVULABowbs pihero-testkit
 package_update: true
 apt:
+  preserve_sources_list: true
   sources:
     pihero-local:
       source: deb [trusted=yes] http://10.0.2.2:8000/ ./

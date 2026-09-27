@@ -1,0 +1,7 @@
+# Pinned upstream inputs of the tier-2 base image. Update url and sha256 together.
+[raspios]
+url = "https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2026-09-15/2026-09-15-raspios-trixie-arm64-lite.img.xz"
+sha256 = "cdf4f3bfac35ae947b46e4e767f935453810549779ac3290e05a6754aee627e5"
+
+[kernel]
+package = "linux-image-arm64"
