@@ -47,3 +47,27 @@ class Server:
     def close(self) -> None:
         self.httpd.shutdown()
         self.httpd.server_close()
+
+
+def main(argv: list[str]) -> int:
+    import argparse
+    import glob
+
+    parser = argparse.ArgumentParser(description="Maintain the flat apt repository.")
+    sub = parser.add_subparsers(dest="command", required=True)
+    publish = sub.add_parser("publish", help="copy packages into the repo directory, regenerate and sign the index")
+    publish.add_argument("--debs", required=True, help="glob of .deb files")
+    publish.add_argument("--repo", required=True, help="repository directory, existing packages are kept")
+    publish.add_argument("--key", required=True, help="armored private signing key")
+    args = parser.parse_args(argv)
+    repo_dir = Path(args.repo).resolve()
+    build_repo([Path(p) for p in sorted(glob.glob(args.debs))], repo_dir)
+    sign_repo(repo_dir, Path(args.key).resolve())
+    print(repo_dir)
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main(sys.argv[1:]))

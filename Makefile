@@ -43,3 +43,13 @@ deploy: build ## install built packages on TARGET over SSH
 
 clean: ## remove build outputs
 	rm -rf dist packages/*/.build
+
+repo: build ## regenerate and sign the flat repo under dist/repo (needs ~/.config/pihero-apt-signing-key.asc)
+	@$(UV) python -m pihero_testkit.repo publish --debs 'dist/*.deb' --repo dist/repo --key ~/.config/pihero-apt-signing-key.asc
+
+release: ## run every tier locally, then tag VERSION (make release VERSION=2.0.0)
+	@test -n "$(VERSION)" || { echo "usage: make release VERSION=X.Y.Z"; exit 2; }
+	@git diff --quiet || { echo "working tree is dirty"; exit 1; }
+	@$(MAKE) test-all
+	git tag -a "v$(VERSION)" -m "v$(VERSION)"
+	@echo "Tagged v$(VERSION). Push with: git push origin v$(VERSION)"
