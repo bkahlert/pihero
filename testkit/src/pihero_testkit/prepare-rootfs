@@ -67,6 +67,7 @@ cp "$root/boot/firmware/config.txt" "$root/boot/firmware/cmdline.txt" "$out/boot
 
 log "installing $kernel_package in chroot"
 for m in proc sys dev dev/pts; do mount --bind "/$m" "$root/$m"; done
+# The image links resolv.conf to a file NetworkManager only writes at boot; apt-get in the chroot needs a resolver now.
 cp --remove-destination /etc/resolv.conf "$root/etc/resolv.conf"
 chroot "$root" env DEBIAN_FRONTEND=noninteractive apt-get update -q
 chroot "$root" env DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends "$kernel_package"
@@ -82,21 +83,11 @@ sed -i -E 's|^PARTUUID=[^ ]+-01 |LABEL=bootfs |; s|^PARTUUID=[^ ]+-02 |LABEL=roo
 install -d "$root/etc/systemd/system/cloud-init-local.service.d"
 printf '[Unit]\nRequiresMountsFor=/boot/firmware\n' >"$root/etc/systemd/system/cloud-init-local.service.d/pihero-bootfs.conf"
 
-log "masking units and reordering cloud-init modules for QEMU"
+log "masking units and dropping the missing cloud-init module"
 # Without EEPROM hardware rpi-eeprom-update dies on a shell arithmetic error and is the VM's only failed unit.
 ln -sf /dev/null "$root/etc/systemd/system/rpi-eeprom-update.service"
-# The rpt cloud.cfg lacks apt_configure (so apt.sources is ignored) and lists netplan_nm_patch, which does not exist.
+# The rpt cloud.cfg lists netplan_nm_patch, which does not exist, so cloud-init exits 2 on every boot; this is the stock list without it.
 cat >"$root/etc/cloud/cloud.cfg.d/90_pihero_tier2.cfg" <<'EOF'
-cloud_config_modules:
-  - apt_configure
-  - ssh_import_id
-  - keyboard
-  - locale
-  - ntp
-  - timezone
-  - raspberry_pi
-  - disable_ec2_metadata
-  - runcmd
 cloud_final_modules:
   - package_update_upgrade_install
   - write_files_deferred

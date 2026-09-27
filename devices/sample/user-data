@@ -15,34 +15,37 @@ users:
       - ssh-ed25519 AAAA...your public key... you@mac
 rpi:
   enable_usb_gadget: true
-  spi: false
-  i2c: false
-  serial: true
+  interfaces:
+    spi: false
+    i2c: false
+    serial: true
 package_update: true
-apt:
-  sources:
-    pihero:
-      source: deb [signed-by=$KEY_FILE] https://bkahlert.github.io/pihero/apt ./
-      key: |
-        -----BEGIN PGP PUBLIC KEY BLOCK-----
-
-        mDMEarmLMBYJKwYBBAHaRw8BAQdAYH5NN70CgNV7X5ac7oOSclZ8KndwP0u1L01s
-        D3uvpfi0OlBpIEhlcm8gYXB0IHJlcG9zaXRvcnkgPGJrYWhsZXJ0QHVzZXJzLm5v
-        cmVwbHkuZ2l0aHViLmNvbT6IrwQTFgoAVxYhBN5gnX/1vkMNrIzIBwgfcOagd996
-        BQJquYswGxSAAAAAAAQADm1hbnUyLDIuNSsxLjEyLDAsMwIbAwULCQgHAgIiAgYV
-        CgkICwIEFgIDAQIeBwIXgAAKCRAIH3DmoHffetE/AP4yQu33ESTuvzbxshkd5vN3
-        zfxERhiv662PLKEMET2WdgEA9bzTYYeziFUuok1oSkF7Q3IkOXHyf71EhXbbixdO
-        Zwc=
-        =dnaq
-        -----END PGP PUBLIC KEY BLOCK-----
 packages:
   - pihero
   - pihero-avahi
 write_files:
+  - path: /etc/apt/sources.list.d/pihero.sources
+    content: |
+      Types: deb
+      URIs: https://bkahlert.github.io/pihero/apt
+      Suites: ./
+      Signed-By:
+       -----BEGIN PGP PUBLIC KEY BLOCK-----
+       .
+       mDMEarmLMBYJKwYBBAHaRw8BAQdAYH5NN70CgNV7X5ac7oOSclZ8KndwP0u1L01s
+       D3uvpfi0OlBpIEhlcm8gYXB0IHJlcG9zaXRvcnkgPGJrYWhsZXJ0QHVzZXJzLm5v
+       cmVwbHkuZ2l0aHViLmNvbT6IrwQTFgoAVxYhBN5gnX/1vkMNrIzIBwgfcOagd996
+       BQJquYswGxSAAAAAAAQADm1hbnUyLDIuNSsxLjEyLDAsMwIbAwULCQgHAgIiAgYV
+       CgkICwIEFgIDAQIeBwIXgAAKCRAIH3DmoHffetE/AP4yQu33ESTuvzbxshkd5vN3
+       zfxERhiv662PLKEMET2WdgEA9bzTYYeziFUuok1oSkF7Q3IkOXHyf71EhXbbixdO
+       Zwc=
+       =dnaq
+       -----END PGP PUBLIC KEY BLOCK-----
   - path: /etc/pihero/device-info.conf
     content: MODEL=AirPort4
 runcmd:
   - hostnamectl set-hostname --pretty "Sample Pi"
+  - systemctl restart pihero-avahi-render.service
   - nmcli connection modify "USB Gadget (shared)" ipv4.addresses 10.10.10.10/29
 power_state:
   mode: reboot
