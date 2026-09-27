@@ -1,0 +1,14 @@
+[Unit]
+Description=Pi Hero: render Avahi service records
+Before=avahi-daemon.service
+After=systemd-hostnamed.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=-/etc/pihero/device-info.conf
+ExecStart=/usr/lib/pihero/avahi-render
+ExecStartPost=/bin/sh -c 'systemctl --no-block try-reload-or-restart avahi-daemon.service || true'
+
+[Install]
+WantedBy=multi-user.target

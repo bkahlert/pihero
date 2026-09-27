@@ -21,6 +21,7 @@ apt:
 packages:
   - avahi-utils
   - pihero
+  - pihero-avahi
 write_files:
   - path: /etc/pihero/device-info.conf
     content: MODEL=MacPro7,1@ECOLOR=226,226,224
