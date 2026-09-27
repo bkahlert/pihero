@@ -1,0 +1,261 @@
+#!/usr/bin/env bash
+# Purpose: Render the Pi Hero kaomoji as an animated GIF.
+# Usage:   hero-gif [--output <file>] [--cast <file>] [--font-family <list>] [--font-size <px>] [--line-height <n>]
+#                   [--padding <n>|<cols>x<rows>] [--margin <px>|<x>x<y>] [--radius <px>] [--hold <secs>] [--theme <theme>]
+#                   [--] [<hero option>...]
+#
+# Runs hero with the given options, records every frame and turns the recording into a GIF with agg
+# (https://github.com/asciinema/agg). The hero is rendered in color and hovers once, so the GIF loops
+# seamlessly; pass --no-color or --loops <n> to change that.
+#
+# Options:
+#   --output <file>     GIF to write (default: hero.gif).
+#   --cast <file>       Also keep the recording as an asciicast v2 file.
+#   --font-family <list>
+#                       Comma-separated font families to try in turn for each glyph (default: agg's list, which
+#                       ends up with Menlo on macOS). Add "Apple Symbols" there for a hand glyph that fits its cell.
+#   --font-size <px>    Font size (default: 32). A column is 0.6 font sizes wide, a row is the line height
+#                       times the font size high.
+#   --line-height <n>   Line height relative to the font size (default: 1.4).
+#   --padding <n>|<cols>x<rows>
+#                       Empty columns and rows around the hero (default: 1). agg adds another column on
+#                       either side and half a row above and below.
+#   --margin <px>|<x>x<y>
+#                       Crop agg's margins down to this many pixels; needs ffmpeg (default: keep them).
+#   --radius <px>       Round the corners by <px>, leaving them transparent; needs ffmpeg (default: 0).
+#   --hold <secs>       How long the last frame stays before the GIF loops (default: one frame).
+#   --theme <theme>     Color theme of agg: a name or "<bg>,<fg>,<16 colors>" in hex (default: asciinema).
+#   -h, --help          Show this help.
+#
+# Arguments:
+#   <hero option>...    Passed on to hero, see 'hero --help'. Endless animations (--loops -1) can't be rendered.
+#
+# Examples:
+#   hero-gif --output hero.gif --font-family "Menlo,Apple Symbols" --mood neutral --animate --no-entrance   # hovering hero, seamless loop
+#   hero-gif --output hero-grid.gif --font-family "Menlo,Apple Symbols" --font-size 24 --hold 2             # the whole grid, restarts after 2 s
+#   hero-gif --mood happy                                                                                    # a single frame
+#   hero-gif --output hero-badge.gif --font-family "Menlo,Apple Symbols" --font-size 21 --line-height 1.428571 \
+#            --padding 0 --margin 10x5 --radius 6 \
+#            --theme 555555,ffffff,000000,dd3c69,4ebf22,ddaf3c,26b0d7,b954e1,54e1b9,d9d9d9,4d4d4d,dd3c69,4ebf22,ddaf3c,26b0d7,b954e1,54e1b9,ffffff \
+#            --mood neutral --animate --no-entrance                     # 40 px tall badge for the README, shown at 20 px
+
+set -euo pipefail
+
+# The recording is made on a virtual 256-color terminal, whatever the real one is.
+export TERM=xterm-256color
+
+# shellcheck source=hero
+. "$(dirname "${BASH_SOURCE[0]}")/hero"
+
+usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
+die() { printf '%s: %s\nSee '\''%s --help'\''\n' "${0##*/}" "$1" "${0##*/}" >&2; exit 2; }
+
+readonly FRAME_END=$'\1' # marks the end of a frame in the recording, followed by
+readonly DELAY_END=$'\2' # the delay until the next one in milliseconds and this mark
+
+# Replaces hero's pacing: instead of sleeping, marks the end of the frame and its delay.
+hero_sleep_ms() { printf '%s%s%s' "$FRAME_END" "$1" "$DELAY_END"; }
+
+# Prints the given text as a JSON string.
+json_string() {
+    local s=$1
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\e'/\\u001b}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '"%s"' "$s"
+}
+
+# Prints the number of times the needle occurs in the haystack.
+count() {
+    local haystack=$1 needle=$2 stripped
+    stripped=${haystack//"$needle"/}
+    printf '%d' "$(((${#haystack} - ${#stripped}) / ${#needle}))"
+}
+
+# Records hero's output for the given options, returning the frames and their delays in the
+# given arrays. The last frame has no delay of its own.
+record() {
+    local -n out_frames=$1 out_delays=$2
+    shift 2
+    local raw rest
+    raw=$(main --color --loops 1 "$@"; printf x) # x keeps trailing newlines
+    rest=${raw%x}
+    out_frames=()
+    out_delays=()
+    while [[ $rest == *"$FRAME_END"* ]]; do
+        out_frames+=("${rest%%"$FRAME_END"*}")
+        rest=${rest#*"$FRAME_END"}
+        out_delays+=("${rest%%"$DELAY_END"*}")
+        rest=${rest#*"$DELAY_END"}
+    done
+    rest=${rest//"$HERO_CNORM"/} # neither the cursor coming back
+    out_frames+=("${rest%$'\n'}")  # nor the final newline are part of the picture
+}
+
+# Sets REPLY to "<columns> <rows>" the recorded frames need. Rows are simulated from the
+# newlines and cursor movements hero makes, columns are the widest line's display width.
+measure() {
+    local -n recorded=$1
+    local frame line text
+    local -i row=1 rows=1 cols=0
+    for frame in "${recorded[@]}"; do
+        row=$((row - $(count "$frame" "$HERO_CUU1") + $(count "$frame" $'\n')))
+        if ((row > rows)); then rows=$row; fi
+    done
+    text=$(printf '%s' "${recorded[@]}" | sed $'s/\x1b\\[[0-9;?]*[A-Za-z]//g; s/\x1b(B//g' | tr '\r' '\n')
+    while IFS= read -r line; do
+        hero_text_width "$line"
+        if ((REPLY > cols)); then cols=$REPLY; fi
+    done <<<"$text"
+    REPLY="$cols $rows"
+}
+
+# Writes the frames as an asciicast v2 file.
+#   --width <n> --height <n>   size of the terminal, padding included
+#   --left <n> --top <n>       empty columns and rows to leave before the content
+#   <frames> <delays> <file>   names of the arrays filled by record, and the output file
+write_cast() {
+    local -i width=0 height=0 left=0 top=0
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --width) width=${2?$1: missing value}; shift 2 ;;
+        --height) height=${2?$1: missing value}; shift 2 ;;
+        --left) left=${2?$1: missing value}; shift 2 ;;
+        --top) top=${2?$1: missing value}; shift 2 ;;
+        -?*) die "${FUNCNAME[0]}: unknown option: $1" ;;
+        *) break ;;
+        esac
+    done
+    local -n cast_frames=$1 cast_delays=$2
+    local file=$3
+
+    local indent='' lead='' frame json
+    local -i i time=0
+    printf -v indent '%*s' "$left" ''
+    for ((i = 0; i < top; i++)); do lead+=$'\n'; done
+    {
+        printf '{"version": 2, "width": %d, "height": %d, "env": {"TERM": "%s"}}\n' "$width" "$height" "$TERM"
+        for i in "${!cast_frames[@]}"; do
+            frame=${cast_frames[i]}
+            frame=${frame//$'\r'/$'\r'$indent}   # indent every redraw of the current line ...
+            frame=${frame//$'\n'/$'\r\n'$indent} # ... and every new one; a tty would add the \r, too
+            if ((i == 0)); then frame="$lead$indent$frame"; fi
+            if ((i == ${#cast_frames[@]} - 1)); then frame+=$HERO_CIVIS; fi # no cursor in the last frame
+            json=$(json_string "$frame")
+            printf '[%d.%03d, "o", %s]\n' "$((time / 1000))" "$((time % 1000))" "$json"
+            if ((i < ${#cast_delays[@]})); then time+=${cast_delays[i]}; fi
+        done
+    } >"$file"
+}
+
+# Runs a GIF through the given ffmpeg filters, keeping its timing and loop.
+reencode() { # <filters> <file>
+    local filters=$1 file=$2 result
+    result=$(mktemp -t hero-gif.XXXXXX)
+    ffmpeg -v error -y -i "$file" -fps_mode passthrough -loop 0 -f gif -filter_complex \
+        "[0:v]${filters}split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=alpha_threshold=128:dither=none" "$result"
+    mv "$result" "$file"
+}
+
+# Prints the ffmpeg filter that crops agg's margins, one column on either side and half a row above
+# and below the given terminal size, down to the given number of pixels.
+crop_filter() { # <cols> <rows> <x> <y>
+    local -i cols=$1 rows=$2 x=$3 y=$4
+    local dx="(iw/($cols+2)-$x)" dy="(ih/($rows+1)/2-$y)"
+    printf 'crop=w=iw-2*%s:h=ih-2*%s:x=%s:y=%s,' "$dx" "$dy" "$dx" "$dy"
+}
+
+# Prints the ffmpeg filter that makes the corners transparent outside the given radius.
+radius_filter() { # <radius>
+    local -i r=$1
+    printf "format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(gt(hypot(max(abs(X-W/2+0.5)-(W/2-%d),0),max(abs(Y-H/2+0.5)-(H/2-%d),0)),%d),0,255)'," "$r" "$r" "$r"
+}
+
+hero_gif() {
+    local output=hero.gif cast='' hold='' theme=asciinema font_family='' line_height=1.4 padding=1 margin=''
+    local -i font_size=32 radius=0
+    local -a hero_args=()
+    while [ $# -gt 0 ]; do
+        case $1 in
+        -h | --help) usage; exit 0 ;;
+        --output) output=${2?--output: missing value}; shift 2 ;;
+        --output=*) output=${1#*=}; shift ;;
+        --cast) cast=${2?--cast: missing value}; shift 2 ;;
+        --cast=*) cast=${1#*=}; shift ;;
+        --font-family) font_family=${2?--font-family: missing value}; shift 2 ;;
+        --font-family=*) font_family=${1#*=}; shift ;;
+        --font-size) font_size=${2?--font-size: missing value}; shift 2 ;;
+        --font-size=*) font_size=${1#*=}; shift ;;
+        --line-height) line_height=${2?--line-height: missing value}; shift 2 ;;
+        --line-height=*) line_height=${1#*=}; shift ;;
+        --padding) padding=${2?--padding: missing value}; shift 2 ;;
+        --padding=*) padding=${1#*=}; shift ;;
+        --margin) margin=${2?--margin: missing value}; shift 2 ;;
+        --margin=*) margin=${1#*=}; shift ;;
+        --radius) radius=${2?--radius: missing value}; shift 2 ;;
+        --radius=*) radius=${1#*=}; shift ;;
+        --hold) hold=${2?--hold: missing value}; shift 2 ;;
+        --hold=*) hold=${1#*=}; shift ;;
+        --theme) theme=${2?--theme: missing value}; shift 2 ;;
+        --theme=*) theme=${1#*=}; shift ;;
+        --loops=-1) die "endless animations can't be rendered" ;;
+        --loops) [ "${2:-}" != -1 ] || die "endless animations can't be rendered"; hero_args+=("$1" "${2?--loops: missing value}"); shift 2 ;;
+        --) shift; hero_args+=("$@"); break ;;
+        *) hero_args+=("$1"); shift ;; # everything else is hero's business
+        esac
+    done
+    command -v agg >/dev/null || die "agg not found, install it from https://github.com/asciinema/agg"
+    local filters=''
+    local -a font=()
+    if [ -n "$font_family" ]; then font=(--text-font-family "$font_family"); fi
+    local -i pad_x pad_y margin_x margin_y
+    case $padding in
+    *x*) pad_x=${padding%x*} pad_y=${padding#*x} ;;
+    *) pad_x=$padding pad_y=$padding ;;
+    esac
+    case $margin in
+    '') ;;
+    *x*) margin_x=${margin%x*} margin_y=${margin#*x} ;;
+    *) margin_x=$margin margin_y=$margin ;;
+    esac
+    if [ -n "$margin" ] || ((radius > 0)); then
+        command -v ffmpeg >/dev/null || die "ffmpeg not found, needed for --margin and --radius"
+    fi
+
+    local -a frames delays
+    record frames delays "${hero_args[@]}"
+    measure frames
+    local -i width=$((${REPLY% *} + 2 * pad_x)) height=$((${REPLY#* } + 2 * pad_y))
+
+    if [ -z "$hold" ]; then
+        # agg merges identical consecutive frames into one and shows the last one for exactly the
+        # hold time, so the hold has to cover the merged frames' delays plus one more frame.
+        # A still image is held for a second.
+        local -i n=${#frames[@]} i ms=1000
+        if ((n > 1)); then
+            ms=${delays[n - 2]}
+            for ((i = n - 2; i >= 0; i--)); do
+                [ "${frames[i]}" = "${frames[n - 1]}" ] || break
+                ms+=${delays[i]}
+            done
+        fi
+        printf -v hold '%d.%03d' "$((ms / 1000))" "$((ms % 1000))"
+    fi
+
+    if [ -z "$cast" ]; then
+        cast=$(mktemp -t hero-gif.XXXXXX)
+        # shellcheck disable=SC2064 # the temp file's name is known right now
+        trap "rm -f '$cast'" EXIT
+    fi
+    write_cast --width "$width" --height "$height" --left "$pad_x" --top "$pad_y" frames delays "$cast"
+    agg "${font[@]}" --font-size "$font_size" --line-height "$line_height" --theme "$theme" --last-frame-duration "$hold" "$cast" "$output" >&2 # progress bar
+    if [ -n "$margin" ]; then filters+=$(crop_filter "$width" "$height" "$margin_x" "$margin_y"); fi
+    if ((radius > 0)); then filters+=$(radius_filter "$radius"); fi
+    if [ -n "$filters" ]; then reencode "$filters" "$output"; fi
+    printf '%s: %d frames on %dx%d cells\n' "$output" "${#frames[@]}" "$width" "$height"
+}
+
+hero_gif "$@"
