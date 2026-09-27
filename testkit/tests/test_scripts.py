@@ -23,3 +23,11 @@ class TestLoadScript:
         module = load_script(script)
 
         assert module.__name__.startswith("pihero_script_tool_")
+
+    def test_writes_no_bytecode_next_to_the_script(self, tmp_path):
+        script = tmp_path / "tool"
+        script.write_text("def answer():\n    return 42\n")
+
+        load_script(script)
+
+        assert not (tmp_path / "__pycache__").exists()

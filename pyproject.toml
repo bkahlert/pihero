@@ -18,4 +18,5 @@ dev = ["pihero-testkit"]
 
 [tool.pytest.ini_options]
 testpaths = ["packages", "testkit/tests"]
-addopts = "-p pihero_testkit.plugin --import-mode=importlib -ra"
+# testinfra's own plugin registers after ours and its local-host `host` fixture would shadow the target's.
+addopts = "-p pihero_testkit.plugin -p no:pytest11.testinfra --import-mode=importlib -ra"

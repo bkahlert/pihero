@@ -1,0 +1,13 @@
+# Debian Trixie with systemd as PID 1: the tier-1 install target for Pi Hero packages.
+FROM docker.io/library/debian:trixie-slim
+# The base image's policy-rc.d blocks unit starts during apt-get install
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      systemd systemd-sysv dbus ca-certificates apt-utils python3 iproute2 sudo \
+    && rm -rf /var/lib/apt/lists/* \
+    && systemctl mask systemd-udevd.service systemd-udevd-kernel.socket systemd-udevd-control.socket \
+         systemd-udev-trigger.service getty.target console-getty.service systemd-firstboot.service \
+    && rm -f /usr/sbin/policy-rc.d
+COPY boot/ /boot/firmware/
+# Ready when the default target is reached; a wedged init keeps PID 1 alive but never gets here.
+HEALTHCHECK --interval=5s --timeout=3s CMD systemctl is-active --quiet multi-user.target
+CMD ["/sbin/init"]
