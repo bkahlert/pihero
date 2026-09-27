@@ -1,0 +1,33 @@
+name: ci
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  tier0:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: astral-sh/setup-uv@v6
+        with: { enable-cache: true }
+      - run: uv sync --frozen
+      - run: make build
+      - run: make test-tier0
+
+  tier1:
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/arm64, linux/arm/v7]
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: astral-sh/setup-uv@v6
+        with: { enable-cache: true }
+      - uses: docker/setup-qemu-action@v3
+        if: matrix.platform != 'linux/arm64'
+      - run: uv sync --frozen
+      - run: make test-tier1 PLATFORM=${{ matrix.platform }}
