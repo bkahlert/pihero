@@ -64,9 +64,12 @@ class TestRemoval:
 
 
 @pytest.fixture(scope="module")
-def avahi_utils(target):
-    if not target.host.exists("avahi-browse"):
-        target.install_extra(["avahi-utils"])
+def avahi_utils(request, target):
+    if target.host.exists("avahi-browse"):
+        return
+    if request.config.getoption("--target") == "ssh":
+        pytest.skip("avahi-utils is not installed on the device")
+    target.install_extra(["avahi-utils"])
 
 
 def configured_model(host) -> str | None:

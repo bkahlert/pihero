@@ -101,6 +101,18 @@ class TestCli:
 
         assert txt_records((services / "pihero-device-info.service").read_text()) == ["model=MacPro7,1@ECOLOR=226,226,224", "machine=QEMU virt"]
 
+    def test_exits_1_on_a_template_directory_without_templates(self, tmp_path):
+        services = tmp_path / "services"
+        services.mkdir()
+        empty = tmp_path / "templates"
+        empty.mkdir()
+
+        result = cli(services, tmp_path / "missing-model", env={"PIHERO_AVAHI_TEMPLATES": str(empty)})
+
+        assert result.returncode == 1
+        assert "no *.service.in templates" in result.stderr
+        assert list(services.iterdir()) == []
+
 
 def txt_records(xml_text: str) -> list[str]:
     root = ET.fromstring(xml_text)

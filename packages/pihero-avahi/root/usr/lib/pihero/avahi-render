@@ -41,7 +41,10 @@ def render(templates: Path, name: str, model: str, machine_name: str | None) -> 
     if machine_name:
         records.append(txt_record("machine", machine_name))
     values = {"name": escape(name), "txt_records": "\n    ".join(records)}
-    return {template.name.removesuffix(".in"): Template(template.read_text()).substitute(values) for template in sorted(templates.glob("*.service.in"))}
+    rendered = {template.name.removesuffix(".in"): Template(template.read_text()).substitute(values) for template in sorted(templates.glob("*.service.in"))}
+    if not rendered:
+        raise FileNotFoundError(f"no *.service.in templates in {templates}")
+    return rendered
 
 
 def write_if_changed(path: Path, content: str) -> bool:
@@ -56,7 +59,12 @@ def main() -> int:
     templates = Path(os.environ.get("PIHERO_AVAHI_TEMPLATES", "/usr/share/pihero/avahi"))
     device_tree = Path(os.environ.get("PIHERO_DEVICE_TREE_MODEL", "/proc/device-tree/model"))
     model = os.environ.get("MODEL") or "AirPort4"
-    for name, content in render(templates, pretty_hostname(), model, machine(device_tree)).items():
+    try:
+        rendered = render(templates, pretty_hostname(), model, machine(device_tree))
+    except FileNotFoundError as error:
+        print(f"avahi-render: {error}", file=sys.stderr)
+        return 1
+    for name, content in rendered.items():
         write_if_changed(services / f"pihero-{name}", content)
     return 0
 
