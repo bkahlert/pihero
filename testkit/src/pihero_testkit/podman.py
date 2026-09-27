@@ -11,6 +11,8 @@ import testinfra
 from .tools import PODMAN
 
 TIER1_DIR = Path(str(files("pihero_testkit") / "tier1"))
+# A 32-bit userland reports armv8l when an arm64 kernel runs it natively and armv7l under QEMU.
+MACHINES = {"linux/arm64": {"aarch64"}, "linux/arm/v7": {"armv7l", "armv8l"}}
 
 
 def image_for(platform: str) -> str:
@@ -36,6 +38,11 @@ class SystemdContainer:
             check=True, stdout=subprocess.DEVNULL,
         )
         self._wait_ready()
+        # A wrong-arch base image under the right tag runs the host's architecture and would pass every test vacuously.
+        machine = self.exec("uname", "-m").stdout.strip()
+        expected = MACHINES.get(self.platform, set())
+        if machine not in expected:
+            raise RuntimeError(f"{self.name}: container reports {machine}, expected one of {sorted(expected)} for {self.platform}")
         self.host = testinfra.get_host(f"podman://{self.name}", sudo=True)
         return self
 

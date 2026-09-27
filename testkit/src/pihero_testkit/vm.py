@@ -189,7 +189,7 @@ def main() -> int:
     parser.add_argument("--keep", action="store_true")
     args = parser.parse_args()
     debs = build.build_all(build.version_from_git())
-    with provisioned_vm(debs, args.device, args.qemu_accel, keep=True) as vm:
+    with provisioned_vm(debs, args.device, args.qemu_accel, keep=args.keep) as vm:
         print(vm.ssh_command())
         if args.keep:
             print("Press Ctrl-C to stop the VM.", file=sys.stderr)

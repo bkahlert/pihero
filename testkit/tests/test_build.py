@@ -28,7 +28,7 @@ class TestVersionFromGit:
 
 class TestBuild:
     def test_builds_a_package_from_a_directory(self, tmp_path, monkeypatch):
-        pkg = Path("packages") / "pihero-zz-probe"
+        pkg = Path("dist") / "probe" / "src" / "pihero-zz-probe"
         (pkg / "root" / "usr" / "lib" / "pihero").mkdir(parents=True)
         (pkg / "root" / "usr" / "lib" / "pihero" / "probe").write_text("#!/bin/sh\necho probe\n")
         (pkg / "root" / "usr" / "lib" / "pihero" / "probe").chmod(0o755)
@@ -48,4 +48,4 @@ class TestBuild:
             assert " Version: 9.9.9" in info
             assert "-rwxr-xr-x" in contents and "./usr/lib/pihero/probe" in contents
         finally:
-            subprocess.run(["rm", "-rf", str(pkg), "dist/probe"], check=True)
+            subprocess.run(["rm", "-rf", "dist/probe"], check=True)
