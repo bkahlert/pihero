@@ -3,3 +3,11 @@
 /.cache
 .gradle
 build
+dist/
+packages/*/.build/
+.venv/
+__pycache__/
+.pytest_cache/
+devices/*
+!devices/sample/
+!devices/README.md

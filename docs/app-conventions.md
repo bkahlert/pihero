@@ -1,0 +1,28 @@
+# Application unit conventions
+
+Apps run as systemd services installed by their own Debian package. Pi Hero packages never depend on app units.
+
+    [Unit]
+    Description=My App
+    After=network-online.target
+    Wants=network-online.target
+
+    [Service]
+    User=myapp
+    Group=myapp
+    ExecStart=/usr/lib/myapp/run
+    Restart=always
+    RestartSec=5
+    MemoryMax=200M
+    NoNewPrivileges=yes
+    ProtectSystem=strict
+    StateDirectory=myapp
+
+    [Install]
+    WantedBy=multi-user.target
+
+- One dedicated system user per app, created in `postinst` with `adduser --system --group --no-create-home`.
+- `Restart=always` so a crash never leaves the device without its app; `MemoryMax=` so a leak never starves sshd.
+- Hardware access through group membership (`spi`, `gpio`, `i2c`, `video`), never by running as root.
+- Configuration overrides in `/etc/<app>/<app>.conf` as `KEY=VALUE`, read with `EnvironmentFile=-`.
+- Tests depend on `pihero-testkit` pinned to a tag and reuse its tiers; the app's tier-2 device file adds the app's apt source to a copy of the `all-features` device.

@@ -1,0 +1,14 @@
+# Pi Hero tools: every Linux-side tool the build and the tests need, pinned.
+FROM docker.io/library/debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
+ARG NFPM_VERSION=2.47.0
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl gnupg \
+      apt-utils dpkg-dev shellcheck systemd cloud-init python3 python3-yaml \
+      mtools dosfstools e2fsprogs xz-utils util-linux mount fdisk qemu-utils \
+    && rm -rf /var/lib/apt/lists/*
+RUN echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' > /etc/apt/sources.list.d/goreleaser.list \
+    && apt-get update && apt-get install -y --no-install-recommends "nfpm=${NFPM_VERSION}" \
+    && rm -rf /var/lib/apt/lists/*
+# One-shot tool image run with `podman run --rm`; there is no long-running service to probe.
+HEALTHCHECK NONE
+CMD ["bash"]
