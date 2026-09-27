@@ -8,7 +8,6 @@ Environment:
   PIHERO_DEVICE_TREE_MODEL  device-tree model file (default /proc/device-tree/model)
 """
 
-import base64
 import os
 import socket
 import subprocess
@@ -34,8 +33,7 @@ def machine(model_file: Path) -> str | None:
 
 
 def txt_record(key: str, value: str) -> str:
-    encoded = base64.b64encode(f"{key}={value}".encode()).decode()
-    return f'<txt-record value-format="binary-base64">{encoded}</txt-record>'
+    return f"<txt-record>{escape(f'{key}={value}')}</txt-record>"
 
 
 def render(templates: Path, name: str, model: str, machine_name: str | None) -> dict[str, str]:

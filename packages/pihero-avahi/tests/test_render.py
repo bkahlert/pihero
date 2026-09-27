@@ -1,4 +1,3 @@
-import base64
 import os
 import subprocess
 import sys
@@ -36,11 +35,16 @@ class TestRender:
         assert "(ノಠ益ಠ)ノ彡 ⬬" in files["device-info.service"]
         ET.fromstring(files["device-info.service"])
 
-    def test_encodes_the_model_record_as_base64(self):
+    def test_publishes_the_model_record_as_plain_text(self):
         files = render_script.render(TEMPLATES, "Foo", "MacPro7,1@ECOLOR=226,226,224", None)
 
         records = txt_records(files["device-info.service"])
         assert records == ["model=MacPro7,1@ECOLOR=226,226,224"]
+
+    def test_escapes_xml_special_characters_in_the_model(self):
+        files = render_script.render(TEMPLATES, "Foo", "A&B<C>", None)
+
+        assert txt_records(files["device-info.service"]) == ["model=A&B<C>"]
 
     def test_adds_the_machine_record_when_known(self):
         files = render_script.render(TEMPLATES, "Foo", "AirPort4", "Raspberry Pi Zero W Rev 1.1")
@@ -100,7 +104,7 @@ class TestCli:
 
 def txt_records(xml_text: str) -> list[str]:
     root = ET.fromstring(xml_text)
-    return [base64.b64decode(element.text).decode() for element in root.iter("txt-record")]
+    return [element.text for element in root.iter("txt-record") if "value-format" not in element.attrib]
 
 
 def cli(services: Path, model_file: Path, env: dict) -> subprocess.CompletedProcess:
