@@ -49,7 +49,7 @@ repo: build ## regenerate and sign the flat repo under dist/repo (needs ~/.confi
 
 release: ## run every tier locally, then tag VERSION (make release VERSION=2.0.0)
 	@test -n "$(VERSION)" || { echo "usage: make release VERSION=X.Y.Z"; exit 2; }
-	@git diff --quiet || { echo "working tree is dirty"; exit 1; }
+	@git diff --quiet HEAD || { echo "working tree is dirty"; exit 1; }
 	@$(MAKE) test-all
 	git tag -a "v$(VERSION)" -m "v$(VERSION)"
 	@echo "Tagged v$(VERSION). Push with: git push origin v$(VERSION)"
