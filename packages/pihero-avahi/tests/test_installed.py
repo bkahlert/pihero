@@ -25,9 +25,18 @@ class TestRecords:
         assert f"model={expected}" in browse
 
     def test_ssh_is_advertised(self, host, avahi_utils):
-        browse = browse_until(host, "_ssh._tcp", "_ssh._tcp")
+        browse = browse_until(host, "_ssh._tcp", ";22;")
 
-        assert "22" in browse
+        assert ";22;" in browse
+
+    def test_machine_record_follows_the_device_tree(self, host, avahi_utils):
+        browse = browse_until(host, "_device-info._tcp", "model=")
+
+        device_tree = host.file("/proc/device-tree/model")
+        if device_tree.exists:
+            assert f"machine={device_tree.content.rstrip(b'\x00').decode()}" in browse
+        else:
+            assert "machine=" not in browse
 
 
 class TestOverride:

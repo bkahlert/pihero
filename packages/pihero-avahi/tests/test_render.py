@@ -104,7 +104,7 @@ class TestCli:
 
 def txt_records(xml_text: str) -> list[str]:
     root = ET.fromstring(xml_text)
-    return [element.text for element in root.iter("txt-record") if "value-format" not in element.attrib]
+    return [element.text for element in root.iter("txt-record")]
 
 
 def cli(services: Path, model_file: Path, env: dict) -> subprocess.CompletedProcess:
