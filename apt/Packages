@@ -1,0 +1,18 @@
+Package: pihero
+Architecture: all
+Version: 2.0.0~rc.1
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 8
+Depends: python3, systemd
+Filename: ./pihero_2.0.0~rc.1_all.deb
+Size: 4526
+MD5sum: 7f740863aec47f5154e11b009342fd0d
+SHA1: e7770c9d58af95bf307039330e3ab31d81d00566
+SHA256: 2fe12bc216f2a1b46fececec4de5d672b3baa9d98859ef241131de2629f7dbe2
+SHA512: 9cf3497896bc4fd63d79beafe344509421cfdf3fb35e2e2955ee87d2ac2bcf90efc2378ac38caf3b0635784fef06733683d8d40caa2b05302bd6d52143756c9e
+Homepage: https://github.com/bkahlert/pihero
+Description: Pi Hero core: boot-config editor, MOTD, hardware watchdog.
+ Every pihero-* feature package depends on this one.
+

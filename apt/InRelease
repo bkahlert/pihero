@@ -1,0 +1,32 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Architectures: all
+Date: Sun, 27 Sep 2026 21:36:47 +0000
+Description: Pi Hero packages
+Label: pihero
+Origin: pihero
+Suite: stable
+MD5Sum:
+ 55dc18033e9ed2a41476dcc195347d45              713 Packages
+ 5c887ace178fbbc43d1b1b95f381d9bf              526 Packages.gz
+ 6428be386c12aa13a01b246d343f83fd              130 Release
+SHA1:
+ 23fbd13bbe4be89f00f4a53a2bcd4e0f319afb0f              713 Packages
+ cce61b5da56a0ab54120435ed1bd7b7696c51c6a              526 Packages.gz
+ 43bf6435028d8d119de67670cdc058322a06250d              130 Release
+SHA256:
+ d2aae9f2bc28ecc4a72a0961579b39c223879df5a2b3a258bb2a47f278222c56              713 Packages
+ 7681027916e427d1dd5ab7b0e0cc1ae2363ec3526ca8a59a51399294fda26e95              526 Packages.gz
+ 4042a69d7ff48a075cbee10b3af4707778d0f330cc841d6e68e490aa16e5217a              130 Release
+SHA512:
+ 257ebae7634b6da0e0388b73b5ca9c7c4a73779287985b6b817c793c7887478b25c25e401114a92bb115099ed4d8016bb10dddce0d01377b612e453ead4c71c1              713 Packages
+ 275395c02f69b0e66e81765c93927fcadc30d5d219fd392719654aef7daa6cfb77060d8c7a4e15534eed7e6c5632d14e3fcdce5f5f9c2b682eb01609d1a77993              526 Packages.gz
+ b873fd2a9a529ac388d1ff2daa6feb3db0f19b64379b96f45e42793bd794c8c4324d5407a5033505e7302dc44c4d2374726a44058aa60074fce6772da0af621c              130 Release
+-----BEGIN PGP SIGNATURE-----
+
+iHUEARYKAB0WIQTeYJ1/9b5DDayMyAcIH3DmoHffegUCarmMbwAKCRAIH3DmoHff
+epcKAQC3eeTBOAI7Eb0PchreTQDt/EFKf4T8+ewXcNPC4s3ASwD/Zcdwi77XYpuk
+L6aubYIf5wDPQBoX3ynw2tcs7pKw/QE=
+=kwUx
+-----END PGP SIGNATURE-----
