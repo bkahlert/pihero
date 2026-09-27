@@ -21,7 +21,7 @@ class TestPackage:
 
 class TestWatchdog:
     def test_drop_in_sets_fifteen_seconds(self, host):
-        assert host.file("/etc/systemd/system.conf.d/10-pihero-watchdog.conf").contains("RuntimeWatchdogSec=15")
+        assert host.file("/etc/systemd/system.conf.d/50-pihero-watchdog.conf").contains("RuntimeWatchdogSec=15")
 
     def test_manager_reports_the_configured_timeout(self, host):
         assert host.check_output("systemctl show --property=RuntimeWatchdogUSec").strip() == "RuntimeWatchdogUSec=15s"
@@ -58,7 +58,7 @@ class TestRemoval:
         target.purge(["pihero"])
 
         assert not host.file("/usr/lib/pihero/bootconfig").exists
-        assert not host.file("/etc/systemd/system.conf.d/10-pihero-watchdog.conf").exists
+        assert not host.file("/etc/systemd/system.conf.d/50-pihero-watchdog.conf").exists
         assert not host.file("/etc/update-motd.d/50-pihero").exists
 
         target.reinstall()
