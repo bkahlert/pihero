@@ -1,3 +1,22 @@
+Package: pihero-avahi
+Architecture: all
+Version: 2.0.0~rc.2
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 3
+Depends: pihero, avahi-daemon
+Filename: ./pihero-avahi_2.0.0~rc.2_all.deb
+Size: 2956
+MD5sum: 441c0a89e4f0d9b0cb4631988d0375b0
+SHA1: 372ec005408098feb5afb04faab149c0cb1d4de1
+SHA256: ea9de297aff4f9d32de6831884179558bdbb48300c588ee39f891b5026592e14
+SHA512: 2aace34150fcbdf3a80847822deeb31489ec49fd04c943c09f5ffd1f842bc04b1311ae8c54ee22fa7d6af8f93ce5918669099078eca46a55ee7b14df73935e49
+Homepage: https://github.com/bkahlert/pihero
+Description: Pi Hero: advertise the device on the local network.
+ Publishes _device-info._tcp with model and board, and _ssh._tcp/_sftp-ssh._tcp,
+ under the pretty hostname.
+
 Package: pihero
 Architecture: all
 Version: 2.0.0~rc.1
@@ -12,6 +31,24 @@ MD5sum: 7f740863aec47f5154e11b009342fd0d
 SHA1: e7770c9d58af95bf307039330e3ab31d81d00566
 SHA256: 2fe12bc216f2a1b46fececec4de5d672b3baa9d98859ef241131de2629f7dbe2
 SHA512: 9cf3497896bc4fd63d79beafe344509421cfdf3fb35e2e2955ee87d2ac2bcf90efc2378ac38caf3b0635784fef06733683d8d40caa2b05302bd6d52143756c9e
+Homepage: https://github.com/bkahlert/pihero
+Description: Pi Hero core: boot-config editor, MOTD, hardware watchdog.
+ Every pihero-* feature package depends on this one.
+
+Package: pihero
+Architecture: all
+Version: 2.0.0~rc.2
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 9
+Depends: python3, systemd
+Filename: ./pihero_2.0.0~rc.2_all.deb
+Size: 4762
+MD5sum: 4f9bf9328e7c269e729d6f2e1ab0e582
+SHA1: 2e234d75f3266483eb64315539898cfb9b738c6b
+SHA256: cb4c607d4f21e243b253e9b37a31e9b50defd29d0dbaa754b2026d53313337c6
+SHA512: c7b762cce365e107664f28de85192e91d4cd83256b9b6174c2d49e6bd1cc82c24a031161bfae4084d36036474c9720e04403a327f22bfe6e908c6db72e90da6f
 Homepage: https://github.com/bkahlert/pihero
 Description: Pi Hero core: boot-config editor, MOTD, hardware watchdog.
  Every pihero-* feature package depends on this one.

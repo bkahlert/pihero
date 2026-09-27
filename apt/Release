@@ -1,22 +1,22 @@
 Architectures: all
-Date: Sun, 27 Sep 2026 21:36:47 +0000
+Date: Sun, 27 Sep 2026 23:23:12 +0000
 Description: Pi Hero packages
 Label: pihero
 Origin: pihero
 Suite: stable
 MD5Sum:
- 55dc18033e9ed2a41476dcc195347d45              713 Packages
- 5c887ace178fbbc43d1b1b95f381d9bf              526 Packages.gz
- 6428be386c12aa13a01b246d343f83fd              130 Release
+ e78c9eedfa9832fc395d6e6f1167e6e8             2204 Packages
+ 60a9aaa4966150f324b4eb06d3556744             1031 Packages.gz
+ c002bd82ac39c57733f8390467980a0f              130 Release
 SHA1:
- 23fbd13bbe4be89f00f4a53a2bcd4e0f319afb0f              713 Packages
- cce61b5da56a0ab54120435ed1bd7b7696c51c6a              526 Packages.gz
- 43bf6435028d8d119de67670cdc058322a06250d              130 Release
+ 2f92c7b2dabdd44795dde471d71e2eddcefe8936             2204 Packages
+ f0c114ae3bb66f63355e5fb2871892fe3318fcf6             1031 Packages.gz
+ 6b87db8df4d4dc1e3d3848dfff881b127573d17e              130 Release
 SHA256:
- d2aae9f2bc28ecc4a72a0961579b39c223879df5a2b3a258bb2a47f278222c56              713 Packages
- 7681027916e427d1dd5ab7b0e0cc1ae2363ec3526ca8a59a51399294fda26e95              526 Packages.gz
- 4042a69d7ff48a075cbee10b3af4707778d0f330cc841d6e68e490aa16e5217a              130 Release
+ d8199e2d42fdc2ea921b5ea95ddee293b516b08c9445613f86462bf8cfb8ea75             2204 Packages
+ 2db13af3abd723c5d99acec7048a9b3156e3a2e6e4c9dffa65c71b1c9b79cf41             1031 Packages.gz
+ 12e484eb844cbc2251cd1d2a18855bf2889ac89e59a4a15f27468f95d479e808              130 Release
 SHA512:
- 257ebae7634b6da0e0388b73b5ca9c7c4a73779287985b6b817c793c7887478b25c25e401114a92bb115099ed4d8016bb10dddce0d01377b612e453ead4c71c1              713 Packages
- 275395c02f69b0e66e81765c93927fcadc30d5d219fd392719654aef7daa6cfb77060d8c7a4e15534eed7e6c5632d14e3fcdce5f5f9c2b682eb01609d1a77993              526 Packages.gz
- b873fd2a9a529ac388d1ff2daa6feb3db0f19b64379b96f45e42793bd794c8c4324d5407a5033505e7302dc44c4d2374726a44058aa60074fce6772da0af621c              130 Release
+ 0eae869be4f9f2e8d93252dce3d0a7be4fe4da796bb0315e53e7e548777d5765f3ff8617f535053e5594d52dca0931e6d9689f4b892f84e11faf49c8944c2723             2204 Packages
+ 7efcc8b9ab61d1d051ffb98baef83388bc42d9ac102200ecaef8014d7fb7a485fe2c3d2dd2c468a865780afe44830dbdf1649f08d7c81b08d06d540d977e5086             1031 Packages.gz
+ 8ee5814943edfdc569008942ecbfd3ab0364c4242d6ebbd4f1d014fabbea0822a4e84d919e2671a038fcf2d49c116d6ce2cc3deea2501fa4e72421e3fed72392              130 Release
