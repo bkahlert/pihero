@@ -3,7 +3,7 @@
 
 Usage:
   bootconfig set    config  KEY VALUE [--section NAME] [--package PKG]
-  bootconfig unset  config  KEY [--value VALUE] [--section NAME] [--package PKG]
+  bootconfig unset  config  KEY [VALUE] [--section NAME] [--package PKG]
   bootconfig add    cmdline PARAM[=VALUE] [--package PKG]
   bootconfig remove cmdline PARAM [--package PKG]
 
@@ -123,6 +123,16 @@ def remove_param(params: list[str], name: str) -> bool:
     return changed
 
 
+def write_atomically(path: Path, text: str) -> None:
+    # A power cut during an in-place rewrite truncates a FAT boot file; the rename swaps in the complete copy.
+    tmp = path.with_name(f".{path.name}.tmp")
+    with tmp.open("w") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp, path)
+
+
 def mark_reboot_required(run_dir: Path, package: str | None) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "reboot-required").write_text(REBOOT_REQUIRED_TEXT)
@@ -147,6 +157,11 @@ def main(argv: list[str]) -> int:
         parser.error(f"'{args.action}' does not apply to {args.file}")
     if args.action == "set" and args.value is None:
         parser.error("set needs KEY VALUE")
+    if args.file == "cmdline" and args.value is not None:
+        parser.error(f"{args.action} takes a single PARAM")
+    if args.action == "unset" and args.value is not None and args.unset_value is not None:
+        parser.error("unset takes VALUE or --value, not both")
+    match_value = args.unset_value if args.unset_value is not None else args.value
 
     bootfs = Path(os.environ.get("PIHERO_BOOTFS", "/boot/firmware"))
     run_dir = Path(os.environ.get("PIHERO_RUN", "/run"))
@@ -155,7 +170,7 @@ def main(argv: list[str]) -> int:
         text = path.read_text()
         if args.file == "config":
             sections = parse_config(text)
-            changed = set_key(sections, args.section, args.key, args.value) if args.action == "set" else unset_key(sections, args.section, args.key, args.unset_value)
+            changed = set_key(sections, args.section, args.key, args.value) if args.action == "set" else unset_key(sections, args.section, args.key, match_value)
             new_text = render_config(sections)
         else:
             params = parse_cmdline(text)
@@ -165,7 +180,7 @@ def main(argv: list[str]) -> int:
         print(f"bootconfig: {path}: {error}", file=sys.stderr)
         return 1
     if changed:
-        path.write_text(new_text)
+        write_atomically(path, new_text)
         mark_reboot_required(run_dir, args.package)
     print("changed" if changed else "unchanged")
     return 0

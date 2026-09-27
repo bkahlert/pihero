@@ -75,6 +75,14 @@ class TestConfig:
             assert text.count("dtoverlay=dwc2,dr_mode=host") == 1
             assert text.splitlines()[-1] == "dtoverlay=dwc2"
 
+        def test_changes_a_non_repeatable_key_only_in_the_named_section(self):
+            sections = bootconfig.parse_config("otg_mode=0\n[cm4]\notg_mode=1\n[all]\n")
+
+            changed = bootconfig.set_key(sections, "all", "otg_mode", "1")
+
+            assert changed
+            assert bootconfig.render_config(sections) == "otg_mode=1\n[cm4]\notg_mode=1\n[all]\n"
+
         def test_adds_a_repeatable_key_as_a_new_line(self):
             sections = bootconfig.parse_config(STOCK_CONFIG)
 
@@ -231,6 +239,27 @@ class TestCli:
 
         assert result.stdout.strip() == "changed"
         assert "dtoverlay=vc4-kms-v3d" not in (bootfs / "config.txt").read_text()
+
+    def test_unset_with_a_positional_value_removes_only_that_line(self, bootfs, run_dir):
+        cli("set", "config", "dtoverlay", "dwc2", bootfs=bootfs, run_dir=run_dir)
+
+        result = cli("unset", "config", "dtoverlay", "dwc2", bootfs=bootfs, run_dir=run_dir)
+
+        text = (bootfs / "config.txt").read_text()
+        assert result.stdout.strip() == "changed"
+        assert "dtoverlay=dwc2\n" not in text
+        assert "dtoverlay=vc4-kms-v3d\n" in text
+
+    def test_add_with_a_stray_value_exits_2_without_writing(self, bootfs, run_dir):
+        result = cli("add", "cmdline", "quiet", "extra", bootfs=bootfs, run_dir=run_dir)
+
+        assert result.returncode == 2
+        assert (bootfs / "cmdline.txt").read_text() == STOCK_CMDLINE
+
+    def test_leaves_no_temporary_file_behind(self, bootfs, run_dir):
+        cli("set", "config", "disable_splash", "1", bootfs=bootfs, run_dir=run_dir)
+
+        assert sorted(p.name for p in bootfs.iterdir()) == ["cmdline.txt", "config.txt"]
 
 
 @pytest.fixture
