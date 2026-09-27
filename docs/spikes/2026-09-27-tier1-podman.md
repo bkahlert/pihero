@@ -11,7 +11,7 @@ What worked: copy Fedora's `qemu-arm-static` (qemu 10.2.2) to `/usr/local/bin`, 
 ## systemd container state
 
 arm64: `running`, `0 loaded units listed.` under `systemctl --failed`.
-arm/v7: `degraded`, 15 failed units, all `status=1/FAILURE`: dbus, ldconfig, systemd-journald (+ both journald sockets), systemd-journal-catalog-update, systemd-journal-flush, systemd-logind, systemd-remount-fs, systemd-sysusers, systemd-tmpfiles-setup(-dev, -dev-early), systemd-update-done, systemd-user-sessions. The same commands succeed through `podman exec`, so only processes spawned by systemd fail.
+arm/v7: `degraded`, `15 loaded units listed.` (the four checked, dbus, systemd-journald, systemd-tmpfiles-setup and ldconfig, show `ExecMainStatus=1`): `dbus.service`, `ldconfig.service`, `systemd-journal-catalog-update.service`, `systemd-journal-flush.service`, `systemd-journald.service`, `systemd-logind.service`, `systemd-remount-fs.service`, `systemd-sysusers.service`, `systemd-tmpfiles-setup-dev-early.service`, `systemd-tmpfiles-setup-dev.service`, `systemd-tmpfiles-setup.service`, `systemd-update-done.service`, `systemd-user-sessions.service`, `systemd-journald-dev-log.socket`, `systemd-journald.socket`. The same commands succeed through `podman exec`, so only processes spawned by systemd fail.
 `sudo`: absent on both (`no-sudo`). The base image ships `/usr/sbin/policy-rc.d` (`exit 101`), so `apt-get install` does not start services. On arm64 avahi-daemon was started later by socket activation.
 
 ## RuntimeWatchdogUSec in a container
