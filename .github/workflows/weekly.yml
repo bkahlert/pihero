@@ -16,7 +16,7 @@ jobs:
       - uses: docker/setup-qemu-action@v4
       - run: sudo apt-get update && sudo apt-get install -y qemu-system-arm qemu-utils
       - run: uv sync --frozen
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/pihero
           key: pihero-base-${{ hashFiles('testkit/src/pihero_testkit/images.lock', 'testkit/src/pihero_testkit/prepare-rootfs') }}

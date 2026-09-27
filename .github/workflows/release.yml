@@ -14,10 +14,12 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: astral-sh/setup-uv@v10.2.0
         with: { enable-cache: true }
+      - uses: docker/setup-qemu-action@v4
       - run: uv sync --frozen
       - run: make build
       - run: make test-tier0
       - run: make test-tier1
+      - run: make test-tier1 PLATFORM=linux/arm/v7
       - name: Check out the published repository
         uses: actions/checkout@v7
         with:
