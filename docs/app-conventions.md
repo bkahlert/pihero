@@ -26,3 +26,5 @@ Apps run as systemd services installed by their own Debian package. Pi Hero pack
 - Hardware access through group membership (`spi`, `gpio`, `i2c`, `video`), never by running as root.
 - Configuration overrides in `/etc/<app>/<app>.conf` as `KEY=VALUE`, read with `EnvironmentFile=-`.
 - Tests depend on `pihero-testkit` pinned to a tag and reuse its tiers; the app's tier-2 device file adds the app's apt source to a copy of the `all-features` device.
+- App test suites that reuse the testkit put `-p no:pytest11.testinfra` in their pytest `addopts`: pytest-testinfra's own plugin registers after the testkit's, and its local-host `host` fixture would shadow the target's.
+- The app's apt source goes into the device file as a `write_files` entry writing a deb822 `.sources` file; cloud-init's `apt:` block is not applied on Raspberry Pi OS.

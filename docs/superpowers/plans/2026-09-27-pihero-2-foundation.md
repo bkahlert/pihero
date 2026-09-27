@@ -3677,3 +3677,16 @@ EOF
 **Type consistency.** `tools.run(args, *, workdir, env, privileged, check, capture, mounts)` is used with those keywords in Tasks 4, 9, 10. The target protocol (`.host`, `.install_extra`, `.purge`, `.reinstall`, `.reboot`, `.stop`) is defined in Task 8 and implemented for podman (Task 8), VM (Task 10), and SSH (Task 10); tests in Tasks 7, 10, 14 use only those names. `build.build(pkg_dir, version, dist=DIST)` matches its test. `bootconfig` function names match between Task 5's tests and script. `render(templates, name, model, machine_name)` matches between Task 13's tests and script.
 
 **Review Focus coverage.** Item 1 (multi-line `cmdline.txt`): `test_refuses_a_file_with_more_than_one_line` and `test_multiline_cmdline_exits_1_without_writing` in Task 5. Item 2 (same key in another section): `test_leaves_the_same_key_in_other_sections_alone` in Task 5. Item 3 (XML-special and Unicode names): `test_escapes_xml_special_characters_in_the_name` and `test_keeps_unicode_names` in Task 13. Item 4 (no device tree): `test_omits_the_machine_record_when_unknown`, `test_is_none_on_a_missing_file`, and the tier-1 run in Task 14 where containers have no device tree. Item 5 (`MODEL` with `@`, `,`, `=`): `test_encodes_the_model_record_as_base64` and `test_applies_model_from_the_environment_unchanged` in Task 13, and the tier-2 assertion on `model=MacPro7,1@ECOLOR=226,226,224` in Task 14.
+
+## Deviations during execution
+
+- Watchdog drop-in named `50-pihero-watchdog.conf`: Raspberry Pi OS's `40-rpi-enable-watchdog.conf` (`RuntimeWatchdogSec=1m`) sorted after `10-` and won.
+- `avahi-render` publishes TXT records as plain text: avahi 0.8 ignores `value-format`, so base64 reached clients undecoded.
+- The render unit reloads Avahi with `systemctl --no-block try-reload-or-restart`: the blocking form deadlocked the boot.
+- The apt source is a `write_files` deb822 `.sources` entry in [devices/sample/user-data](../../../devices/sample/user-data) and [the all-features device](../../../testkit/src/pihero_testkit/devices/all-features/user-data); the tier-2 drop-in in [prepare-rootfs](../../../testkit/src/pihero_testkit/prepare-rootfs) no longer adds `apt_configure`, which Raspberry Pi OS's `cloud.cfg` does not schedule.
+- `rpi:` interface keys are nested under `rpi.interfaces`, where `cc_raspberry_pi` reads them.
+- The tier-2 repo is served from `dist/vm/<device>/repo`, so a run only sees its own debs.
+- pytest runs with `-p no:pytest11.testinfra`: testinfra's own plugin registers after the testkit's and its `host` fixture shadowed the target's.
+- The all-features device requests a reboot with `touch /run/reboot-required` so provisioning exercises `power_state`, and restarts `pihero-avahi-render.service` after setting the pretty hostname.
+- Action versions bumped: `actions/checkout@v7`, `astral-sh/setup-uv@v10.2.0`, `docker/setup-qemu-action@v4`, `softprops/action-gh-release@v3`, `actions/cache@v6`.
+- `bootconfig unset config KEY VALUE` takes the positional VALUE as the match value; a stray positional on `add` or `remove` is a usage error.

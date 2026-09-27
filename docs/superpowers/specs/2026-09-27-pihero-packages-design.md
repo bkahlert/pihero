@@ -141,7 +141,7 @@ pihero/
       root/usr/lib/pihero/bootconfig                          # Python, boot-config editor
       root/usr/lib/pihero/motd                                # Python, MOTD generator
       root/etc/update-motd.d/50-pihero                        # sh, calls motd
-      root/etc/systemd/system.conf.d/10-pihero-watchdog.conf
+      root/etc/systemd/system.conf.d/50-pihero-watchdog.conf  # sorts after rpt's 40-rpi-enable-watchdog.conf
       scripts/postinst  scripts/prerm  scripts/postrm
       tests/
     pihero-avahi/
@@ -156,7 +156,7 @@ pihero/
     pihero-display-hdmi/
     pihero-bt-pan/
   testkit/                  # shared harness, a Python package (see section 10)
-  devices/                  # gitignored except devices/sample/ and devices/all-features/
+  devices/                  # gitignored except devices/sample/; all-features lives in testkit/src/pihero_testkit/devices/
   docs/
     app-conventions.md      # unit template for apps: Restart=, MemoryMax=, user, groups
   assets/                   # logo, banner, hero script (build-time only)
@@ -218,7 +218,8 @@ exists. No colors, no animation, no dependencies beyond Python.
 
 ### 7.3 Watchdog
 
-`/etc/systemd/system.conf.d/10-pihero-watchdog.conf`:
+`/etc/systemd/system.conf.d/50-pihero-watchdog.conf`, named to sort after Raspberry Pi OS's
+`40-rpi-enable-watchdog.conf` (`RuntimeWatchdogSec=1m`), which otherwise wins:
 
 ```
 [Manager]
@@ -246,7 +247,8 @@ before its consumer, defaults in code, overrides from `/etc/pihero/<feature>.con
   `/etc/avahi/services/pihero-ssh.service` from the templates.
   - Service name: pretty hostname from `hostnamectl --pretty`, falling back to the hostname.
   - `_device-info._tcp` TXT records: `model=` from `MODEL` (default `AirPort4`), `machine=` from
-    `/proc/device-tree/model` with the trailing NUL stripped. Both base64-encoded as today.
+    `/proc/device-tree/model` with the trailing NUL stripped. Both as plain text; avahi 0.8
+    ignores `value-format`, so a base64 value would reach clients undecoded.
   - `_ssh._tcp` and `_sftp-ssh._tcp` on port 22.
 - Config keys: `MODEL`.
 - `/etc/avahi/avahi-daemon.conf` is left untouched. It is a dpkg conffile of `avahi-daemon`, and
@@ -338,16 +340,18 @@ users:
 ssh_pwauth: false
 rpi:
   enable_usb_gadget: true
-  spi: true
-apt:
-  sources:
-    pihero:
-      source: deb [signed-by=$KEY_FILE] https://bkahlert.github.io/pihero/apt ./
-      key: |
-        -----BEGIN PGP PUBLIC KEY BLOCK-----
-        ...
+  interfaces:
+    spi: true
 packages: [pihero-avahi, pihero-smb, pihero-splash, pihole-chronometer, epaper-display]
 write_files:
+  - path: /etc/apt/sources.list.d/pihero.sources
+    content: |
+      Types: deb
+      URIs: https://bkahlert.github.io/pihero/apt
+      Suites: ./
+      Signed-By:
+       -----BEGIN PGP PUBLIC KEY BLOCK-----
+       ...
   - path: /etc/pihero/device-info.conf
     content: MODEL=MacPro7,1@ECOLOR=226,226,224
 runcmd:
@@ -357,6 +361,9 @@ power_state:
   mode: reboot
   condition: test -f /run/reboot-required
 ```
+
+The apt source is a `write_files` entry, not cloud-init's `apt:` block: Raspberry Pi OS's
+`cloud.cfg` does not schedule `apt_configure`, so an `apt:` block is silently ignored there.
 
 Wi-Fi goes into `network-config` next to it, as Imager writes it.
 
@@ -402,8 +409,8 @@ reflash. There is no re-provisioning step.
 
 - All tests are pytest. Machine assertions use pytest-testinfra, whose backends make one test
   file run against a podman container, a VM over SSH, or a real Pi over SSH.
-- Tests select a target with `--target=podman|vm|ssh://user@host` and a tier with markers
-  `tier0`, `tier1`, `tier2`, `tier4`.
+- Tests select a target with `--target=podman|vm|ssh` and a tier with markers `tier0`,
+  `installed`, `boot` and `mutating`.
 - Static checks: shellcheck for shell, `systemd-analyze verify` for units, `cloud-init schema`
   for device files, and building all packages.
 
@@ -453,21 +460,21 @@ The harness plays the firmware.
 - **Lifecycle.** Boot, wait for SSH, `cloud-init status --wait`, follow the reboot if
   `power_state` triggers one, run tests, tear down. On failure keep the serial log and the
   overlay so the broken state can be booted again.
-- **Device files.** `devices/all-features/user-data` installs every pihero package. Apps add
-  their own repository and packages to a copy of it.
+- **Device files.** `testkit/src/pihero_testkit/devices/all-features/user-data` installs every
+  pihero package. Apps add their own repository and packages to a copy of it.
 
 ### 10.5 Layout
 
 ```
 testkit/
   pyproject.toml         # package "pihero-testkit"; apps depend on it as a pinned git dependency
-  conftest.py            # --target, tier markers, host fixture
+  plugin.py              # --target, tier markers, host fixture
   vm.py                  # prepare, bootfs, boot, wait, reboot, teardown
   repo.py                # build packages, generate and serve the flat repo
   tools/Containerfile    # Debian trixie + nfpm + cloud-init + systemd + shellcheck + apt-utils
                          # + mtools + dosfstools + e2fsprogs + xz-utils
   images.lock            # Raspberry Pi OS image URL and sha256, Debian kernel version
-  devices/all-features/user-data
+  src/pihero_testkit/devices/all-features/user-data
 packages/<name>/tests/
   test_<helper>.py       # tier 0
   test_installed.py      # tiers 1, 2, 4
@@ -478,7 +485,8 @@ packages/<name>/tests/
 - Linux-side tooling runs in one tools container pinned by digest.
 - Mac-side: QEMU, podman, uv from a `Brewfile`; `uv.lock` pins pytest and testinfra.
 - Upstream inputs pinned in `images.lock`; downloads cached under `~/.cache/pihero/`.
-- `make doctor` reports missing or drifted tools. `make test` runs tiers 0 to 2.
+- `make doctor` reports missing or drifted tools. `make test` runs tiers 0 and 1; `make test-all`
+  adds tier 2.
 
 ### 10.7 CI
 
