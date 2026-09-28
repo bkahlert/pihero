@@ -1,5 +1,24 @@
 Package: pihero-avahi
 Architecture: all
+Version: 2.0.0
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 3
+Depends: pihero, avahi-daemon
+Filename: ./pihero-avahi_2.0.0_all.deb
+Size: 2950
+MD5sum: a9b01a664bc43d2928d5eac599c9c493
+SHA1: cf09547287b9342b8ddea8bfb12c8b300d15e834
+SHA256: 2a6d094055c27ddbd7b006fec03d24f35c2bbc902276adafddac592519c7eaa8
+SHA512: c9a491958be0baa5b4aa5aeb59c26389b2f69c7dd5e6c00c3420e9c5a502d3f77d4278920713360eaf96f588de8f949651e562dc836488b8f1352dcaef33bdae
+Homepage: https://github.com/bkahlert/pihero
+Description: Pi Hero: advertise the device on the local network.
+ Publishes _device-info._tcp with model and board, and _ssh._tcp/_sftp-ssh._tcp,
+ under the pretty hostname.
+
+Package: pihero-avahi
+Architecture: all
 Version: 2.0.0~rc.2
 Priority: optional
 Section: admin
@@ -16,6 +35,24 @@ Homepage: https://github.com/bkahlert/pihero
 Description: Pi Hero: advertise the device on the local network.
  Publishes _device-info._tcp with model and board, and _ssh._tcp/_sftp-ssh._tcp,
  under the pretty hostname.
+
+Package: pihero
+Architecture: all
+Version: 2.0.0
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 9
+Depends: python3, systemd
+Filename: ./pihero_2.0.0_all.deb
+Size: 4756
+MD5sum: 0199c1a0bc990a562ab090286265ed1d
+SHA1: 4c0fe609e6e8b8875dc90712a91483669762a1a7
+SHA256: cd8107f0af3d686832af9ea4a2b927eea9088b8cdb854c1dd619e5c0e0904fd5
+SHA512: 300b3d609c609666e52ad638060402aedccde991f53b24fc3d02f21c230734ac07e34a2ef49e5d21e57bf87f5249bed603d801aebd6010d989a3855d4a601499
+Homepage: https://github.com/bkahlert/pihero
+Description: Pi Hero core: boot-config editor, MOTD, hardware watchdog.
+ Every pihero-* feature package depends on this one.
 
 Package: pihero
 Architecture: all
