@@ -47,7 +47,10 @@ and the switch to a host that shares its internet connection, and loads a CDC EC
 MACs derived from the board serial, so a Mac sees the same device on every boot. `/etc/pihero/usb-gadget.conf` takes two
 optional keys: `PRODUCT`, the name the host lists the gadget under (the board model, `Raspberry Pi Zero 2 W Rev 1.0`, if
 unset; the sample uses its pretty name), double-quoted when it contains spaces, and `CIDR`, the address the Pi serves to the
-host (upstream's `10.12.194.1/28` if unset). Changing them later: edit the file on the Pi and reboot. Windows has no driver for CDC ECM; [docs/raspberry-pi-os.md](../docs/raspberry-pi-os.md)
+host (upstream's `10.12.194.1/28` if unset). Changing them later: edit the file on the Pi and reboot. The boards
+`rpi-usb-gadget` supports are the Zero, Zero W, Zero 2 W, 3A+, 4B, 5, 500, and Compute Modules 0 and 5; on any other board
+the install fails on purpose, because peripheral mode would take the board's only USB controller away from its USB ports and
+Ethernet. Windows has no driver for CDC ECM; [docs/raspberry-pi-os.md](../docs/raspberry-pi-os.md)
 says why upstream's `g_ether` is not used.
 
 ## Flash
@@ -79,3 +82,11 @@ cloud-init runs once per card, so a changed device file means a reflash. Updates
 the Pi; the MOTD says when a reboot is due. Small things are done live and survive updates: the icon as above, the gadget's
 name and subnet in `/etc/pihero/usb-gadget.conf` followed by a reboot, network settings with `nmcli`, boot settings with
 `/usr/lib/pihero/bootconfig`.
+
+A card provisioned before `pihero-usb-gadget` existed carries its own `usb-gadget.service` and `g_cdc.conf` from the old
+sample; they would race the package's unit for the module. Reflash it, or remove them before installing the package and
+reboot afterwards:
+
+    sudo systemctl disable --now usb-gadget.service
+    sudo rm /etc/systemd/system/usb-gadget.service /etc/modprobe.d/g_cdc.conf
+    sudo systemctl daemon-reload
