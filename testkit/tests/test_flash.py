@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from pihero_testkit import flash
+from pihero_testkit import flash, prepare
 
 pytestmark = pytest.mark.tier0
 
@@ -101,6 +101,39 @@ class TestDeviceDir:
     def test_rejects_a_directory_without_user_data(self, tmp_path):
         with pytest.raises(SystemExit, match="no user-data"):
             flash.device_dir(str(tmp_path))
+
+
+class TestImageName:
+    def test_reads_the_name_from_a_leading_comment(self):
+        name = flash.image_name("#cloud-config\n# board: Raspberry Pi Zero W\n# image: raspios_lite_armhf\nhostname: pi\n")
+
+        assert name == "raspios_lite_armhf"
+
+    def test_defaults_to_the_tier_2_image_without_the_line(self):
+        name = flash.image_name("#cloud-config\n# board: Raspberry Pi Zero 2 W\nhostname: pi\n")
+
+        assert name == prepare.TIER2_IMAGE
+
+    def test_ignores_the_line_once_the_config_has_started(self):
+        name = flash.image_name("#cloud-config\nhostname: pi\n# image: raspios_lite_armhf\n")
+
+        assert name == prepare.TIER2_IMAGE
+
+
+class TestImageFor:
+    def test_resolves_the_named_image_from_the_lock(self, tmp_path):
+        (tmp_path / "user-data").write_text("#cloud-config\n# image: raspios_lite_armhf\n")
+
+        name, config = flash.image_for(tmp_path)
+
+        assert name == "raspios_lite_armhf"
+        assert config["url"].endswith("-armhf-lite.img.xz")
+
+    def test_rejects_an_image_the_lock_does_not_pin(self, tmp_path):
+        (tmp_path / "user-data").write_text("#cloud-config\n# image: raspios_full_arm64\n")
+
+        with pytest.raises(SystemExit, match="raspios_full_arm64.*pins raspios_lite_arm64, raspios_lite_armhf"):
+            flash.image_for(tmp_path)
 
 
 class TestRegulatoryDomain:

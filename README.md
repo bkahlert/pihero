@@ -25,11 +25,11 @@ what became of each of its features.
 
 ## Quick start
 
-You need a Mac with [Homebrew](https://brew.sh/), a Raspberry Pi that runs the 64-bit Raspberry Pi OS (Zero 2 W and up), and an
-SD card.
+You need a Mac with [Homebrew](https://brew.sh/), a Raspberry Pi (Zero W and up), and an SD card.
 
 1. **Describe the device.** Copy the sample and edit it: hostname, your SSH public key, the pretty name, the Finder icon, the
-   USB gadget's name, and your Wi-Fi in `network-config`. The sample installs `pihero`, `pihero-avahi`, and
+   USB gadget's name, and your Wi-Fi in `network-config`; a Zero W or another ARMv6 board takes `# image: raspios_lite_armhf`
+   in the header. The sample installs `pihero`, `pihero-avahi`, and
    `pihero-usb-gadget`; device directories other than `sample/` are gitignored.
    ```shell
    mkdir devices/mypi && cp devices/sample/user-data devices/sample/network-config devices/mypi/

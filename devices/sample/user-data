@@ -1,5 +1,6 @@
 #cloud-config
-# board: Raspberry Pi Zero 2 W  image: Raspberry Pi OS Lite 64-bit (Trixie)
+# board: Raspberry Pi Zero 2 W
+# image: raspios_lite_arm64
 hostname: sample
 manage_etc_hosts: true
 timezone: Europe/Berlin

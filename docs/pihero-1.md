@@ -21,5 +21,5 @@ each part in Pi Hero 2; the reasoning is in [design.md](design.md).
 | `pihero` CLI with `pihero diag` diagnostics and the `gum` interface | Dropped; the test tiers replace the diagnostics, and `gum` was too slow on old boards |
 | apt-update pre-task, `AllowReleaseInfoChange`, user groups fact | Covered by apt and cloud-init `users:` |
 | Tailscale notes | Commented lines in the sample device file, including the exit-node steps |
-| Support for the 32-bit-only Raspberry Pi Zero W | Packages are architecture-independent and the 32-bit Trixie image runs them; `make flash` and the harness pin the 64-bit image |
+| Support for the 32-bit-only Raspberry Pi Zero W | Packages are architecture-independent; `make flash` writes the 32-bit Trixie image when the device file says `# image: raspios_lite_armhf`, the harness stays 64-bit |
 | Not present: hardware watchdog, limits for applications | `pihero` arms the watchdog; [app-conventions.md](app-conventions.md) sets `Restart=` and `MemoryMax=` |
