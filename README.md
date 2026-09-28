@@ -15,11 +15,12 @@ no control machine, no playbook.
 | `pihero`            | The MOTD lists installed features, failed units, pending reboots, and the USB address; `bootconfig` edits the boot files safely                                 |
 | `pihero-avahi`      | The Pi appears in Finder's network browser with an icon and its device information, announced as an SMB server because that is what Finder lists; SSH is advertised too |
 | `pihero-usb-gadget` | Ethernet over USB on top of Raspberry Pi's `rpi-usb-gadget`: a Mac on the cable gets an address from the Pi and lists the interface under the board's name      |
+| `pihero-kiosk`      | One web page full screen on the display: cog (WPE WebKit) straight on the DRM device, no X server and no compositor; the page is `URL` in `/etc/pihero/kiosk.conf`         |
 
 | [![network browser](docs%2Fnetwork-browser.png) Pis in the network browser](./docs/network-browser.png) | [![network info foo](docs%2Fnetwork-info-foo.png) device information](./docs/network-info-foo.png) | [![device info bar](docs%2Fdevice-info-bar.png) device information with a custom model](./docs/device-info-bar.png) |
 |---------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
 
-Planned, one package each: Bluetooth PAN, HDMI modes. Pi Hero 1, the Ansible playbook, is frozen
+Planned: Bluetooth PAN as `pihero-bt-pan`. Pi Hero 1, the Ansible playbook, is frozen
 at tag [`pihero-ansible`](https://github.com/bkahlert/pihero/tree/pihero-ansible); [docs/pihero-1.md](docs/pihero-1.md) says
 what became of each of its features.
 
