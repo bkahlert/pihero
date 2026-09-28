@@ -9,6 +9,7 @@ import hashlib
 import lzma
 import os
 import plistlib
+import re
 import shutil
 import socket
 import subprocess
@@ -22,6 +23,8 @@ CHUNK = 4 << 20
 SECTOR = 512
 BOOT_LABEL = "bootfs"
 DEVICE_FILES = ("user-data", "network-config", "meta-data")
+REGULATORY_DOMAIN = re.compile(r"""^\s*regulatory-domain:\s*["']?(?P<code>[A-Z]{2})["']?\s*$""", re.MULTILINE)
+CMDLINE_REGDOM = re.compile(r"\s*cfg80211\.ieee80211_regdom=\S*")
 AUTHOPEN = "/usr/libexec/authopen"
 
 
@@ -117,6 +120,16 @@ def copy_device_files(device: Path, bootfs: Path) -> list[str]:
     return copied
 
 
+def regulatory_domain(network_config: str) -> str | None:
+    match = REGULATORY_DOMAIN.search(network_config)
+    return match["code"] if match else None
+
+
+def with_regulatory_domain(cmdline: str, code: str) -> str:
+    """Returns the one-line cmdline with cfg80211.ieee80211_regdom=<code> as its last word, replacing an earlier one."""
+    return CMDLINE_REGDOM.sub("", cmdline.strip()) + f" cfg80211.ieee80211_regdom={code}\n"
+
+
 def flash(device: Path, disk: str) -> None:
     info = disk_info(disk)
     check_removable(info)
@@ -137,6 +150,13 @@ def flash(device: Path, disk: str) -> None:
     bootfs = mount_bootfs(disk)
     copied = copy_device_files(device, bootfs)
     say(f"copied {', '.join(copied)} from {device} to {bootfs}")
+    # Raspberry Pi OS brings Wi-Fi up on the first boot only when the regulatory domain is already on the kernel command line;
+    # netplan writes it there during that boot, too late. Imager does the same at flash time.
+    code = regulatory_domain((device / "network-config").read_text()) if "network-config" in copied else None
+    if code:
+        cmdline = bootfs / "cmdline.txt"
+        cmdline.write_text(with_regulatory_domain(cmdline.read_text(), code))
+        say(f"set the Wi-Fi regulatory domain {code} in cmdline.txt")
     subprocess.run(["diskutil", "eject", disk], check=True, capture_output=True)
     say(f"ejected {disk}; insert the card into the Raspberry Pi and power it on")
 

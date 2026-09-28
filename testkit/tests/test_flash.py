@@ -124,6 +124,36 @@ class TestCheckRemovable:
             flash.check_removable({**CARD, "DeviceIdentifier": "disk9s1", "WholeDisk": False})
 
 
+class TestRegulatoryDomain:
+    def test_reads_the_quoted_code_from_network_config(self):
+        code = flash.regulatory_domain('network:\n  wifis:\n    wlan0:\n      regulatory-domain: "DE"\n      dhcp4: true\n')
+
+        assert code == "DE"
+
+    def test_reads_an_unquoted_code(self):
+        code = flash.regulatory_domain("      regulatory-domain: GB\n")
+
+        assert code == "GB"
+
+    def test_is_none_without_a_domain(self):
+        code = flash.regulatory_domain("network:\n  version: 2\n  wifis:\n    wlan0:\n      dhcp4: true\n")
+
+        assert code is None
+
+
+class TestWithRegulatoryDomain:
+    def test_appends_the_parameter_to_the_single_line(self):
+        cmdline = flash.with_regulatory_domain("console=serial0,115200 console=tty1 root=PARTUUID=4d8fd085-02 rootwait resize\n", "DE")
+
+        assert cmdline == "console=serial0,115200 console=tty1 root=PARTUUID=4d8fd085-02 rootwait resize cfg80211.ieee80211_regdom=DE\n"
+
+    def test_replaces_an_existing_parameter(self):
+        cmdline = flash.with_regulatory_domain("console=tty1 cfg80211.ieee80211_regdom=GB root=PARTUUID=4d8fd085-02 rootwait\n", "DE")
+
+        assert cmdline == "console=tty1 root=PARTUUID=4d8fd085-02 rootwait cfg80211.ieee80211_regdom=DE\n"
+        assert cmdline.count("\n") == 1
+
+
 class TestCopyDeviceFiles:
     def test_copies_the_cloud_init_files_that_exist(self, tmp_path):
         device = tmp_path / "device"

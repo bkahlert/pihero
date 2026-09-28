@@ -14,7 +14,6 @@ users:
     ssh_authorized_keys:
       - ssh-ed25519 AAAA...your public key... you@mac
 rpi:
-  enable_usb_gadget: true
   interfaces:
     spi: false
     i2c: false
@@ -41,12 +40,39 @@ write_files:
        Zwc=
        =dnaq
        -----END PGP PUBLIC KEY BLOCK-----
+  - path: /etc/modprobe.d/g_cdc.conf
+    content: |
+      options g_cdc iManufacturer="Raspberry Pi Ltd." iProduct="Raspberry Pi USB Gadget"
+  # Loads the gadget once NetworkManager can serve DHCP on it: macOS asks only while the link comes up and then settles for
+  # a self-assigned address. The MACs derive from the board serial so the host sees the same device on every boot.
+  - path: /etc/systemd/system/usb-gadget.service
+    content: |
+      [Unit]
+      Description=USB Ethernet gadget (CDC ECM)
+      After=NetworkManager.service
+      Wants=NetworkManager.service
+      ConditionPathExists=/etc/modules-load.d/usb-gadget.conf
+
+      [Service]
+      Type=oneshot
+      ExecStart=/bin/sh -c 's=$(tr -d "\\0" </proc/device-tree/serial-number | tail -c 10 | sed "s/../&:/g;s/:$//"); modprobe g_cdc host_addr=02:$s dev_addr=06:$s'
+
+      [Install]
+      WantedBy=multi-user.target
   - path: /etc/pihero/device-info.conf
     content: MODEL=AirPort4
 runcmd:
   - hostnamectl set-hostname --pretty "Sample Pi"
   - systemctl restart pihero-avahi-render.service
+  # `rpi: enable_usb_gadget: true` runs rpi-usb-gadget with a 15 s timeout that the script's own NetworkManager waits exceed on
+  # a fresh card, so cloud-init aborts the module and never reboots. Enabling it here has no timeout; power_state reboots.
+  # The emptied modules-load file keeps rpi-usb-gadget's on/off state without loading g_ether: macOS binds its RNDIS
+  # configuration and never passes traffic. usb-gadget.service loads g_cdc (CDC ECM) instead.
+  - rpi-usb-gadget on -f && truncate -s 0 /etc/modules-load.d/usb-gadget.conf && systemctl enable usb-gadget.service && touch /run/reboot-required
   - nmcli connection modify "USB Gadget (shared)" ipv4.addresses 10.10.10.10/29
+  # Tailscale: uncomment to join a tailnet on first boot; an exit node also needs ip_forward (see tailscale.com/kb/1103).
+  # - curl -fsSL https://tailscale.com/install.sh | sh
+  # - tailscale up --auth-key=tskey-auth-...
 power_state:
   mode: reboot
   condition: test -f /run/reboot-required

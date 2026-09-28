@@ -57,7 +57,7 @@ Derived constraints:
 | Decision | Choice | Why |
 |---|---|---|
 | Delivery model | Debian packages, flat apt repo, cloud-init bootstrap | Idiomatic on a Debian-based OS; hard feature boundaries; testable at build, install, and boot; updates are `apt upgrade`; no control machine |
-| USB Ethernet | Upstream `rpi-usb-gadget`, enabled with `rpi: enable_usb_gadget: true` | Maintained by Raspberry Pi, handles macOS and Windows drivers and internet-sharing detection; per-device subnet is one `nmcli` override |
+| USB Ethernet | Upstream `rpi-usb-gadget`, enabled from `runcmd` with the `g_cdc` module (section 9.1) | Maintained by Raspberry Pi, handles internet-sharing detection; per-device subnet is one `nmcli` override; its `g_ether` default does not work with macOS |
 | USB serial console | Dropped in favour of the GPIO UART (`rpi: serial: true`) | `rpi-usb-gadget` uses the monolithic `g_ether`, which cannot carry an ACM function; a broken gadget breaks its serial port too, so it never was an independent path |
 | Custom gadget functions (mass storage) | Deferred, package `pihero-usb-gadget-composite` only if an app needs it | Mutually exclusive with `rpi-usb-gadget` on one board; nobody depends on it today |
 | On-device logic language | Python 3 standard library for anything that parses or edits files; shell only in `ExecStart=` lines and maintainer scripts | Editing boot config idempotently is where bash bites; cloud-init guarantees Python on every Trixie image |
@@ -339,7 +339,6 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL
 ssh_pwauth: false
 rpi:
-  enable_usb_gadget: true
   interfaces:
     spi: true
 packages: [pihero-avahi, pihero-smb, pihero-splash, pihole-chronometer, epaper-display]
@@ -354,8 +353,15 @@ write_files:
        ...
   - path: /etc/pihero/device-info.conf
     content: MODEL=MacPro7,1@ECOLOR=226,226,224
+  - path: /etc/modprobe.d/g_cdc.conf
+    content: 'options g_cdc iManufacturer="Raspberry Pi Ltd." iProduct="Raspberry Pi USB Gadget"'
+  - path: /etc/systemd/system/usb-gadget.service
+    content: |
+      # After=NetworkManager.service; ExecStart loads g_cdc with MACs derived from the board serial (see devices/sample)
 runcmd:
   - hostnamectl set-hostname --pretty "(ノಠ益ಠ)ノ彡 ⬬"
+  - systemctl restart pihero-avahi-render.service
+  - rpi-usb-gadget on -f && truncate -s 0 /etc/modules-load.d/usb-gadget.conf && systemctl enable usb-gadget.service && touch /run/reboot-required
   - nmcli connection modify "USB Gadget (shared)" ipv4.addresses 10.10.10.60/29
 power_state:
   mode: reboot
@@ -365,7 +371,21 @@ power_state:
 The apt source is a `write_files` entry, not cloud-init's `apt:` block: Raspberry Pi OS's
 `cloud.cfg` does not schedule `apt_configure`, so an `apt:` block is silently ignored there.
 
-Wi-Fi goes into `network-config` next to it, as Imager writes it.
+USB Ethernet is enabled from `runcmd`, not with `rpi: enable_usb_gadget: true`: cloud-init gives
+`rpi-usb-gadget` 15 s, the script's own NetworkManager waits exceed that on a fresh card, and the
+aborted module never requests the reboot that loads the gadget. The script's `g_ether` is not
+loaded either (its modules-load file is emptied, which keeps the script's on/off state): macOS
+binds `g_ether`'s RNDIS configuration and passes no traffic. `usb-gadget.service` loads `g_cdc`
+(CDC ECM) after NetworkManager, because macOS asks for DHCP only while the link comes up and then
+settles for a self-assigned address, with MACs derived from the board serial so the host keeps one
+network service per device. CDC ECM works on macOS and Linux; Windows would need RNDIS or, later,
+a configfs NCM gadget (section 14). This belongs in a `pihero-usb-gadget` package once a second
+device needs it.
+
+Wi-Fi goes into `network-config` next to it, as Imager writes it. `make flash` copies its
+`regulatory-domain` onto the kernel command line as `cfg80211.ieee80211_regdom=`, as Imager does:
+Raspberry Pi OS brings Wi-Fi up on the first boot only when the domain is already there, and
+netplan's own write during that boot comes too late for the package installation.
 
 ### 9.2 Defaults and overrides never share a file
 
