@@ -36,6 +36,44 @@ Description: Pi Hero: advertise the device on the local network.
  Publishes _device-info._tcp with model and board, and _ssh._tcp/_sftp-ssh._tcp,
  under the pretty hostname.
 
+Package: pihero-avahi
+Architecture: all
+Version: 2.1.0
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 3
+Depends: pihero, avahi-daemon
+Filename: ./pihero-avahi_2.1.0_all.deb
+Size: 2952
+MD5sum: d40c7eaf5dbe7291a6651b3f8c8e1a19
+SHA1: ce7b44e2d256c2aefa509d92e7f590eeaa330673
+SHA256: b15bf8bc11ebf9db15725637ba4c85ef61ed0c378f4dcfc13282e9a846ea7020
+SHA512: 1e3d46cb7ddad7b8863832dea690d60af34832d77520c86ecc829a04d58da37e7965f240642a6f65a50c2d346bf4b2ab716588dc7862444047c5c8984f39b3c7
+Homepage: https://github.com/bkahlert/pihero
+Description: Pi Hero: advertise the device on the local network.
+ Publishes _device-info._tcp with model and board, and _ssh._tcp/_sftp-ssh._tcp,
+ under the pretty hostname.
+
+Package: pihero-usb-gadget
+Architecture: all
+Version: 2.1.0
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 2
+Depends: pihero, rpi-usb-gadget
+Filename: ./pihero-usb-gadget_2.1.0_all.deb
+Size: 3122
+MD5sum: 2e22a7031e7fa3fd7e8c34a1637a08a8
+SHA1: 8dfa70154330c3eab37ea4dcfb7306329e2c0af2
+SHA256: e7d04eecf3f6a613fb090d41f17c26eedb46969e4ad1a621cbf5a9fc60f0afd6
+SHA512: ddd5b2c31e35c8f0bc62e32ef69d3dac9007bc182701f4726d820cb2e5c9ff483335ece11b2434e417cb49437464ff7f22817e9c7a09a85952df7a8eff08090c
+Homepage: https://github.com/bkahlert/pihero
+Description: Pi Hero: Ethernet over USB, named after the board.
+ Turns rpi-usb-gadget on and loads g_cdc (CDC ECM) once NetworkManager is up, with MACs derived from
+ the board serial and the device-tree model as the USB product string; the shared subnet is configurable.
+
 Package: pihero
 Architecture: all
 Version: 2.0.0
@@ -86,6 +124,24 @@ MD5sum: 4f9bf9328e7c269e729d6f2e1ab0e582
 SHA1: 2e234d75f3266483eb64315539898cfb9b738c6b
 SHA256: cb4c607d4f21e243b253e9b37a31e9b50defd29d0dbaa754b2026d53313337c6
 SHA512: c7b762cce365e107664f28de85192e91d4cd83256b9b6174c2d49e6bd1cc82c24a031161bfae4084d36036474c9720e04403a327f22bfe6e908c6db72e90da6f
+Homepage: https://github.com/bkahlert/pihero
+Description: Pi Hero core: boot-config editor, MOTD, hardware watchdog.
+ Every pihero-* feature package depends on this one.
+
+Package: pihero
+Architecture: all
+Version: 2.1.0
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 9
+Depends: python3, systemd
+Filename: ./pihero_2.1.0_all.deb
+Size: 4754
+MD5sum: 674ab783a5eed4f22550565456df43b3
+SHA1: 9707600dbdf642c2bb1f9f59af9af524afee86f0
+SHA256: 9e5e1a91d8b427ee85e0ea7651a1517abdbb0f85b633e3144bbf2a3244b8fe3a
+SHA512: 78e04484638dcac26a635d57ad6f0a08bb5d54a6836b73a6a4c50d4c0285de97004a513490e27b0b921cb64cacbee6c8b1887c1dba5f9215aba6c610c4ebc446
 Homepage: https://github.com/bkahlert/pihero
 Description: Pi Hero core: boot-config editor, MOTD, hardware watchdog.
  Every pihero-* feature package depends on this one.
