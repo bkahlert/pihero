@@ -1,23 +1,19 @@
 """Writes Raspberry Pi OS Lite onto an SD card and puts a device's cloud-init files on its boot partition.
 
-macOS only. The raw disk is opened through authopen, which asks for authorization and hands the
-descriptor back over a socket, the way Raspberry Pi Imager does; a plain open is refused even for
-root. Writes are sector aligned and read back for verification.
+macOS only. Writes are sector aligned and read back for verification.
 """
 
 import hashlib
 import lzma
 import os
-import plistlib
 import re
 import shutil
-import socket
-import subprocess
 import sys
 import time
 from pathlib import Path
 
 from . import prepare
+from .disk import check_removable, disk_info, eject, mount_partition, open_raw, unmount
 
 CHUNK = 4 << 20
 SECTOR = 512
@@ -25,7 +21,6 @@ BOOT_LABEL = "bootfs"
 DEVICE_FILES = ("user-data", "network-config", "meta-data")
 REGULATORY_DOMAIN = re.compile(r"""^\s*regulatory-domain:\s*["']?(?P<code>[A-Z]{2})["']?\s*$""", re.MULTILINE)
 CMDLINE_REGDOM = re.compile(r"\s*cfg80211\.ieee80211_regdom=\S*")
-AUTHOPEN = "/usr/libexec/authopen"
 
 
 def device_dir(name: str) -> Path:
@@ -33,31 +28,6 @@ def device_dir(name: str) -> Path:
     if not (path / "user-data").is_file():
         raise SystemExit(f"{path} has no user-data")
     return path
-
-
-def disk_info(disk: str) -> dict:
-    out = subprocess.run(["diskutil", "info", "-plist", disk], capture_output=True, check=True).stdout
-    return plistlib.loads(out)
-
-
-def check_removable(info: dict) -> None:
-    ident = info.get("DeviceIdentifier", "?")
-    if not info.get("WholeDisk"):
-        raise SystemExit(f"{ident} is a partition; name the whole disk")
-    if info.get("Internal") or not info.get("RemovableMedia"):
-        raise SystemExit(f"{ident} ({info.get('MediaName', 'unknown media')}) is not a removable disk")
-
-
-def open_raw(disk: str) -> int:
-    dev = f"/dev/r{disk}"
-    parent, child = socket.socketpair()
-    with subprocess.Popen([AUTHOPEN, "-stdoutpipe", "-o", str(os.O_RDWR), dev], stdout=child.fileno()) as proc:
-        child.close()
-        _, fds, _, _ = socket.recv_fds(parent, 1024, 1)
-        parent.close()
-    if not fds:
-        raise SystemExit(f"authopen did not open {dev} (exit {proc.returncode}); authorization denied?")
-    return fds[0]
 
 
 def write_image(fd: int, image: Path, report=lambda message: None) -> tuple[int, str]:
@@ -97,18 +67,11 @@ def read_back(fd: int, size: int) -> str:
     return digest.hexdigest()
 
 
-def mount_bootfs(disk: str, timeout: float = 60) -> Path:
-    subprocess.run(["diskutil", "mountDisk", disk], capture_output=True, check=False)
-    deadline = time.monotonic() + timeout
-    while True:
-        info = disk_info(f"{disk}s1")
-        if info.get("MountPoint"):
-            if info.get("VolumeName") != BOOT_LABEL:
-                raise SystemExit(f"{disk}s1 is {info.get('VolumeName')!r}, expected {BOOT_LABEL!r}")
-            return Path(info["MountPoint"])
-        if time.monotonic() > deadline:
-            raise SystemExit(f"{disk}s1 did not mount")
-        time.sleep(1)
+def mount_bootfs(disk: str) -> Path:
+    mount_point, label = mount_partition(disk)
+    if label != BOOT_LABEL:
+        raise SystemExit(f"{disk}s1 is {label!r}, expected {BOOT_LABEL!r}")
+    return mount_point
 
 
 def copy_device_files(device: Path, bootfs: Path) -> list[str]:
@@ -136,8 +99,8 @@ def flash(device: Path, disk: str) -> None:
     say(f"{disk}: {info.get('MediaName', '').strip()} {info.get('TotalSize', 0) / 1e9:.1f} GB")
     config = prepare.lock()["raspios"]
     image = prepare.download(config["url"], config["sha256"])
-    subprocess.run(["diskutil", "unmountDisk", "force", disk], check=True, capture_output=True)
-    fd = open_raw(disk)
+    unmount(disk)
+    fd = open_raw(disk, os.O_RDWR)
     try:
         say(f"writing {image.name} ...")
         size, expected = write_image(fd, image, say)
@@ -157,7 +120,7 @@ def flash(device: Path, disk: str) -> None:
         cmdline = bootfs / "cmdline.txt"
         cmdline.write_text(with_regulatory_domain(cmdline.read_text(), code))
         say(f"set the Wi-Fi regulatory domain {code} in cmdline.txt")
-    subprocess.run(["diskutil", "eject", disk], check=True, capture_output=True)
+    eject(disk)
     say(f"ejected {disk}; insert the card into the Raspberry Pi and power it on")
 
 

@@ -8,8 +8,6 @@ from pihero_testkit import flash
 
 pytestmark = pytest.mark.tier0
 
-CARD = {"DeviceIdentifier": "disk9", "WholeDisk": True, "Internal": False, "RemovableMedia": True, "MediaName": "USB3.0 CRW   -SD"}
-
 
 class TestWriteImage:
     def test_writes_the_decompressed_image_padded_to_whole_sectors(self, tmp_path):
@@ -103,25 +101,6 @@ class TestDeviceDir:
     def test_rejects_a_directory_without_user_data(self, tmp_path):
         with pytest.raises(SystemExit, match="no user-data"):
             flash.device_dir(str(tmp_path))
-
-
-class TestCheckRemovable:
-    def test_accepts_an_external_removable_whole_disk(self):
-        result = flash.check_removable(CARD)
-
-        assert result is None
-
-    def test_rejects_the_internal_disk(self):
-        with pytest.raises(SystemExit, match="disk0 .* not a removable disk"):
-            flash.check_removable({**CARD, "DeviceIdentifier": "disk0", "Internal": True, "RemovableMedia": False, "MediaName": "APPLE SSD"})
-
-    def test_rejects_an_external_drive_with_fixed_media(self):
-        with pytest.raises(SystemExit, match="not a removable disk"):
-            flash.check_removable({**CARD, "RemovableMedia": False})
-
-    def test_rejects_a_partition(self):
-        with pytest.raises(SystemExit, match="disk9s1 is a partition"):
-            flash.check_removable({**CARD, "DeviceIdentifier": "disk9s1", "WholeDisk": False})
 
 
 class TestRegulatoryDomain:
