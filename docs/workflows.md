@@ -78,5 +78,13 @@ curl -fsS https://bkahlert.github.io/pihero/apt/Packages | grep -A1 '^Package: p
 ```
 
 Tags with a pre-release suffix such as `v2.1.0-rc.1` publish as `2.1.0~rc.1` and are marked pre-release on GitHub. The
-signing key is the `APT_SIGNING_KEY` secret of the `release` environment, which only `v*` tags can deploy to; `make repo`
-builds and signs the same repository locally from `~/.config/pihero-apt-signing-key.asc`.
+signing key is the `APT_SIGNING_KEY` secret of the `release` environment, which only `v*` tags can deploy to. The key itself
+is kept in KeePassXC as the attachment of the `PIHERO_APT_SIGNING_KEY` entry. `make repo` builds and signs the same
+repository locally and reads the key from `~/.config/pihero-apt-signing-key.asc`, so export it there for the run and remove
+it afterwards:
+
+```shell
+keepassxc-cli attachment-export <vault>.kdbx PIHERO_APT_SIGNING_KEY pihero-apt-signing-key.asc ~/.config/pihero-apt-signing-key.asc
+make repo
+rm -P ~/.config/pihero-apt-signing-key.asc
+```
