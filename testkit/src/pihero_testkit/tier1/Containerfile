@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && systemctl mask systemd-udevd.service systemd-udevd-kernel.socket systemd-udevd-control.socket \
          systemd-udev-trigger.service getty.target console-getty.service systemd-firstboot.service \
     && rm -f /usr/sbin/policy-rc.d
+# pihero-usb-gadget depends on rpi-usb-gadget, which only the Raspberry Pi archive carries; the tests run apt-get update.
+COPY raspberrypi.asc /etc/apt/keyrings/raspberrypi.asc
+COPY raspberrypi.sources /etc/apt/sources.list.d/raspberrypi.sources
 COPY boot/ /boot/firmware/
 # Ready when the default target is reached; a wedged init keeps PID 1 alive but never gets here.
 HEALTHCHECK --interval=5s --timeout=3s CMD systemctl is-active --quiet multi-user.target

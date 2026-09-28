@@ -38,7 +38,11 @@ reports what is missing.
 
 ## Tier 1
 
-The base image is `debian:trixie-slim` with `systemd`, `dbus`, `apt-utils`, and `sudo`, one per platform, started with
+The base image is `debian:trixie-slim` with `systemd`, `dbus`, `apt-utils`, and `sudo`, plus the Raspberry Pi archive as an apt
+source, because `pihero-usb-gadget` depends on `rpi-usb-gadget`, which only that archive carries. The archive key committed next
+to the Containerfile is the one from `raspberrypi-archive-keyring` 2025.1, re-signed with SHA512; the export at
+`raspberrypi.gpg.key` still carries only SHA1 self-signatures, which Trixie's apt rejects since 2026-02-01. One image per
+platform, tagged with a digest of its build context so a changed Containerfile is rebuilt on first use, started with
 `podman run --systemd=always … /sbin/init`. The image's `/usr/sbin/policy-rc.d` is removed so package postinsts can start
 services. The built packages are mounted and installed with `apt install ./pkg.deb`, and testinfra gets a `podman://<name>`
 host. `/boot/firmware/` is a fixture directory with the stock `config.txt` and `cmdline.txt`.
@@ -47,7 +51,8 @@ What a container cannot show: `RuntimeWatchdogUSec` is `0` inside podman, so the
 and on the manager in tier 2. Avahi records published inside an arm64 container are visible to `avahi-browse` in the same
 container, so browse tests work in tier 1. The 32-bit view is CI's job: a 64-bit Arm kernel runs `arm/v7` userland natively,
 while on the Mac it needs a `qemu-arm` binfmt handler in the podman machine that Fedora CoreOS does not ship, and even with one
-registered, systemd as PID 1 in an `arm/v7` container comes up degraded.
+registered, systemd as PID 1 in an `arm/v7` container comes up degraded. The container has no USB device controller, so
+`pihero-usb-gadget.service` is skipped by its condition there and in the VM; the gadget itself is proven on a Pi over ssh.
 
 ## Tier 2
 
