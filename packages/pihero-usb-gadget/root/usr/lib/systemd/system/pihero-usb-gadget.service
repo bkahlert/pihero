@@ -1,0 +1,14 @@
+[Unit]
+Description=Pi Hero: USB Ethernet gadget (CDC ECM)
+After=NetworkManager.service
+Wants=NetworkManager.service
+ConditionPathExistsGlob=/sys/class/udc/*
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=-/etc/pihero/usb-gadget.conf
+ExecStart=/usr/lib/pihero/usb-gadget
+
+[Install]
+WantedBy=multi-user.target
