@@ -1,0 +1,46 @@
+#!/usr/bin/python3
+"""Pi Hero kiosk: waits until the page answers, then hands the process to cog on the DRM device.
+
+URL comes from /etc/pihero/kiosk.conf through the unit's EnvironmentFile. The page is usually served by an
+application unit this unit must not depend on, so waiting for the URL replaces an ordering dependency; COG_ARGS
+adds words to cog's command line (a scale factor, for instance).
+"""
+import os
+import shlex
+import sys
+import time
+import urllib.error
+import urllib.request
+
+DEFAULT_URL = "file:///usr/share/pihero/kiosk/index.html"
+
+
+def reachable(url: str, timeout: float = 5.0) -> bool:
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            status = getattr(response, "status", None)  # None for file:// URLs
+            return status is None or 200 <= status < 400
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
+def wait_for(url: str, interval: float = 2.0, deadline: float | None = None, sleep=time.sleep, now=time.monotonic) -> bool:
+    while not reachable(url):
+        if deadline is not None and now() >= deadline:
+            return False
+        sleep(interval)
+    return True
+
+
+def main(argv: list[str], environ=os.environ, execvp=os.execvp) -> int:
+    url = environ.get("URL") or DEFAULT_URL
+    if not reachable(url):
+        print(f"kiosk: waiting for {url}", file=sys.stderr, flush=True)
+        wait_for(url)
+    args = ["cog", "--platform=drm", *shlex.split(environ.get("COG_ARGS", "")), url]
+    execvp(args[0], args)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
