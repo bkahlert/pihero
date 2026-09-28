@@ -72,6 +72,7 @@ write_files:
 
       [Install]
       WantedBy=multi-user.target
+  # MODEL selects the icon Finder shows; the choices are pictured in ../README.md.
   - path: /etc/pihero/device-info.conf
     content: MODEL=AirPort4
 runcmd:
@@ -83,9 +84,11 @@ runcmd:
   # configuration and never passes traffic. usb-gadget.service loads g_cdc (CDC ECM) instead.
   - rpi-usb-gadget on -f && truncate -s 0 /etc/modules-load.d/usb-gadget.conf && systemctl enable usb-gadget.service && touch /run/reboot-required
   - nmcli connection modify "USB Gadget (shared)" ipv4.addresses 10.10.10.10/29
-  # Tailscale: uncomment to join a tailnet on first boot; an exit node also needs ip_forward (see tailscale.com/kb/1103).
+  # Tailscale: uncomment to join a tailnet on first boot with a single-use, expiring auth key (tailscale.com/kb/1085). For an
+  # exit node keep the forwarding line and the flag, then approve the node under Machines in the admin console (kb/1103).
   # - curl -fsSL https://tailscale.com/install.sh | sh
-  # - tailscale up --auth-key=tskey-auth-...
+  # - printf 'net.ipv4.ip_forward = 1\nnet.ipv6.conf.all.forwarding = 1\n' > /etc/sysctl.d/99-tailscale.conf && sysctl -q -p /etc/sysctl.d/99-tailscale.conf
+  # - tailscale up --auth-key=tskey-auth-... --advertise-exit-node
 power_state:
   mode: reboot
   condition: test -f /run/reboot-required

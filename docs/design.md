@@ -1,0 +1,202 @@
+# Design
+
+Pi Hero 2 makes a Raspberry Pi discoverable, reachable, and pleasant to use with three things: Debian packages as the unit of a
+feature, one cloud-init file per device, and a test harness that proves every feature on a Mac before a Pi is involved. This
+document records the decisions. [testing.md](testing.md) covers the harness, [raspberry-pi-os.md](raspberry-pi-os.md) the
+platform quirks the device files work around, [devices/README.md](../devices/README.md) the device file, and
+[pihero-1.md](pihero-1.md) what became of the Ansible version.
+
+## Goals and constraints
+
+- Tests come first. Every feature is proven automatically, and `make test` after a year of neglect is either green or says what
+  rotted. Manual testing on hardware is what version 2 exists to end.
+- Version 1's functionality stays; its implementation was free to change completely, and did.
+- The hardware floor for applications is the Raspberry Pi Zero W (ARMv6, 512 MB). Every `pihero-*` package is therefore
+  `Architecture: all` and depends only on packages present in both the 64-bit and the 32-bit Raspberry Pi OS archives, so no
+  design element branches on the board. Containers are not the application plane: the `arm/v6` image ecosystem is thin, and
+  SPI, GPIO, and framebuffer access from a container on 512 MB fights the platform. Applications are systemd services delivered
+  as packages.
+- The target OS is Raspberry Pi OS Lite on Debian 13 (Trixie), which ships cloud-init. The 32-bit image supports every board
+  including the Zero W; the 64-bit image supports the Zero 2 W and up. `make flash` and the harness pin the 64-bit image.
+- Upstream mechanisms win over own code: `rpi-usb-gadget`, NetworkManager, `raspi-config nonint`, cloud-init's `rpi:` module.
+  Own code exists only where they have no option, and then it is Python 3 standard library.
+- The interactive CLI and `gum` are gone: too slow on old boards, and the tests replace the diagnostics.
+
+## Decisions
+
+| Decision | Choice | Why |
+|---|---|---|
+| Delivery | Debian packages, a flat signed apt repository, cloud-init on the card | Idiomatic on a Debian-based OS, hard feature boundaries, testable at build, install, and boot, updates are `apt upgrade`, no control machine |
+| USB Ethernet | Upstream `rpi-usb-gadget`, enabled from `runcmd`, driven by the `g_cdc` module | Maintained by Raspberry Pi and handles internet-sharing detection; its `g_ether` default and its cloud-init hook both fail in practice, see [raspberry-pi-os.md](raspberry-pi-os.md) |
+| USB serial console | Dropped for the GPIO UART (`rpi: interfaces: serial: true`) | A broken gadget broke its serial port too, so it never was an independent path |
+| Custom gadget functions (mass storage, HID) | Deferred until an application needs one | Mutually exclusive with `rpi-usb-gadget` on one board |
+| On-device logic | Python 3 standard library for anything that parses or edits files; shell only in `ExecStart=` lines and maintainer scripts | Idempotent edits of boot files are where shell bites; cloud-init guarantees Python on every image |
+| Package build | `nfpm` | One YAML manifest plus a file tree, builds in under a second, no Debian toolchain |
+| Tests | pytest with pytest-testinfra | One assertion API over a podman container, a VM, and a real Pi |
+| Core package name | `pihero` | Core plus suffix, as in `tailscale` or `git` |
+| Device files that share content | Standalone copies | Simpler than a merge step |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Apps            pihole-chronometer, epaper-display, netmon   │  own repos, own packages, own tests
+├─────────────────────────────────────────────────────────────┤
+│ Pi Hero         pihero, pihero-avahi, later pihero-smb,      │  this repo, packages/*
+│                 pihero-splash, pihero-display-hdmi,          │
+│                 pihero-bt-pan                                │
+├─────────────────────────────────────────────────────────────┤
+│ Raspberry Pi OS Lite (Trixie), cloud-init, rpi-usb-gadget,   │  written by make flash or Imager
+│ NetworkManager, avahi-daemon, raspi-config                   │
+└─────────────────────────────────────────────────────────────┘
+        ▲ described by one file: devices/<host>/user-data on the boot partition
+```
+
+Never losing contact with a device rests on three independent paths: physical (Ethernet over USB, the GPIO UART, later
+Bluetooth PAN), remote (Tailscale, installed from its upstream repository through the device file, no Pi Hero code involved),
+and self-healing (the hardware watchdog armed by `pihero`, plus the [unit conventions](app-conventions.md) that keep a
+misbehaving application from starving sshd; no Pi Hero unit ever depends on an application unit).
+
+## Repository layout and package anatomy
+
+One directory per package, mirroring the target filesystem: everything a feature installs sits under `root/` where it lands on
+the Pi, and its tests sit next to it.
+
+```
+packages/
+  pihero/
+    nfpm.yaml
+    root/usr/lib/pihero/bootconfig                          # Python, boot-config editor
+    root/usr/lib/pihero/motd                                # Python, MOTD generator
+    root/etc/update-motd.d/50-pihero                        # sh, calls motd
+    root/etc/systemd/system.conf.d/50-pihero-watchdog.conf
+    scripts/postinst  scripts/prerm  scripts/postrm
+    units.txt                                               # units to enable
+    tests/test_<helper>.py                                  # tier 0
+    tests/test_installed.py                                 # tiers 1, 2, and ssh
+  pihero-avahi/
+    root/usr/lib/pihero/avahi-render
+    root/usr/lib/systemd/system/pihero-avahi-render.service
+    root/usr/share/pihero/avahi/*.service.in
+testkit/                                                    # the harness, a Python package
+devices/                                                    # device files, gitignored except sample/
+```
+
+- **Names.** `pihero` is the core, everything else is `pihero-<feature>`. Units are `pihero-<feature>*.service`, rendered files
+  carry the `pihero-` prefix.
+- **Paths.** Executables in `/usr/lib/pihero/`, data and templates in `/usr/share/pihero/<feature>/`, units in
+  `/usr/lib/systemd/system/`, device overrides in `/etc/pihero/<feature>.conf`, state in `/var/lib/pihero/`.
+- **Manifest.** `nfpm.yaml` declares `Architecture: all`, `Section: admin`, the dependencies, the tree under `root/`, and the
+  maintainer scripts. Every package carries the one SemVer version taken from the git tag.
+- **Maintainer scripts.** Minimal POSIX shell that calls `deb-systemd-helper` and `deb-systemd-invoke`, as debhelper would emit,
+  generated from one template plus per-package lines. shellcheck runs over all of them.
+
+## The `pihero` core package
+
+Every other package depends on it.
+
+**bootconfig** (`/usr/lib/pihero/bootconfig`) edits `/boot/firmware/config.txt` and `cmdline.txt` idempotently:
+`set|unset config KEY [VALUE] [--section all]` and `add|remove cmdline PARAM[=VALUE]`. It changes exactly the addressed key,
+leaves the rest byte-identical, respects `config.txt` sections, matches repeatable keys such as `dtoverlay` on the full
+`key=value`, and matches command-line parameters by name so `add loglevel=3` replaces `loglevel=7`. A `cmdline.txt` with more
+than one line is refused untouched. On change it touches `/run/reboot-required` and appends the calling package, passed with
+`--package`, to `/run/reboot-required.pkgs`; it never reboots. `PIHERO_BOOTFS` redirects it for tests. It is used only where
+cloud-init's `rpi:` module and `raspi-config nonint` have no option.
+
+**MOTD.** `/etc/update-motd.d/50-pihero` runs `/usr/lib/pihero/motd`: the hero banner rendered once at build time, then the
+installed `pihero-*` packages with versions, failed units, whether a reboot is pending and for which packages, and the address
+of `usb0` if present. No colours, no animation, nothing beyond Python.
+
+**Watchdog.** `/etc/systemd/system.conf.d/50-pihero-watchdog.conf` sets `RuntimeWatchdogSec=15`, the BCM2835 hardware maximum.
+It is named to sort after Raspberry Pi OS's own `40-rpi-enable-watchdog.conf` (`1m`), which otherwise wins. postinst runs
+`systemctl daemon-reexec` so the watchdog arms immediately; purge removes the drop-in and reexecs again.
+
+## `pihero-avahi`
+
+Depends on `pihero` and `avahi-daemon`. `pihero-avahi-render.service` (`Type=oneshot`, `RemainAfterExit=yes`,
+`Before=avahi-daemon.service`, `EnvironmentFile=-/etc/pihero/device-info.conf`) runs `avahi-render` every boot, which writes
+`/etc/avahi/services/pihero-device-info.service` and `pihero-ssh.service` from the templates: the service name is the pretty
+hostname from `hostnamectl`, `_device-info._tcp` carries `model=` from `MODEL` (default `AirPort4`) and `machine=` from
+`/proc/device-tree/model`, and `_ssh._tcp` and `_sftp-ssh._tcp` point at port 22. Records are plain text because avahi 0.8
+ignores `value-format` and would hand a base64 value to clients undecoded. The unit reloads Avahi with
+`systemctl --no-block try-reload-or-restart`; the blocking form deadlocked the boot. `/etc/avahi/avahi-daemon.conf` is not
+touched: it is a conffile of `avahi-daemon`, and Debian's defaults already match what version 1 set. Purge removes the rendered
+files.
+
+## Planned packages
+
+Each follows the same pattern: files under `root/`, a render unit ordered before its consumer where a value must end up in a
+file another daemon reads, defaults in code, overrides from `/etc/pihero/<feature>.conf`, tests next to it.
+
+- **`pihero-smb`**: depends on `samba`; a render unit before `smbd.service` backs up `/etc/samba/smb.conf` once to
+  `/var/lib/pihero/` and writes it from a template (every user's home read-write, `/` read-only), plus an Avahi record. The
+  password stays a documented `sudo smbpasswd -a $USER`: cloud-init has no prompt and a plaintext password does not belong on
+  the FAT partition. Purge restores the backup.
+- **`pihero-splash`**: depends on `plymouth` and `plymouth-themes`; ships the theme, and postinst adds the quiet-boot
+  parameters (`quiet splash plymouth.ignore-serial-consoles logo.nologo loglevel=3 udev.log_level=3 rd.udev.log_level=3
+  systemd.show_status=auto vt.global_cursor_default=0 consoleblank=0`) and `disable_splash=1` through `bootconfig`, then
+  `plymouth-set-default-theme -R`. `raspi-config nonint do_boot_splash` is not usable: it insists on the desktop's `pix` theme.
+  Purge reverts every parameter. Not installing the package is how the splash is disabled.
+- **`pihero-display-hdmi`**: `VIDEO` in `/etc/pihero/display-hdmi.conf` becomes `video=<VIDEO>` on the kernel command line
+  through `bootconfig`. Trixie runs full KMS, where version 1's `hdmi_group`, `hdmi_mode`, and `hdmi_cvt` are ignored. Note that
+  a properly attached display works with the stock configuration; the package is for panels that need a forced mode.
+- **`pihero-bt-pan`**: depends on `bluez`, `bluez-tools`, and `network-manager`; a render unit applies `CLASS` and
+  `DISCOVERABLE_TIMEOUT` to `/etc/bluetooth/main.conf`, writes the PIN file from `/etc/pihero/bt-pan.devices`, and ensures a
+  NetworkManager bridge `pan0` with `ipv4.method shared` on `CIDR` (default `10.11.10.10/29`), so NetworkManager provides DHCP
+  and NAT and no dnsmasq or ifupdown configuration exists. `bt-network --server nap pan0` and `bt-agent` run as units; listed
+  devices are trusted through `bluetoothctl` before the server starts. Tier 2 can test the adapter with `hci_vhci` and `btvirt`
+  from `bluez-test-tools`; the data path needs hardware.
+- **`pihero-usb-gadget`**: only when a second device needs the gadget or Windows must be served. A configfs NCM gadget would
+  serve macOS, Linux, and Windows alike; until then the sample device file carries the `g_cdc` unit.
+
+## Configuration contract
+
+- **One file describes a device.** `devices/<host>/user-data` is written in the repository and copied onto the boot partition;
+  `network-config` holds Wi-Fi. Real device files are gitignored; `devices/sample/` is the committed reference. The keys and
+  the reasons behind them are in [devices/README.md](../devices/README.md).
+- **Defaults and overrides never share a file.** Packages ship nothing under `/etc/pihero/`; defaults live in the script or
+  unit. A device writes `/etc/pihero/<feature>.conf` as `KEY=VALUE` through `write_files`, and the unit reads it with
+  `EnvironmentFile=-`. No config library on the device, and no dpkg conffile prompt, which would otherwise fire because
+  cloud-init writes files before it installs packages.
+- **Render at boot.** Where a value must end up in a file another daemon reads, a oneshot render unit ordered `Before=` the
+  consumer writes it on every boot. Editing a conffile and rebooting is therefore a complete change procedure, and every
+  renderer is a pure function the tests call with environment variables.
+- **Identity.** Hostname from cloud-init; the pretty hostname from one `runcmd` line, read back from `hostnamectl` so
+  `/etc/machine-info` stays the single source; the board model from the device tree; the USB subnet from one `nmcli` line
+  against the profile `rpi-usb-gadget` creates.
+- **Secrets.** The boot partition is unencrypted FAT. Public keys and password hashes are fine there; a Wi-Fi passphrase or a
+  Tailscale auth key is exposed to anyone holding the card. Accepted for devices under physical control; Tailscale keys are
+  single-use with an expiry.
+- **Day two.** cloud-init runs once per card. Changes are `apt upgrade`, a conffile edit plus reboot, or a reflash.
+- **Validation.** `cloud-init schema` runs against every committed device file in tier 0.
+
+## Operations
+
+- **Failures are loud.** Renderers exit non-zero when they cannot do their job, consumers are ordered after them,
+  `systemctl --failed` is the diagnostic, and the MOTD surfaces it.
+- **Reboots are requested, never taken.** Postinst touches `/run/reboot-required` and `/run/reboot-required.pkgs`; the first
+  boot reboots through cloud-init's `power_state` on that condition, a running device reboots when its owner decides.
+- **Removal is symmetric.** `prerm` disables and stops units, `postrm purge` deletes rendered files and reverts boot config
+  lines. Tier 1 asserts install, remove, and nothing left behind.
+- **Upgrades never prompt**, because no package ships a file under `/etc/pihero/` and rendered files are regenerated at boot.
+- **Rollback is a version pin.** The repository keeps every published `.deb`: `apt install pihero=2.0.0` rolls back,
+  `apt-mark hold` freezes.
+- **Release is a tag.** `make release VERSION=X.Y.Z` runs tiers 0 to 2 locally and tags only on green; pushing the tag makes
+  CI build every package at that version, regenerate the flat repository with `apt-ftparchive`, sign it with the key in the
+  `APT_SIGNING_KEY` secret, push to `gh-pages`, and create the GitHub release with the `.deb` files. Pre-release tags such as
+  `v2.1.0-rc.1` publish as `2.1.0~rc.1`. One signing key exists; its public half is embedded in device files, so a device
+  trusts nothing else, and rotation is a manual procedure.
+- **Development loop.** `make deploy TARGET=pi@host` builds and installs over SSH with `apt install ./pkg.deb`, skipping the
+  repository.
+
+## Applications
+
+Applications live in their own repositories as their own packages and follow [app-conventions.md](app-conventions.md): a
+dedicated system user, `Restart=always`, `MemoryMax=`, hardware access through groups, overrides in `/etc/<app>/<app>.conf`.
+Their tests depend on `pihero-testkit` pinned to a tag and reuse its tiers, with a tier-2 device file that adds the app's apt
+source to a copy of the all-features device. A device file then names the app's repository and packages next to Pi Hero's.
+
+## Out of scope
+
+Gadget functions beyond Ethernet, an automated hardware tier (power cycling, unattended flashing), fleet tooling, monitoring,
+remote logging, and re-provisioning a running device from a changed device file.
