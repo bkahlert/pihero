@@ -1,4 +1,4 @@
-# Pi Hero <img src="assets/hero-badge.gif" alt="Pi Hero kaomoji, hovering" height="20"> [![CI](https://github.com/bkahlert/pihero/actions/workflows/ci.yml/badge.svg)](https://github.com/bkahlert/pihero/actions/workflows/ci.yml) [![License](https://img.shields.io/github/license/bkahlert/pihero?color=29ABE2&label=License)](https://github.com/bkahlert/pihero/blob/master/LICENSE) [![Buy Me A Unicorn](https://img.shields.io/static/v1?label=&message=Buy%20Me%20A%20Unicorn&color=c21f73)](https://www.buymeacoffee.com/bkahlert)
+# Pi Hero <img src="assets/hero-badge.gif" alt="Pi Hero kaomoji, hovering" height="20"> [![CI](https://github.com/bkahlert/pihero/actions/workflows/ci.yml/badge.svg)](https://github.com/bkahlert/pihero/actions/workflows/ci.yml) [![License](https://img.shields.io/github/license/bkahlert/pihero?color=29ABE2&label=License)](https://github.com/bkahlert/pihero/blob/master/LICENSE) [![Buy Me A Coffee](https://img.shields.io/static/v1?label=&message=%E2%98%95%20Buy%20Me%20A%20Coffee&color=FFDD00)](https://www.buymeacoffee.com/bkahlert)
 
 ![Pi Hero Banner](assets%2Fpihero-banner.svg)
 
