@@ -2,31 +2,31 @@
 Hash: SHA512
 
 Architectures: all
-Date: Mon, 28 Sep 2026 15:17:34 +0000
+Date: Mon, 28 Sep 2026 20:38:21 +0000
 Description: Pi Hero packages
 Label: pihero
 Origin: pihero
 Suite: stable
 MD5Sum:
- 108339b6e82293361992ff941837c01d             6023 Packages
- ef3362d19e2e44ed11d7b4028fe2d778             2136 Packages.gz
- 2281fa6d6ed438ede52ca6e222ae4048              130 Release
+ daf054cfb350c2d4ed01cb64009a77bb             8429 Packages
+ 853c9e0ca05f7a017ad011ddc09c22c4             2761 Packages.gz
+ 8d7b0d64b8ba71987581bd8f66167d41              130 Release
 SHA1:
- c86cf92104a0cd395be96363b8bcd9ad5d0f4c30             6023 Packages
- 83a039794c532b2c66e8beb4ce6b9ec1295e6fd0             2136 Packages.gz
- 4549e069e5daac742bc69f797c922aaac16d6c82              130 Release
+ 37f043614577c8932d1a8633c80ed0c924e3cd21             8429 Packages
+ 8ec8bda8ac7d1b590a7882cf926c2e394b0c9c58             2761 Packages.gz
+ 30e14ba8bbce7ba3ad3a85c5b65b94b54c318f6b              130 Release
 SHA256:
- cee83800ff4035666ad551c5c9c832dbbf996f4c7ce82c9dd9fed856597bec8b             6023 Packages
- 345e66d84b0839249ca95ec6373826239457d4c3a7aee88982c735142cc5cb9d             2136 Packages.gz
- a4e2b0e0598a4c8e8662ad5407e1c0857428416689a1e2e04190cbca14da9af9              130 Release
+ c282ff27de047bcfa88fa0145aae76bc5816bf668036058a9c56da3a8efd0f22             8429 Packages
+ 7b00dad8bf9650f215bcb717ee2093d94168d4dd672b354e74b8d0c08523fd78             2761 Packages.gz
+ 915ba3593b96948cf679e5959128fa9c3fa8022b012ac1f3b029b2140c8d9c42              130 Release
 SHA512:
- 774697bef12f0f9ad17f5d92ff08aa99d8f6fc846e3c0c521d26735bceee52cd00760aeb9d245989f9e11985c1299767ee0c1e5fc87f16493fdedbd98e6e20fb             6023 Packages
- 621564e423bf200fc12edfeb4455ab9231669a6cdabf700310084ca5762657c0b7b65509872961a67b6769cabb945eac4621da49d116871890ac4e726ccbf550             2136 Packages.gz
- 469c902c90eb44515a216f5d589f06c7b1cdc772c3f142a63b088faab4669a6338ae5a379fc0aa8b129167718370af6f7cfd83deeda2abb4c52bd0187c366753              130 Release
+ 979b13b42df0a4e55b80c333d50138857c0502c559b27747e24931b67b51a626a3781f81835cd9a6eab9a6296d31c24ea9c55d283fc8f6907a6cf36c4047cec6             8429 Packages
+ 0aa93619849acd5de120ea46f9957b1f40029c010ca2b29fb804d8820f6319ca2b07e5803bc811ced719f9f79f2bfb17462eac5a3664e811212c8990165386e5             2761 Packages.gz
+ e53da1ab984b7e2446640cadb3c4df9308a56b9471ecbb1511cf8df1569f3c602b19d9ae8b30ea590c48d40c85a686301417050ff28bd7e6c01e4ca1a318c3b8              130 Release
 -----BEGIN PGP SIGNATURE-----
 
-iHUEARYKAB0WIQTeYJ1/9b5DDayMyAcIH3DmoHffegUCarqFDgAKCRAIH3DmoHff
-ejgzAP4xVoBihkZzzvXdwtZFZ6tMMIK/uRm1sd16tVfNFhU+zgD/Tw9el59d3QQT
-beXl8N0zBLvqqq7rUQQaUvkeXJdsSwU=
-=RSIB
+iHUEARYKAB0WIQTeYJ1/9b5DDayMyAcIH3DmoHffegUCarrQPQAKCRAIH3DmoHff
+elAVAQDGCs05fAf+DKz5Yga1kk7xdKacXMt70t5BBe+4sxx1zAD+Jwa2plcrG7Yw
+zNkAOv/MJg6kfuglbeufRvV5g/fNyA4=
+=2scn
 -----END PGP SIGNATURE-----
