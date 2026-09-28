@@ -28,10 +28,7 @@ make vm-prepare      # caches the tier-2 base image, about ten minutes once
 3. Boot. Provisioning takes about six minutes and reboots twice: once for the interface settings, once for the USB gadget.
    Then the Pi answers `ssh pi@mypi.local`, appears in Finder with its icon, and a Mac on the USB cable gets an address from it.
 
-If it does not show up: connect over USB or Wi-Fi and read `cloud-init status --long`, `/var/log/cloud-init-output.log`, and
-`journalctl -b -u NetworkManager`. Without any connection, put the card back into the Mac: `/Volumes/bootfs` holds `cmdline.txt`
-and `config.txt`; the root partition is ext4, which the tools container reads with `debugfs`, see the checkpoint section of
-[the tier-2 spike](spikes/2026-09-27-tier2-vm.md).
+If it does not show up, [devices/README.md](../devices/README.md) says where to look.
 
 ## Change a device
 
@@ -60,7 +57,8 @@ make test-tier2                       # a VM boots the all-features device from 
 ```
 
 `uv run pytest packages/<name>/tests -m tier0` runs one package's unit tests. `make vm` keeps the tier-2 VM running for a
-look inside. CI runs tiers 0 and 1 on every push and tier 2 weekly.
+look inside. CI runs tiers 0 and 1 on every push and tier 2 weekly. What each tier proves and how it works is in
+[testing.md](testing.md).
 
 ## Check a real device
 
