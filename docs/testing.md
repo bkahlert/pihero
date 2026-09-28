@@ -47,8 +47,8 @@ platform, tagged with a digest of its build context so a changed Containerfile i
 services. The built packages are mounted and installed with `apt install ./pkg.deb`, and testinfra gets a `podman://<name>`
 host. `/boot/firmware/` is a fixture directory with the stock `config.txt` and `cmdline.txt`.
 
-What a container cannot show: `RuntimeWatchdogUSec` is `0` inside podman, so the watchdog is asserted on its drop-in there
-and on the manager in tier 2. Avahi records published inside an arm64 container are visible to `avahi-browse` in the same
+What a container cannot show: `RuntimeWatchdogUSec` is `0` inside podman, so the watchdog, left at Raspberry Pi OS's minute,
+is asserted on the manager in tier 2 only. Avahi records published inside an arm64 container are visible to `avahi-browse` in the same
 container, so browse tests work in tier 1. The 32-bit view is CI's job: a 64-bit Arm kernel runs `arm/v7` userland natively,
 while on the Mac it needs a `qemu-arm` binfmt handler in the podman machine that Fedora CoreOS does not ship, and even with one
 registered, systemd as PID 1 in an `arm/v7` container comes up degraded. The container has no USB device controller, so

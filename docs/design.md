@@ -58,8 +58,8 @@ platform quirks the device files work around, [devices/README.md](../devices/REA
 
 Never losing contact with a device rests on three independent paths: physical (Ethernet over USB, the GPIO UART, later
 Bluetooth PAN), remote (Tailscale, installed from its upstream repository through the device file, no Pi Hero code involved),
-and self-healing (the hardware watchdog armed by `pihero`, plus the [unit conventions](app-conventions.md) that keep a
-misbehaving application from starving sshd; no Pi Hero unit ever depends on an application unit).
+and self-healing (the hardware watchdog Raspberry Pi OS arms with a minute, plus the [unit conventions](app-conventions.md)
+that keep a misbehaving application from starving sshd; no Pi Hero unit ever depends on an application unit).
 
 ## Repository layout and package anatomy
 
@@ -73,7 +73,6 @@ packages/
     root/usr/lib/pihero/bootconfig                          # Python, boot-config editor
     root/usr/lib/pihero/motd                                # Python, MOTD generator
     root/etc/update-motd.d/50-pihero                        # sh, calls motd
-    root/etc/systemd/system.conf.d/50-pihero-watchdog.conf
     scripts/postinst  scripts/prerm  scripts/postrm
     units.txt                                               # units to enable
     tests/test_<helper>.py                                  # tier 0
@@ -116,9 +115,10 @@ cloud-init's `rpi:` module and `raspi-config nonint` have no option.
 installed `pihero-*` packages with versions, failed units, whether a reboot is pending and for which packages, and the address
 of `usb0` if present. No colours, no animation, nothing beyond Python.
 
-**Watchdog.** `/etc/systemd/system.conf.d/50-pihero-watchdog.conf` sets `RuntimeWatchdogSec=15`, the BCM2835 hardware maximum.
-It is named to sort after Raspberry Pi OS's own `40-rpi-enable-watchdog.conf` (`1m`), which otherwise wins. postinst runs
-`systemctl daemon-reexec` so the watchdog arms immediately; purge removes the drop-in and reexecs again.
+**Watchdog.** Raspberry Pi OS arms the BCM2835 hardware watchdog itself, `RuntimeWatchdogSec=1m` in its
+`40-rpi-enable-watchdog.conf`, and `pihero` leaves it there. 2.1.0 shipped a drop-in tightening it to 15 s, the hardware
+maximum, and reset every Zero W during provisioning: systemd on that board needs 13.5 s for a `daemon-reload` at idle,
+longer under dpkg's load, and every package's postinst reloads. Measured on liet, 2026-09-28; the drop-in went in 2.1.1.
 
 ## `pihero-avahi`
 
