@@ -6,7 +6,7 @@ section: admin
 priority: optional
 maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
 description: |
-  Pi Hero core: boot-config editor, MOTD, hardware watchdog.
+  Pi Hero core: boot-config editor, MOTD.
   Every pihero-* feature package depends on this one.
 homepage: https://github.com/bkahlert/pihero
 license: MIT

@@ -22,4 +22,4 @@ each part in Pi Hero 2; the reasoning is in [design.md](design.md).
 | apt-update pre-task, `AllowReleaseInfoChange`, user groups fact | Covered by apt and cloud-init `users:` |
 | Tailscale notes | Commented lines in the sample device file, including the exit-node steps |
 | Support for the 32-bit-only Raspberry Pi Zero W | Packages are architecture-independent; `make flash` writes the 32-bit Trixie image when the device file says `# image: raspios_lite_armhf`, the harness stays 64-bit |
-| Not present: hardware watchdog, limits for applications | `pihero` arms the watchdog; [app-conventions.md](app-conventions.md) sets `Restart=` and `MemoryMax=` |
+| Not present: hardware watchdog, limits for applications | Raspberry Pi OS arms the hardware watchdog itself, with a minute; [app-conventions.md](app-conventions.md) sets `Restart=` and `MemoryMax=` |

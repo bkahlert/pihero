@@ -68,4 +68,6 @@ The stock boot partition already carries `user-data`, `network-config`, and `met
   Neither Imager's CLI nor `dd` as root can open the device from a terminal; macOS gates raw disk access behind `authopen`.
 - `losetup` inside a privileged podman container needs `/dev` bind mounted, or the partition nodes it creates never appear.
 - Raspberry Pi OS's `40-rpi-enable-watchdog.conf` sets `RuntimeWatchdogSec=1m`; a drop-in that wants to win must sort after it.
+  Do not tighten it: on a Zero W `systemctl daemon-reload` takes 13.5 s at idle, and a 15 s timeout reset the board during
+  provisioning, twice per run, each time a postinst or `runcmd` reloaded systemd under dpkg's I/O load (pihero 2.1.0).
 - `bluez-test-tools` from the Raspberry Pi archive ships `btvirt` for a virtual Bluetooth adapter.

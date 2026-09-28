@@ -36,8 +36,9 @@ class TestProvisioning:
 
 
 class TestWatchdog:
-    def test_is_armed(self, host):
-        assert host.check_output("systemctl show --property=RuntimeWatchdogUSec").strip() == "RuntimeWatchdogUSec=15s"
+    def test_keeps_raspberry_pi_os_minute(self, host):
+        # 2.1.0 tightened it to 15 s and reset the Zero W, whose systemd needs 13.5 s for a daemon-reload at idle.
+        assert host.check_output("systemctl show --property=RuntimeWatchdogUSec").strip() == "RuntimeWatchdogUSec=1min"
 
 
 class TestAvahi:

@@ -12,7 +12,7 @@ no control machine, no playbook.
 
 | Package             | What it does                                                                                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `pihero`            | The MOTD lists installed features, failed units, pending reboots, and the USB address; the hardware watchdog is armed; `bootconfig` edits the boot files safely |
+| `pihero`            | The MOTD lists installed features, failed units, pending reboots, and the USB address; `bootconfig` edits the boot files safely                                 |
 | `pihero-avahi`      | The Pi appears in Finder's network browser with an icon and its device information, announced as an SMB server because that is what Finder lists; SSH is advertised too |
 | `pihero-usb-gadget` | Ethernet over USB on top of Raspberry Pi's `rpi-usb-gadget`: a Mac on the cable gets an address from the Pi and lists the interface under the board's name      |
 
