@@ -1,0 +1,23 @@
+name: pihero
+arch: all
+platform: linux
+version: ${VERSION}
+section: admin
+priority: optional
+maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+description: |
+  Pi Hero core: boot-config editor, MOTD, hardware watchdog.
+  Every pihero-* feature package depends on this one.
+homepage: https://github.com/bkahlert/pihero
+license: MIT
+depends:
+  - python3
+  - systemd
+contents:
+  - src: root/
+    dst: /
+    type: tree
+scripts:
+  postinstall: .build/postinst
+  preremove: .build/prerm
+  postremove: .build/postrm

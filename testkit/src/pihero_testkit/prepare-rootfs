@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# Purpose: Turn a Raspberry Pi OS image into a QEMU virt bootable root filesystem with Debian's kernel.
+# Usage:   prepare-rootfs --image <img|img.xz> --out <dir> [--kernel-package <name>]
+#
+# Options:
+#   --image <path>            Raspberry Pi OS image, optionally xz-compressed.
+#   --out <dir>               Output directory; receives rootfs.qcow2, vmlinuz, initrd.img and boot/.
+#   --kernel-package <name>   Debian kernel metapackage (default: linux-image-arm64).
+#   -h, --help                Show this help.
+#
+# Runs as root in a privileged container: it needs loop devices, mount and chroot.
+#
+# Examples:
+#   prepare-rootfs --image /cache/downloads/raspios-lite.img.xz --out /cache/base/3f9a2c1b0d4e
+
+set -euo pipefail
+
+usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
+die()   { printf '%s: %s\nSee '\''%s --help'\''\n' "${0##*/}" "$1" "${0##*/}" >&2; exit 2; }
+log()   { printf '%s %s\n' "$(tput setaf 3 2>/dev/null || true)⚙$(tput sgr0 2>/dev/null || true)" "$*" >&2; }
+
+image=; out=; kernel_package=linux-image-arm64
+while (( $# )); do
+  case $1 in
+    -h|--help)          usage; exit 0 ;;
+    --image)            image=${2?--image: missing value}; shift 2 ;;
+    --image=*)          image=${1#*=}; shift ;;
+    --out)              out=${2?--out: missing value}; shift 2 ;;
+    --out=*)            out=${1#*=}; shift ;;
+    --kernel-package)   kernel_package=${2?--kernel-package: missing value}; shift 2 ;;
+    --kernel-package=*) kernel_package=${1#*=}; shift ;;
+    -?*)                die "unknown option: $1" ;;
+    *)                  die "unexpected argument: $1" ;;
+  esac
+done
+[[ -n $image && -n $out ]] || { usage >&2; exit 2; }
+
+work=$(mktemp -d)
+root=$work/root
+loop=
+cleanup() {
+  set +e
+  for m in dev/pts dev sys proc boot/firmware ''; do
+    mountpoint -q "$root/$m" && umount "$root/$m"
+  done
+  [[ -n $loop ]] && losetup -d "$loop"
+  rm -rf "$work"
+}
+trap cleanup EXIT
+
+log "decompressing image"
+raw=$work/raspios.img
+case $image in
+  *.xz) xz -dc "$image" >"$raw" ;;
+  *)    cp "$image" "$raw" ;;
+esac
+
+log "mounting partitions"
+loop=$(losetup --find --show --partscan "$raw")
+mkdir -p "$root"
+mount "${loop}p2" "$root"
+mount "${loop}p1" "$root/boot/firmware"
+
+log "saving stock boot files"
+mkdir -p "$out/boot"
+cp "$root/boot/firmware/config.txt" "$root/boot/firmware/cmdline.txt" "$out/boot/"
+
+log "installing $kernel_package in chroot"
+for m in proc sys dev dev/pts; do mount --bind "/$m" "$root/$m"; done
+# The image links resolv.conf to a file NetworkManager only writes at boot; apt-get in the chroot needs a resolver now.
+cp --remove-destination /etc/resolv.conf "$root/etc/resolv.conf"
+chroot "$root" env DEBIAN_FRONTEND=noninteractive apt-get update -q
+chroot "$root" env DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends "$kernel_package"
+version=$(cd "$root/lib/modules" && printf '%s\n' ./*-arm64 | sed 's|^\./||' | sort -V | tail -1)
+
+log "regenerating initrd $version with MODULES=most"
+# Raspberry Pi OS ships MODULES=dep, which leaves virtio_blk out of the initrd, so QEMU's root disk never appears.
+printf 'MODULES=most\n' >"$root/etc/initramfs-tools/conf.d/pihero-qemu.conf"
+chroot "$root" update-initramfs -u -k "$version"
+
+log "adapting fstab and cloud-init ordering"
+sed -i -E 's|^PARTUUID=[^ ]+-01 |LABEL=bootfs |; s|^PARTUUID=[^ ]+-02 |LABEL=rootfs |' "$root/etc/fstab"
+install -d "$root/etc/systemd/system/cloud-init-local.service.d"
+printf '[Unit]\nRequiresMountsFor=/boot/firmware\n' >"$root/etc/systemd/system/cloud-init-local.service.d/pihero-bootfs.conf"
+
+log "masking units and dropping the missing cloud-init module"
+# Without EEPROM hardware rpi-eeprom-update dies on a shell arithmetic error and is the VM's only failed unit.
+ln -sf /dev/null "$root/etc/systemd/system/rpi-eeprom-update.service"
+# The rpt cloud.cfg lists netplan_nm_patch, which does not exist, so cloud-init exits 2 on every boot; this is the stock list without it.
+cat >"$root/etc/cloud/cloud.cfg.d/90_pihero_tier2.cfg" <<'EOF'
+cloud_final_modules:
+  - package_update_upgrade_install
+  - write_files_deferred
+  - puppet
+  - chef
+  - ansible
+  - mcollective
+  - salt_minion
+  - reset_rmc
+  - scripts_vendor
+  - scripts_per_once
+  - scripts_per_boot
+  - scripts_per_instance
+  - scripts_user
+  - ssh_authkey_fingerprints
+  - keys_to_console
+  - install_hotplug
+  - phone_home
+  - final_message
+  - power_state_change
+EOF
+
+log "extracting kernel and initrd"
+cp "$root/boot/vmlinuz-$version" "$out/vmlinuz"
+cp "$root/boot/initrd.img-$version" "$out/initrd.img"
+for m in dev/pts dev sys proc boot/firmware; do umount "$root/$m"; done
+
+log "packing root filesystem"
+truncate -s 6G "$work/rootfs.img"
+mkfs.ext4 -q -L rootfs -d "$root" "$work/rootfs.img"
+umount "$root"
+qemu-img convert -f raw -O qcow2 "$work/rootfs.img" "$out/rootfs.qcow2"
+log "done: $out"

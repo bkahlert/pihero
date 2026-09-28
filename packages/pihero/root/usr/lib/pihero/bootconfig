@@ -1,0 +1,190 @@
+#!/usr/bin/python3
+"""Idempotent editor for the Raspberry Pi boot files config.txt and cmdline.txt.
+
+Usage:
+  bootconfig set    config  KEY VALUE [--section NAME] [--package PKG]
+  bootconfig unset  config  KEY [VALUE] [--section NAME] [--package PKG]
+  bootconfig add    cmdline PARAM[=VALUE] [--package PKG]
+  bootconfig remove cmdline PARAM [--package PKG]
+
+Prints "changed" or "unchanged". On change it touches $PIHERO_RUN/reboot-required and records PKG in
+$PIHERO_RUN/reboot-required.pkgs. Files are read from $PIHERO_BOOTFS (default /boot/firmware).
+"""
+
+import argparse
+import os
+import re
+import sys
+from pathlib import Path
+
+REPEATABLE = {"dtoverlay", "dtparam"}
+KEY_VALUE = re.compile(r"^\s*([^#=\s\[]+)\s*=\s*(.*?)\s*$")
+REBOOT_REQUIRED_TEXT = "*** System restart required ***\n"
+
+
+class Section:
+    def __init__(self, name: str, header: str | None):
+        self.name = name
+        self.header = header
+        self.lines: list[str] = []
+
+
+def parse_config(text: str) -> list[Section]:
+    sections = [Section("all", None)]
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            sections.append(Section(stripped[1:-1].strip().lower(), line))
+        else:
+            sections[-1].lines.append(line)
+    return sections
+
+
+def render_config(sections: list[Section]) -> str:
+    out: list[str] = []
+    for section in sections:
+        if section.header is not None:
+            out.append(section.header)
+        out.extend(section.lines)
+    return "\n".join(out) + "\n"
+
+
+def _key_value(line: str) -> tuple[str, str] | None:
+    match = KEY_VALUE.match(line)
+    return (match.group(1), match.group(2)) if match else None
+
+
+def set_key(sections: list[Section], section_name: str, key: str, value: str) -> bool:
+    section_name = section_name.lower()
+    line = f"{key}={value}"
+    targets = [s for s in sections if s.name == section_name]
+    if key in REPEATABLE:
+        if any(_key_value(l) == (key, value) for s in targets for l in s.lines):
+            return False
+    else:
+        occurrences = [(s, i) for s in targets for i, l in enumerate(s.lines) if (kv := _key_value(l)) and kv[0] == key]
+        if occurrences:
+            first_section, first_index = occurrences[0]
+            unchanged = len(occurrences) == 1 and _key_value(first_section.lines[first_index]) == (key, value)
+            if unchanged:
+                return False
+            first_section.lines[first_index] = line
+            for section, index in reversed(occurrences[1:]):
+                del section.lines[index]
+            return True
+    if not targets:
+        sections.append(Section(section_name, f"[{section_name}]"))
+        targets = [sections[-1]]
+    targets[-1].lines.append(line)
+    return True
+
+
+def unset_key(sections: list[Section], section_name: str, key: str, value: str | None = None) -> bool:
+    section_name = section_name.lower()
+    changed = False
+    for section in (s for s in sections if s.name == section_name):
+        kept = [l for l in section.lines if not ((kv := _key_value(l)) and kv[0] == key and (value is None or kv[1] == value))]
+        changed |= len(kept) != len(section.lines)
+        section.lines = kept
+    return changed
+
+
+def parse_cmdline(text: str) -> list[str]:
+    if "\n" in text.strip():
+        raise ValueError("cmdline.txt must be a single line")
+    return text.split()
+
+
+def render_cmdline(params: list[str]) -> str:
+    return " ".join(params) + "\n"
+
+
+def _name(param: str) -> str:
+    return param.split("=", 1)[0]
+
+
+def add_param(params: list[str], param: str) -> bool:
+    indices = [i for i, p in enumerate(params) if _name(p) == _name(param)]
+    if indices:
+        if len(indices) == 1 and params[indices[0]] == param:
+            return False
+        params[indices[0]] = param
+        for index in reversed(indices[1:]):
+            del params[index]
+        return True
+    params.append(param)
+    return True
+
+
+def remove_param(params: list[str], name: str) -> bool:
+    kept = [p for p in params if _name(p) != name]
+    changed = len(kept) != len(params)
+    params[:] = kept
+    return changed
+
+
+def write_atomically(path: Path, text: str) -> None:
+    # A power cut during an in-place rewrite truncates a FAT boot file; the rename swaps in the complete copy.
+    tmp = path.with_name(f".{path.name}.tmp")
+    with tmp.open("w") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp, path)
+
+
+def mark_reboot_required(run_dir: Path, package: str | None) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "reboot-required").write_text(REBOOT_REQUIRED_TEXT)
+    if package:
+        pkgs = run_dir / "reboot-required.pkgs"
+        listed = pkgs.read_text().split() if pkgs.exists() else []
+        if package not in listed:
+            pkgs.write_text("".join(f"{p}\n" for p in [*listed, package]))
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="bootconfig", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("action", choices=["set", "unset", "add", "remove"])
+    parser.add_argument("file", choices=["config", "cmdline"])
+    parser.add_argument("key")
+    parser.add_argument("value", nargs="?")
+    parser.add_argument("--section", default="all")
+    parser.add_argument("--value", dest="unset_value")
+    parser.add_argument("--package")
+    args = parser.parse_args(argv)
+    if args.file == "config" and args.action not in ("set", "unset") or args.file == "cmdline" and args.action not in ("add", "remove"):
+        parser.error(f"'{args.action}' does not apply to {args.file}")
+    if args.action == "set" and args.value is None:
+        parser.error("set needs KEY VALUE")
+    if args.file == "cmdline" and args.value is not None:
+        parser.error(f"{args.action} takes a single PARAM")
+    if args.action == "unset" and args.value is not None and args.unset_value is not None:
+        parser.error("unset takes VALUE or --value, not both")
+    match_value = args.unset_value if args.unset_value is not None else args.value
+
+    bootfs = Path(os.environ.get("PIHERO_BOOTFS", "/boot/firmware"))
+    run_dir = Path(os.environ.get("PIHERO_RUN", "/run"))
+    path = bootfs / ("config.txt" if args.file == "config" else "cmdline.txt")
+    try:
+        text = path.read_text()
+        if args.file == "config":
+            sections = parse_config(text)
+            changed = set_key(sections, args.section, args.key, args.value) if args.action == "set" else unset_key(sections, args.section, args.key, match_value)
+            new_text = render_config(sections)
+        else:
+            params = parse_cmdline(text)
+            changed = add_param(params, args.key) if args.action == "add" else remove_param(params, args.key)
+            new_text = render_cmdline(params)
+    except (OSError, ValueError) as error:
+        print(f"bootconfig: {path}: {error}", file=sys.stderr)
+        return 1
+    if changed:
+        write_atomically(path, new_text)
+        mark_reboot_required(run_dir, args.package)
+    print("changed" if changed else "unchanged")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

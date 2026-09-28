@@ -1,0 +1,91 @@
+#cloud-config
+# board: Raspberry Pi Zero 2 W  image: Raspberry Pi OS Lite 64-bit (Trixie)
+hostname: sample
+manage_etc_hosts: true
+timezone: Europe/Berlin
+enable_ssh: true
+ssh_pwauth: false
+users:
+  - name: pi
+    groups: users,adm,dialout,audio,netdev,video,plugdev,input,gpio,spi,i2c,render,sudo
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAA...your public key... you@mac
+rpi:
+  interfaces:
+    spi: false
+    i2c: false
+    serial: true
+# cloud-final installs the packages. A fresh card's clock is at the image build date until NTP has synced, and apt rejects every
+# repository signature before that as "not live yet". systemd-time-wait-sync reaches time-sync.target on sync; cloud-final waits for
+# it, five minutes at most. bootcmd runs before the network here and is the only step early enough for the current boot to pick it up.
+bootcmd:
+  - |
+    test -e /etc/systemd/system/cloud-final.service.d/time-sync.conf && exit 0
+    mkdir -p /etc/systemd/system/cloud-final.service.d /etc/systemd/system/systemd-time-wait-sync.service.d
+    printf '[Unit]\nAfter=time-sync.target\nWants=time-sync.target\n' > /etc/systemd/system/cloud-final.service.d/time-sync.conf
+    printf '[Service]\nTimeoutStartSec=5min\n' > /etc/systemd/system/systemd-time-wait-sync.service.d/timeout.conf
+    systemctl daemon-reload
+    systemctl enable systemd-time-wait-sync.service
+    systemctl start --no-block systemd-time-wait-sync.service
+package_update: true
+packages:
+  - pihero
+  - pihero-avahi
+write_files:
+  - path: /etc/apt/sources.list.d/pihero.sources
+    content: |
+      Types: deb
+      URIs: https://bkahlert.github.io/pihero/apt
+      Suites: ./
+      Signed-By:
+       -----BEGIN PGP PUBLIC KEY BLOCK-----
+       .
+       mDMEarmLMBYJKwYBBAHaRw8BAQdAYH5NN70CgNV7X5ac7oOSclZ8KndwP0u1L01s
+       D3uvpfi0OlBpIEhlcm8gYXB0IHJlcG9zaXRvcnkgPGJrYWhsZXJ0QHVzZXJzLm5v
+       cmVwbHkuZ2l0aHViLmNvbT6IrwQTFgoAVxYhBN5gnX/1vkMNrIzIBwgfcOagd996
+       BQJquYswGxSAAAAAAAQADm1hbnUyLDIuNSsxLjEyLDAsMwIbAwULCQgHAgIiAgYV
+       CgkICwIEFgIDAQIeBwIXgAAKCRAIH3DmoHffetE/AP4yQu33ESTuvzbxshkd5vN3
+       zfxERhiv662PLKEMET2WdgEA9bzTYYeziFUuok1oSkF7Q3IkOXHyf71EhXbbixdO
+       Zwc=
+       =dnaq
+       -----END PGP PUBLIC KEY BLOCK-----
+  - path: /etc/modprobe.d/g_cdc.conf
+    content: |
+      options g_cdc iManufacturer="Raspberry Pi Ltd." iProduct="Raspberry Pi USB Gadget"
+  # Loads the gadget once NetworkManager can serve DHCP on it: macOS asks only while the link comes up and then settles for
+  # a self-assigned address. The MACs derive from the board serial so the host sees the same device on every boot.
+  - path: /etc/systemd/system/usb-gadget.service
+    content: |
+      [Unit]
+      Description=USB Ethernet gadget (CDC ECM)
+      After=NetworkManager.service
+      Wants=NetworkManager.service
+      ConditionPathExists=/etc/modules-load.d/usb-gadget.conf
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/bin/sh -c 's=$(tr -d "\\0" </proc/device-tree/serial-number | tail -c 10 | sed "s/../&:/g;s/:$//"); modprobe g_cdc host_addr=02:$s dev_addr=06:$s'
+
+      [Install]
+      WantedBy=multi-user.target
+  - path: /etc/pihero/device-info.conf
+    content: MODEL=AirPort4
+runcmd:
+  - hostnamectl set-hostname --pretty "Sample Pi"
+  - systemctl restart pihero-avahi-render.service
+  # `rpi: enable_usb_gadget: true` runs rpi-usb-gadget with a 15 s timeout that the script's own NetworkManager waits exceed on
+  # a fresh card, so cloud-init aborts the module and never reboots. Enabling it here has no timeout; power_state reboots.
+  # The emptied modules-load file keeps rpi-usb-gadget's on/off state without loading g_ether: macOS binds its RNDIS
+  # configuration and never passes traffic. usb-gadget.service loads g_cdc (CDC ECM) instead.
+  - rpi-usb-gadget on -f && truncate -s 0 /etc/modules-load.d/usb-gadget.conf && systemctl enable usb-gadget.service && touch /run/reboot-required
+  - nmcli connection modify "USB Gadget (shared)" ipv4.addresses 10.10.10.10/29
+  # Tailscale: uncomment to join a tailnet on first boot; an exit node also needs ip_forward (see tailscale.com/kb/1103).
+  # - curl -fsSL https://tailscale.com/install.sh | sh
+  # - tailscale up --auth-key=tskey-auth-...
+power_state:
+  mode: reboot
+  condition: test -f /run/reboot-required
