@@ -7,6 +7,7 @@ TARGET ?=
 DEVICE ?=
 DISK ?=
 NAME ?=
+IMAGE ?=
 UV := uv run --frozen
 
 help: ## list targets
@@ -51,6 +52,10 @@ flash: ## write Raspberry Pi OS and a device's files to an SD card (make flash D
 .PHONY: backup
 backup: ## image an SD card into backups/<host>-<date>.img.xz (make backup [DISK=disk9] [NAME=host])
 	@$(UV) python -m pihero_testkit.backup --disk="$(DISK)" --name="$(NAME)"
+
+.PHONY: restore
+restore: ## write a backup image onto an SD card (make restore [IMAGE=backups/x.img.xz] [DISK=disk9])
+	@$(UV) python -m pihero_testkit.restore --image="$(IMAGE)" --disk="$(DISK)"
 
 clean: ## remove build outputs
 	rm -rf dist packages/*/.build
