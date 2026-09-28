@@ -20,7 +20,6 @@ jobs:
         with:
           path: ~/.cache/pihero
           key: pihero-base-${{ hashFiles('testkit/src/pihero_testkit/images.lock', 'testkit/src/pihero_testkit/prepare-rootfs') }}
-      # The runner's podman is rootless, and even a privileged rootless container gets no loop devices, which
-      # prepare-rootfs needs to mount the Raspberry Pi OS image.
-      - run: make test-tier2 QEMU_ACCEL=tcg
-        env: { PODMAN: sudo podman }
+      # prepare-rootfs mounts the Raspberry Pi OS image through loop devices, which the runner's rootless podman
+      # cannot provide, and QEMU must be able to write what the tools container creates: the whole step runs as root.
+      - run: sudo -E env "PATH=$PATH" make test-tier2 QEMU_ACCEL=tcg
