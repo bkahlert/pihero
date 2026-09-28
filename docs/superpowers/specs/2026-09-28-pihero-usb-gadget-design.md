@@ -160,8 +160,9 @@ The tier-1 container image (`testkit/src/pihero_testkit/tier1/Containerfile`) ga
 (`https://archive.raspberrypi.com/debian/`, suite `trixie`, component `main`) as a deb822 source signed by the archive key,
 which is committed next to the Containerfile as `raspberrypi.asc` and copied into `/etc/apt/keyrings/`. Without it the
 dependency on `rpi-usb-gadget` cannot resolve in tier 1. The archive also carries Raspberry Pi's versions of a few Debian
-packages; apt preferring them brings tier 1 closer to Raspberry Pi OS and is accepted. The image tag changes with the
-Containerfile, so the image is rebuilt on first use.
+packages; apt preferring them brings tier 1 closer to Raspberry Pi OS and is accepted. The tier-1 image is tagged by platform only today and built when the tag is missing, so the harness
+changes to tag it with a digest of the build context, as the tools image already is, and a changed Containerfile is rebuilt on
+first use.
 
 Installing `rpi-usb-gadget` pulls `network-manager` into the container, where it may not fully start for lack of
 `CAP_NET_ADMIN`. The container is accepted in `degraded` state already, and no tier-1 test asserts on NetworkManager.
@@ -179,6 +180,7 @@ and a temporary directory first on `PATH` holding `modprobe` and `nmcli` stubs t
 - `PRODUCT` overrides the model; `CIDR` produces the `nmcli` call before the `modprobe` call with the given address.
 - Exit 1 with a message on a missing serial, on a failing `nmcli`, and on a failing `modprobe`; `modprobe` is not called when
   `nmcli` fails.
+- A `PRODUCT` containing a double quote exits 1 before any call; an empty `PRODUCT=` falls back to the model.
 
 The existing tier-0 sweeps pick the new files up automatically: shellcheck over the fragments and generated scripts,
 `systemd-analyze verify` over the unit, `cloud-init schema` over both device files, and the build of every package.
@@ -225,4 +227,5 @@ Ethernet; reacting to a conffile change without a reboot.
 - `ConditionPathExistsGlob=/sys/class/udc/*` assumes the `udc` class only holds controllers in peripheral or OTG mode; on
   every Raspberry Pi the sample targets, `dwc2` in host mode registers none. If a board ever shows a controller without the
   overlay, the unit runs and `modprobe` fails loudly, which is the intended failure mode.
-- A `PRODUCT` containing a double quote would break the kernel's parameter parser. Not guarded; the value is the owner's.
+- A `PRODUCT` containing a double quote would break the kernel's parameter parser. The script rejects it with exit 1 before
+  calling anything: the conffile is owner input at a system boundary.
