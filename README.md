@@ -28,8 +28,9 @@ what became of each of its features.
 You need a Mac with [Homebrew](https://brew.sh/), a Raspberry Pi that runs the 64-bit Raspberry Pi OS (Zero 2 W and up), and an
 SD card.
 
-1. **Describe the device.** Copy the sample and edit it: hostname, your SSH public key, the pretty name, the Finder icon, and
-   your Wi-Fi in `network-config`. Device directories other than `sample/` are gitignored.
+1. **Describe the device.** Copy the sample and edit it: hostname, your SSH public key, the pretty name, the Finder icon, the
+   USB gadget's name, and your Wi-Fi in `network-config`. The sample installs `pihero`, `pihero-avahi`, and
+   `pihero-usb-gadget`; device directories other than `sample/` are gitignored.
    ```shell
    mkdir devices/mypi && cp devices/sample/user-data devices/sample/network-config devices/mypi/
    ```
@@ -40,7 +41,7 @@ SD card.
    ```
    Two minutes: the image is written, verified, and completed with your files. Raspberry Pi Imager works as well.
 3. **Boot.** Six minutes and two reboots later `ssh pi@mypi.local` greets you with the MOTD, the Pi is in Finder, and a Mac on
-   the USB cable gets an address from it.
+   the USB cable gets an address from the gadget `pihero-usb-gadget` brought up, listed under the name you gave it.
 
 Every key of the device file, the icon choices, and what to do if the Pi does not show up are in
 [devices/README.md](devices/README.md). Updating a device is `sudo apt upgrade` on the Pi; changing it is a reflash.

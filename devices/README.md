@@ -15,8 +15,8 @@ them here or in a private repository. The reasons behind the workarounds in the 
 - `bootcmd` orders cloud-init's final stage after the clock is synced, so apt trusts the repository signatures on a fresh card.
 - `packages` names what to install; add applications here. `package_update: true` refreshes the index first.
 - `write_files` puts the signed apt source in place (the key is inline, so the device trusts nothing else),
-  `/etc/pihero/device-info.conf` with the `MODEL` for the Finder icon, and `/etc/pihero/usb-gadget.conf` with the subnet the
-  Pi serves over USB.
+  `/etc/pihero/device-info.conf` with the `MODEL` for the Finder icon, and `/etc/pihero/usb-gadget.conf` with the gadget's
+  name and the subnet the Pi serves over USB.
 - `runcmd` sets the pretty name the Pi is advertised under, restarts the Avahi renderer, and holds the commented Tailscale
   lines: install, join with an auth key, and, for an exit node, forwarding plus `--advertise-exit-node`.
 - `power_state` reboots when a package left `/run/reboot-required` behind; `pihero-usb-gadget` does on its first install.
@@ -43,11 +43,11 @@ Changing it later: edit `/etc/pihero/device-info.conf` on the Pi and `systemctl 
 ## Ethernet over USB
 
 `pihero-usb-gadget` turns on Raspberry Pi's `rpi-usb-gadget`, which provides the boot overlay, the NetworkManager profiles,
-and the switch to a host that shares its internet connection, and loads a CDC ECM gadget once NetworkManager is up, named
-after the board (`Raspberry Pi Zero 2 W Rev 1.0`) with MACs derived from the board serial, so a Mac sees the same device on
-every boot. `/etc/pihero/usb-gadget.conf` takes two optional keys: `CIDR`, the address the Pi serves to the host (upstream's
-`10.12.194.1/28` if unset), and `PRODUCT`, another name for the gadget, double-quoted when it contains spaces. Changing them
-later: edit the file on the Pi and reboot. Windows has no driver for CDC ECM; [docs/raspberry-pi-os.md](../docs/raspberry-pi-os.md)
+and the switch to a host that shares its internet connection, and loads a CDC ECM gadget once NetworkManager is up, with
+MACs derived from the board serial, so a Mac sees the same device on every boot. `/etc/pihero/usb-gadget.conf` takes two
+optional keys: `PRODUCT`, the name the host lists the gadget under (the board model, `Raspberry Pi Zero 2 W Rev 1.0`, if
+unset; the sample uses its pretty name), double-quoted when it contains spaces, and `CIDR`, the address the Pi serves to the
+host (upstream's `10.12.194.1/28` if unset). Changing them later: edit the file on the Pi and reboot. Windows has no driver for CDC ECM; [docs/raspberry-pi-os.md](../docs/raspberry-pi-os.md)
 says why upstream's `g_ether` is not used.
 
 ## Flash

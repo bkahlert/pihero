@@ -56,9 +56,11 @@ write_files:
   # MODEL selects the icon Finder shows; the choices are pictured in ../README.md.
   - path: /etc/pihero/device-info.conf
     content: MODEL=AirPort4
-  # CIDR is the subnet the Pi serves to the USB host; PRODUCT="..." would rename the gadget, which is the board model by default.
+  # PRODUCT names the gadget on the USB host (the board model if unset); CIDR is the subnet the Pi serves to it.
   - path: /etc/pihero/usb-gadget.conf
-    content: CIDR=10.10.10.10/29
+    content: |
+      PRODUCT="Sample Pi"
+      CIDR=10.10.10.10/29
 runcmd:
   - hostnamectl set-hostname --pretty "Sample Pi"
   - systemctl restart pihero-avahi-render.service
