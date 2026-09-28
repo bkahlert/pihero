@@ -47,7 +47,10 @@ and the switch to a host that shares its internet connection, and loads a CDC EC
 MACs derived from the board serial, so a Mac sees the same device on every boot. `/etc/pihero/usb-gadget.conf` takes two
 optional keys: `PRODUCT`, the name the host lists the gadget under (the board model, `Raspberry Pi Zero 2 W Rev 1.0`, if
 unset; the sample uses its pretty name), double-quoted when it contains spaces, and `CIDR`, the address the Pi serves to the
-host (upstream's `10.12.194.1/28` if unset). Changing them later: edit the file on the Pi and reboot. The boards
+host (upstream's `10.12.194.1/28` if unset). Changing them later: edit the file on the Pi and reboot. macOS names its
+network service when it first sees the gadget's MAC and keeps that name: after a rename the hardware port carries the new
+name, but Network settings shows the old one until the service is removed there and the Pi replugged, which creates a
+service under the new name. The boards
 `rpi-usb-gadget` supports are the Zero, Zero W, Zero 2 W, 3A+, 4B, 5, 500, and Compute Modules 0 and 5; on any other board
 the install fails on purpose, because peripheral mode would take the board's only USB controller away from its USB ports and
 Ethernet. Windows has no driver for CDC ECM; [docs/raspberry-pi-os.md](../docs/raspberry-pi-os.md)
