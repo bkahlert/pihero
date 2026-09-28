@@ -20,7 +20,8 @@ platform quirks the device files work around, [devices/README.md](../devices/REA
   including the Zero W; the 64-bit image supports the Zero 2 W and up. `make flash` and the harness pin the 64-bit image.
 - Upstream mechanisms win over own code: `rpi-usb-gadget`, NetworkManager, `raspi-config nonint`, cloud-init's `rpi:` module.
   Own code exists only where they have no option, and then it is Python 3 standard library.
-- The interactive CLI and `gum` are gone: too slow on old boards, and the tests replace the diagnostics.
+- The interactive CLI and `gum` are gone from the device: too slow on old boards, and the tests replace the diagnostics. Mac-side
+  commands ask for what `make` was not given, with nothing beyond `input()`.
 
 ## Decisions
 
@@ -36,6 +37,7 @@ platform quirks the device files work around, [devices/README.md](../devices/REA
 | Tests | pytest with pytest-testinfra | One assertion API over a podman container, a VM, and a real Pi |
 | Core package name | `pihero` | Core plus suffix, as in `tailscale` or `git` |
 | Device files that share content | Standalone copies | Simpler than a merge step |
+| Card backup | `make backup` and `make restore`: a full raw xz image taken on the Mac through `authopen`, restored onto a card of the same size or larger | Brings back state no device file holds; the format is that of Raspberry Pi OS images, so `flash`'s writer and verifier restore it; shrinking so a nominally equal card fits is the planned follow-up |
 
 ## Architecture
 
@@ -85,6 +87,7 @@ packages/
     root/usr/lib/modprobe.d/pihero-usb-gadget.conf          # blacklist g_ether
 testkit/                                                    # the harness, a Python package
 devices/                                                    # device files, gitignored except sample/
+backups/                                                    # card images and their sidecars, gitignored
 ```
 
 - **Names.** `pihero` is the core, everything else is `pihero-<feature>`. Units are `pihero-<feature>*.service`, rendered files
@@ -197,6 +200,9 @@ file another daemon reads, defaults in code, overrides from `/etc/pihero/<featur
 - **Upgrades never prompt**, because no package ships a file under `/etc/pihero/` and rendered files are regenerated at boot.
 - **Rollback is a version pin.** The repository keeps every published `.deb`: `apt install pihero=2.0.0` rolls back,
   `apt-mark hold` freezes.
+- **Backup is a card image.** `make backup` reads the whole card into `backups/<host>-<date>.img.xz` with a sidecar naming
+  size and sha256; `make restore` refuses a smaller card before writing, verifies by reading back, and points at
+  `raspi-config --expand-rootfs` on a larger one. Shrinking the image so a nominally equal card fits is the planned follow-up.
 - **Release is a tag.** `make release VERSION=X.Y.Z` runs tiers 0 to 2 locally and tags only on green; pushing the tag makes
   CI build every package at that version, regenerate the flat repository with `apt-ftparchive`, sign it with the key in the
   `APT_SIGNING_KEY` secret, push to `gh-pages`, and create the GitHub release with the `.deb` files. Pre-release tags such as
