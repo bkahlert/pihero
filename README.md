@@ -10,10 +10,11 @@ Every feature is a Debian package from a signed apt repository, and one [cloud-i
 on the boot partition describes a device. Flash a card, boot, and the Pi installs its packages and shows up in your network:
 no control machine, no playbook.
 
-| Package        | What it does                                                                                                                                                   |
-|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `pihero`       | The MOTD lists installed features, failed units, pending reboots, and the USB address; the hardware watchdog is armed; `bootconfig` edits the boot files safely |
-| `pihero-avahi` | The Pi appears in Finder's network browser with an icon and its device information; SSH is advertised too                                                     |
+| Package             | What it does                                                                                                                                                    |
+|---------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `pihero`            | The MOTD lists installed features, failed units, pending reboots, and the USB address; the hardware watchdog is armed; `bootconfig` edits the boot files safely |
+| `pihero-avahi`      | The Pi appears in Finder's network browser with an icon and its device information; SSH is advertised too                                                       |
+| `pihero-usb-gadget` | Ethernet over USB on top of Raspberry Pi's `rpi-usb-gadget`: a Mac on the cable gets an address from the Pi and lists the interface under the board's name      |
 
 | [![network browser](docs%2Fnetwork-browser.png) Pis in the network browser](./docs/network-browser.png) | [![network info foo](docs%2Fnetwork-info-foo.png) device information](./docs/network-info-foo.png) | [![device info bar](docs%2Fdevice-info-bar.png) device information with a custom model](./docs/device-info-bar.png) |
 |---------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|

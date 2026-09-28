@@ -14,13 +14,12 @@ them here or in a private repository. The reasons behind the workarounds in the 
 - `rpi: interfaces:` switches SPI, I²C, and the GPIO UART. Changing them costs the first of the two provisioning reboots.
 - `bootcmd` orders cloud-init's final stage after the clock is synced, so apt trusts the repository signatures on a fresh card.
 - `packages` names what to install; add applications here. `package_update: true` refreshes the index first.
-- `write_files` puts the signed apt source in place (the key is inline, so the device trusts nothing else), the two files of
-  the USB gadget (`g_cdc.conf` names the gadget, `usb-gadget.service` loads it after NetworkManager with MACs derived from
-  the board serial), and `/etc/pihero/device-info.conf` with the `MODEL` for the Finder icon.
-- `runcmd` sets the pretty name the Pi is advertised under, restarts the Avahi renderer, enables Ethernet over USB and
-  requests the reboot that loads it, sets the USB subnet, and holds the commented Tailscale lines: install, join with an
-  auth key, and, for an exit node, forwarding plus `--advertise-exit-node`.
-- `power_state` reboots when something left `/run/reboot-required` behind.
+- `write_files` puts the signed apt source in place (the key is inline, so the device trusts nothing else),
+  `/etc/pihero/device-info.conf` with the `MODEL` for the Finder icon, and `/etc/pihero/usb-gadget.conf` with the subnet the
+  Pi serves over USB.
+- `runcmd` sets the pretty name the Pi is advertised under, restarts the Avahi renderer, and holds the commented Tailscale
+  lines: install, join with an auth key, and, for an exit node, forwarding plus `--advertise-exit-node`.
+- `power_state` reboots when a package left `/run/reboot-required` behind; `pihero-usb-gadget` does on its first install.
 
 ## network-config
 
@@ -40,6 +39,16 @@ rather than a computer. Other good choices:
 | Sidebar | ![com.apple.airport-express-sidebar.png](../docs/models/com.apple.airport-express-sidebar.png) | ![com.apple.airport-extreme-sidebar.png](../docs/models/com.apple.airport-extreme-sidebar.png) | ![com.apple.time-capsule-sidebar.png](../docs/models/com.apple.time-capsule-sidebar.png) | ![com.apple.macmini-2018-sidebar.png](../docs/models/com.apple.macmini-2018-sidebar.png) | ![com.apple.macmini-2020-sidebar.png](../docs/models/com.apple.macmini-2020-sidebar.png) | ![com.apple.macpro-cylinder-sidebar.png](../docs/models/com.apple.macpro-cylinder-sidebar.png) | ![com.apple.macpro-sidebar.png](../docs/models/com.apple.macpro-sidebar.png) | ![com.apple.macpro-2019-sidebar.png](../docs/models/com.apple.macpro-2019-sidebar.png) | ![com.apple.macpro-2019-rackmount-sidebar.png](../docs/models/com.apple.macpro-2019-rackmount-sidebar.png) | ![com.apple.xserve-sidebar.png](../docs/models/com.apple.xserve-sidebar.png) |
 
 Changing it later: edit `/etc/pihero/device-info.conf` on the Pi and `systemctl restart pihero-avahi-render.service`.
+
+## Ethernet over USB
+
+`pihero-usb-gadget` turns on Raspberry Pi's `rpi-usb-gadget`, which provides the boot overlay, the NetworkManager profiles,
+and the switch to a host that shares its internet connection, and loads a CDC ECM gadget once NetworkManager is up, named
+after the board (`Raspberry Pi Zero 2 W Rev 1.0`) with MACs derived from the board serial, so a Mac sees the same device on
+every boot. `/etc/pihero/usb-gadget.conf` takes two optional keys: `CIDR`, the address the Pi serves to the host (upstream's
+`10.12.194.1/28` if unset), and `PRODUCT`, another name for the gadget, double-quoted when it contains spaces. Changing them
+later: edit the file on the Pi and reboot. Windows has no driver for CDC ECM; [docs/raspberry-pi-os.md](../docs/raspberry-pi-os.md)
+says why upstream's `g_ether` is not used.
 
 ## Flash
 
@@ -67,5 +76,6 @@ the card back into the Mac: `/Volumes/bootfs` holds `cmdline.txt` and `config.tx
 ## Later changes
 
 cloud-init runs once per card, so a changed device file means a reflash. Updates are `sudo apt update && sudo apt upgrade` on
-the Pi; the MOTD says when a reboot is due. Small things are done live and survive updates: the icon as above, network
-settings with `nmcli`, boot settings with `/usr/lib/pihero/bootconfig`.
+the Pi; the MOTD says when a reboot is due. Small things are done live and survive updates: the icon as above, the gadget's
+name and subnet in `/etc/pihero/usb-gadget.conf` followed by a reboot, network settings with `nmcli`, boot settings with
+`/usr/lib/pihero/bootconfig`.

@@ -34,6 +34,7 @@ package_update: true
 packages:
   - pihero
   - pihero-avahi
+  - pihero-usb-gadget
 write_files:
   - path: /etc/apt/sources.list.d/pihero.sources
     content: |
@@ -52,38 +53,15 @@ write_files:
        Zwc=
        =dnaq
        -----END PGP PUBLIC KEY BLOCK-----
-  - path: /etc/modprobe.d/g_cdc.conf
-    content: |
-      options g_cdc iManufacturer="Raspberry Pi Ltd." iProduct="Raspberry Pi USB Gadget"
-  # Loads the gadget once NetworkManager can serve DHCP on it: macOS asks only while the link comes up and then settles for
-  # a self-assigned address. The MACs derive from the board serial so the host sees the same device on every boot.
-  - path: /etc/systemd/system/usb-gadget.service
-    content: |
-      [Unit]
-      Description=USB Ethernet gadget (CDC ECM)
-      After=NetworkManager.service
-      Wants=NetworkManager.service
-      ConditionPathExists=/etc/modules-load.d/usb-gadget.conf
-
-      [Service]
-      Type=oneshot
-      RemainAfterExit=yes
-      ExecStart=/bin/sh -c 's=$(tr -d "\\0" </proc/device-tree/serial-number | tail -c 10 | sed "s/../&:/g;s/:$//"); modprobe g_cdc host_addr=02:$s dev_addr=06:$s'
-
-      [Install]
-      WantedBy=multi-user.target
   # MODEL selects the icon Finder shows; the choices are pictured in ../README.md.
   - path: /etc/pihero/device-info.conf
     content: MODEL=AirPort4
+  # CIDR is the subnet the Pi serves to the USB host; PRODUCT="..." would rename the gadget, which is the board model by default.
+  - path: /etc/pihero/usb-gadget.conf
+    content: CIDR=10.10.10.10/29
 runcmd:
   - hostnamectl set-hostname --pretty "Sample Pi"
   - systemctl restart pihero-avahi-render.service
-  # `rpi: enable_usb_gadget: true` runs rpi-usb-gadget with a 15 s timeout that the script's own NetworkManager waits exceed on
-  # a fresh card, so cloud-init aborts the module and never reboots. Enabling it here has no timeout; power_state reboots.
-  # The emptied modules-load file keeps rpi-usb-gadget's on/off state without loading g_ether: macOS binds its RNDIS
-  # configuration and never passes traffic. usb-gadget.service loads g_cdc (CDC ECM) instead.
-  - rpi-usb-gadget on -f && truncate -s 0 /etc/modules-load.d/usb-gadget.conf && systemctl enable usb-gadget.service && touch /run/reboot-required
-  - nmcli connection modify "USB Gadget (shared)" ipv4.addresses 10.10.10.10/29
   # Tailscale: uncomment to join a tailnet on first boot with a single-use, expiring auth key (tailscale.com/kb/1085). For an
   # exit node keep the forwarding line and the flag, then approve the node under Machines in the admin console (kb/1103).
   # - curl -fsSL https://tailscale.com/install.sh | sh

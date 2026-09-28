@@ -17,6 +17,7 @@ packages:
   - avahi-utils
   - pihero
   - pihero-avahi
+  - pihero-usb-gadget
 write_files:
   - path: /etc/apt/sources.list.d/pihero.sources
     content: |
