@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pi Hero apt repository</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 3rem auto; padding: 0 1rem; color: #222; }
+  pre { background: #f4f4f4; padding: .75rem 1rem; overflow-x: auto; }
+  code { font-size: .95em; }
+  a { color: #29abe2; }
+</style>
+</head>
+<body>
+<h1>Pi Hero apt repository</h1>
+<p>Debian packages that turn a Raspberry Pi running Raspberry Pi OS Lite (Trixie) into a Pi Hero device:
+<code>pihero</code> (boot configuration, MOTD, watchdog) and <code>pihero-avahi</code> (the device in Finder with a model icon).
+The packages, their source, and the device files that install them on first boot live at
+<a href="https://github.com/bkahlert/pihero">github.com/bkahlert/pihero</a>.</p>
+
+<h2>Add the repository</h2>
+<p>The flat repository at <code>/pihero/apt</code> is signed with the key whose fingerprint is
+<code>DE60 9D7F F5BE 430D AC8C C807 081F 70E6 A077 DF7A</code>. Device files embed it; on an existing system:</p>
+<pre>curl -fsSL https://bkahlert.github.io/pihero/apt/pihero-apt.asc | sudo tee /etc/apt/keyrings/pihero.asc &gt;/dev/null
+sudo tee /etc/apt/sources.list.d/pihero.sources &gt;/dev/null &lt;&lt;'SOURCES'
+Types: deb
+URIs: https://bkahlert.github.io/pihero/apt
+Suites: ./
+Signed-By: /etc/apt/keyrings/pihero.asc
+SOURCES
+sudo apt update &amp;&amp; sudo apt install pihero pihero-avahi</pre>
+
+<h2>Files</h2>
+<ul>
+  <li><a href="apt/Packages">Packages</a>, the index of published versions</li>
+  <li><a href="apt/pihero-apt.asc">pihero-apt.asc</a>, the signing key</li>
+  <li><a href="https://github.com/bkahlert/pihero/releases">Releases</a> on GitHub, with notes and the .deb files</li>
+</ul>
+</body>
+</html>
