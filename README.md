@@ -18,8 +18,8 @@ flash a card, copy the device file, boot. The Pi installs its packages and shows
 Planned, one package each: `pihero-splash`, `pihero-smb`, `pihero-bt-pan`, `pihero-display-hdmi`. The design is in
 [docs/superpowers/specs/2026-09-27-pihero-packages-design.md](docs/superpowers/specs/2026-09-27-pihero-packages-design.md).
 
-Pi Hero 1, the Ansible playbook, is frozen at tag [`pihero-ansible`](https://github.com/bkahlert/pihero/tree/pihero-ansible) and
-documented in [docs/ansible.md](docs/ansible.md).
+Pi Hero 1, the Ansible playbook, is frozen at tag [`pihero-ansible`](https://github.com/bkahlert/pihero/tree/pihero-ansible);
+[what it had and Pi Hero 2 does not](#not-carried-over-from-pi-hero-1) is listed at the end.
 
 | [![network browser](docs%2Fnetwork-browser.png) Pis in the network browser](./docs/network-browser.png) | [![network info foo](docs%2Fnetwork-info-foo.png) device information](./docs/network-info-foo.png) | [![device info bar](docs%2Fdevice-info-bar.png) device information with a custom model](./docs/device-info-bar.png) |
 |---------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
@@ -39,8 +39,9 @@ You need a Mac with [Homebrew](https://brew.sh/), a Raspberry Pi that runs the 6
    make flash DEVICE=mypi DISK=disk9
    ```
    This writes the pinned Raspberry Pi OS Lite (Trixie) image, reads it back to verify, copies the device files onto the boot
-   partition, and ejects the card. macOS asks once for authorization. Raspberry Pi Imager works as well: decline its
-   customisation and copy the two files to `/Volumes/bootfs/` yourself.
+   partition, puts the Wi-Fi regulatory domain on the kernel command line, and ejects the card. macOS asks once for
+   authorization. Raspberry Pi Imager works as well: set the Wi-Fi country in its customisation but nothing else, and copy
+   the two files to `/Volumes/bootfs/` yourself.
 3. **Boot.** cloud-init installs the packages from the Pi Hero repository and reboots once if a package asked for it, plus once
    more when the USB gadget is enabled. After a few minutes `ssh pi@mypi.local` greets you with the MOTD, and the Pi is in Finder.
 
@@ -93,11 +94,31 @@ make test-all      # tiers 0 to 2
 | ssh  | The `installed` tests against a real device, mutating tests skipped                          | `uv run pytest -m installed --target=ssh --target-uri=pi@mypi.local`    |
 
 `make deploy TARGET=pi@mypi.local` installs the freshly built packages on a device without going through the repository.
+[docs/workflows.md](docs/workflows.md) walks through the day-to-day: a new device, a change to a device, a change to a package,
+checking a real device, and a release.
 
 A feature is one directory under [packages/](packages/): `nfpm.yaml`, the files under `root/`, maintainer script fragments under
 `scripts/`, the units to enable in `units.txt`, and its `tests/`. The harness lives in [testkit/](testkit/); conventions for
 applications built on top are in [docs/app-conventions.md](docs/app-conventions.md). CI runs tiers 0 and 1 on every push, tier 2
 weekly, and the release workflow builds, signs, and publishes on every `v*` tag.
+
+## Not carried over from Pi Hero 1
+
+The Ansible version did more than the two packages so far. Everything below still works from tag
+[`pihero-ansible`](https://github.com/bkahlert/pihero/tree/pihero-ansible); this is what became of it.
+
+| Pi Hero 1 feature | Pi Hero 2 |
+|---|---|
+| Splash screen during boot and shutdown (Plymouth theme) | planned as `pihero-splash` |
+| Samba shares for the home directory and `/` | planned as `pihero-smb` |
+| Bluetooth PAN with trusted devices and a per-device subnet | planned as `pihero-bt-pan` |
+| HDMI display configuration | planned as `pihero-display-hdmi` |
+| Ethernet over USB with RNDIS for Windows | CDC ECM only, which macOS and Linux drive natively; Windows needs a driver until a configfs NCM gadget exists |
+| Serial port over USB, mass storage, keyboard, mouse, and custom composite gadget functions | dropped; out of scope until an application needs one |
+| `pihero` CLI with `pihero diag` diagnostics and the `gum` interface | dropped; the test tiers replace the diagnostics, and `gum` was too slow on old boards |
+| Per-device Ansible inventory (`inventory/`) | replaced by one cloud-init file per device under `devices/` |
+| Provisioning from a control machine over SSH | replaced by cloud-init on the card; changes are `apt upgrade` or a reflash |
+| Support for the 32-bit-only Raspberry Pi Zero W | packages are architecture-independent and the 32-bit Trixie image runs them, but `make flash` and the test harness pin the 64-bit image |
 
 ## Contributing
 

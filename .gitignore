@@ -11,3 +11,6 @@ __pycache__/
 devices/*
 !devices/sample/
 !devices/README.md
+
+# Pi Hero 1 private inventories; the Ansible version lives at tag pihero-ansible
+/inventory/
