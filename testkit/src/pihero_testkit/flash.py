@@ -1,0 +1,160 @@
+"""Writes Raspberry Pi OS Lite onto an SD card and puts a device's cloud-init files on its boot partition.
+
+macOS only. The raw disk is opened through authopen, which asks for authorization and hands the
+descriptor back over a socket, the way Raspberry Pi Imager does; a plain open is refused even for
+root. Writes are sector aligned and read back for verification.
+"""
+
+import hashlib
+import lzma
+import os
+import plistlib
+import shutil
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+from . import prepare
+
+CHUNK = 4 << 20
+SECTOR = 512
+BOOT_LABEL = "bootfs"
+DEVICE_FILES = ("user-data", "network-config", "meta-data")
+AUTHOPEN = "/usr/libexec/authopen"
+
+
+def device_dir(name: str) -> Path:
+    path = Path(name) if Path(name).is_dir() else Path.cwd() / "devices" / name
+    if not (path / "user-data").is_file():
+        raise SystemExit(f"{path} has no user-data")
+    return path
+
+
+def disk_info(disk: str) -> dict:
+    out = subprocess.run(["diskutil", "info", "-plist", disk], capture_output=True, check=True).stdout
+    return plistlib.loads(out)
+
+
+def check_removable(info: dict) -> None:
+    ident = info.get("DeviceIdentifier", "?")
+    if not info.get("WholeDisk"):
+        raise SystemExit(f"{ident} is a partition; name the whole disk")
+    if info.get("Internal") or not info.get("RemovableMedia"):
+        raise SystemExit(f"{ident} ({info.get('MediaName', 'unknown media')}) is not a removable disk")
+
+
+def open_raw(disk: str) -> int:
+    dev = f"/dev/r{disk}"
+    parent, child = socket.socketpair()
+    with subprocess.Popen([AUTHOPEN, "-stdoutpipe", "-o", str(os.O_RDWR), dev], stdout=child.fileno()) as proc:
+        child.close()
+        _, fds, _, _ = socket.recv_fds(parent, 1024, 1)
+        parent.close()
+    if not fds:
+        raise SystemExit(f"authopen did not open {dev} (exit {proc.returncode}); authorization denied?")
+    return fds[0]
+
+
+def write_image(fd: int, image: Path, report=lambda message: None) -> tuple[int, str]:
+    """Streams the xz image onto fd in sector-aligned chunks. Returns size and sha256 of the uncompressed image."""
+    digest = hashlib.sha256()
+    total = 0
+    started = time.monotonic()
+    next_report = 256 << 20
+    with lzma.open(image, "rb") as stream:
+        while chunk := stream.read(CHUNK):
+            digest.update(chunk)
+            total += len(chunk)
+            chunk += b"\0" * (-len(chunk) % SECTOR)
+            view = memoryview(chunk)
+            while view:
+                view = view[os.write(fd, view) :]
+            if total >= next_report:
+                report(f"written {total >> 20} MiB ({total / (time.monotonic() - started) / 1e6:.0f} MB/s)")
+                next_report += 256 << 20
+    return total, digest.hexdigest()
+
+
+def read_back(fd: int, size: int) -> str:
+    """Returns the sha256 of the first size bytes on fd, reading whole sectors as raw disks require."""
+    os.lseek(fd, 0, os.SEEK_SET)
+    digest = hashlib.sha256()
+    remaining = size + (-size % SECTOR)
+    hashed = 0
+    while remaining:
+        data = os.read(fd, min(CHUNK, remaining))
+        if not data:
+            raise SystemExit(f"short read while verifying: {remaining} bytes left")
+        remaining -= len(data)
+        take = min(len(data), size - hashed)
+        digest.update(data[:take])
+        hashed += take
+    return digest.hexdigest()
+
+
+def mount_bootfs(disk: str, timeout: float = 60) -> Path:
+    subprocess.run(["diskutil", "mountDisk", disk], capture_output=True, check=False)
+    deadline = time.monotonic() + timeout
+    while True:
+        info = disk_info(f"{disk}s1")
+        if info.get("MountPoint"):
+            if info.get("VolumeName") != BOOT_LABEL:
+                raise SystemExit(f"{disk}s1 is {info.get('VolumeName')!r}, expected {BOOT_LABEL!r}")
+            return Path(info["MountPoint"])
+        if time.monotonic() > deadline:
+            raise SystemExit(f"{disk}s1 did not mount")
+        time.sleep(1)
+
+
+def copy_device_files(device: Path, bootfs: Path) -> list[str]:
+    copied = []
+    for name in DEVICE_FILES:
+        if (device / name).is_file():
+            shutil.copyfile(device / name, bootfs / name)
+            copied.append(name)
+    return copied
+
+
+def flash(device: Path, disk: str) -> None:
+    info = disk_info(disk)
+    check_removable(info)
+    say(f"{disk}: {info.get('MediaName', '').strip()} {info.get('TotalSize', 0) / 1e9:.1f} GB")
+    config = prepare.lock()["raspios"]
+    image = prepare.download(config["url"], config["sha256"])
+    subprocess.run(["diskutil", "unmountDisk", "force", disk], check=True, capture_output=True)
+    fd = open_raw(disk)
+    try:
+        say(f"writing {image.name} ...")
+        size, expected = write_image(fd, image, say)
+        say(f"verifying {size >> 20} MiB ...")
+        actual = read_back(fd, size)
+    finally:
+        os.close(fd)
+    if actual != expected:
+        raise SystemExit(f"verification failed: wrote {expected}, read {actual}")
+    bootfs = mount_bootfs(disk)
+    copied = copy_device_files(device, bootfs)
+    say(f"copied {', '.join(copied)} from {device} to {bootfs}")
+    subprocess.run(["diskutil", "eject", disk], check=True, capture_output=True)
+    say(f"ejected {disk}; insert the card into the Raspberry Pi and power it on")
+
+
+def say(message: str) -> None:
+    print(f"  {message}", file=sys.stderr, flush=True)
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 2:
+        print("usage: python -m pihero_testkit.flash DEVICE DISK   (e.g. checkpoint disk9; see: diskutil list external)", file=sys.stderr)
+        return 2
+    if sys.platform != "darwin":
+        print("flash is macOS only", file=sys.stderr)
+        return 2
+    flash(device_dir(argv[0]), argv[1])
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

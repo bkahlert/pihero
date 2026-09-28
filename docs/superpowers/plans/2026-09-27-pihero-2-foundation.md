@@ -3690,3 +3690,4 @@ EOF
 - The all-features device requests a reboot with `touch /run/reboot-required` so provisioning exercises `power_state`, and restarts `pihero-avahi-render.service` after setting the pretty hostname.
 - Action versions bumped: `actions/checkout@v7`, `astral-sh/setup-uv@v10.2.0`, `docker/setup-qemu-action@v4`, `softprops/action-gh-release@v3`, `actions/cache@v6`.
 - `bootconfig unset config KEY VALUE` takes the positional VALUE as the match value; a stray positional on `add` or `remove` is a usage error.
+- Cards are written by `make flash DEVICE=<name> DISK=<diskN>` ([flash.py](../../../testkit/src/pihero_testkit/flash.py)): Raspberry Pi Imager's CLI cannot open the device from a terminal, and neither can `dd` as root, because macOS gates raw disk access behind `authopen`; the module uses it the way Imager does and verifies the written image.

@@ -4,6 +4,8 @@ SHELL := /bin/bash
 PLATFORM ?= linux/arm64
 QEMU_ACCEL ?= hvf
 TARGET ?=
+DEVICE ?=
+DISK ?=
 UV := uv run --frozen
 
 help: ## list targets
@@ -40,6 +42,10 @@ vm: ## boot the tier-2 VM and keep it running for inspection
 deploy: build ## install built packages on TARGET over SSH
 	@test -n "$(TARGET)" || { echo "usage: make deploy TARGET=host"; exit 2; }
 	@$(UV) python -m pihero_testkit.deploy "$(TARGET)"
+
+flash: ## write Raspberry Pi OS and a device's files to an SD card (make flash DEVICE=name DISK=disk9)
+	@test -n "$(DEVICE)" -a -n "$(DISK)" || { echo "usage: make flash DEVICE=name DISK=diskN   (diskutil list external)"; exit 2; }
+	@$(UV) python -m pihero_testkit.flash "$(DEVICE)" "$(DISK)"
 
 clean: ## remove build outputs
 	rm -rf dist packages/*/.build
