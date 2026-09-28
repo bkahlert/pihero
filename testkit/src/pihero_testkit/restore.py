@@ -46,17 +46,25 @@ def image_for(path: str, backups: Path = BACKUPS) -> Path:
 def check_fits(info: dict, size: int) -> None:
     total = info.get("TotalSize", 0)
     if total < size:
-        raise SystemExit(f"{info.get('DeviceIdentifier', '?')} holds {total / 1e9:.1f} GB, the image needs {size / 1e9:.1f} GB; use a larger card")
+        short = -(-(size - total) // (1 << 20))
+        raise SystemExit(
+            f"{info.get('DeviceIdentifier', '?')} holds {total / 1e9:.1f} GB, the image needs {size / 1e9:.1f} GB ({short} MiB short); use a larger card"
+        )
 
 
-def restore(image: Path, info: dict) -> None:
-    ident = info["DeviceIdentifier"]
-    total = info.get("TotalSize", 0)
+def check(image: Path, info: dict) -> dict | None:
+    """Returns the image's sidecar after checking that the card can hold it; None, with a warning, when there is no sidecar."""
     meta = sidecar(image)
     if meta:
         check_fits(info, meta["size"])
     else:
         say(f"no {sidecar_for(image).name} next to the image; skipping the size and integrity checks")
+    return meta
+
+
+def restore(image: Path, info: dict, meta: dict | None) -> None:
+    ident = info["DeviceIdentifier"]
+    total = info.get("TotalSize", 0)
     say(f"{ident}: {info.get('MediaName', '').strip()} {total / 1e9:.1f} GB")
     disk.unmount(ident)
     fd = disk.open_raw(ident, os.O_RDWR)
@@ -87,10 +95,11 @@ def main(argv: list[str]) -> int:
         return 2
     image = image_for(args.image)
     info = disk.card(args.disk)
+    meta = check(image, info)
     if not (args.image and args.disk) and not prompt.confirm(f"Restore {image.name} onto {disk.describe(info)}?"):
         print("cancelled", file=sys.stderr)
         return 1
-    restore(image, info)
+    restore(image, info, meta)
     return 0
 
 

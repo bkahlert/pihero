@@ -1,6 +1,7 @@
 import hashlib
 import lzma
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,10 @@ class TestCheckFits:
     def test_refuses_a_smaller_card_naming_both_sizes(self):
         with pytest.raises(SystemExit, match=r"disk9 holds 31\.9 GB, the image needs 32\.0 GB"):
             restore.check_fits(CARD, 32_000_000_000)
+
+    def test_names_the_shortfall_when_both_sizes_round_alike(self):
+        with pytest.raises(SystemExit, match=r"disk9 holds 31\.9 GB, the image needs 31\.9 GB \(21 MiB short\)"):
+            restore.check_fits({**CARD, "TotalSize": 31893291008}, 31914983424)
 
     def test_accepts_an_equal_card(self):
         result = restore.check_fits(CARD, CARD["TotalSize"])
@@ -111,6 +116,33 @@ class TestImageFor:
             restore.image_for("", tmp_path)
 
 
+class TestCheck:
+    def test_returns_the_sidecar_of_an_image_that_fits(self, tmp_path):
+        payload = os.urandom(2 * flash.SECTOR)
+        image = backup_image(tmp_path, payload)
+
+        meta = restore.check(image, {**CARD, "TotalSize": len(payload)})
+
+        assert meta == {"size": len(payload), "sha256": hashlib.sha256(payload).hexdigest()}
+
+    def test_refuses_a_smaller_card(self, tmp_path):
+        payload = os.urandom(4 * flash.SECTOR)
+        image = backup_image(tmp_path, payload)
+
+        with pytest.raises(SystemExit, match="use a larger card"):
+            restore.check(image, {**CARD, "TotalSize": len(payload) - flash.SECTOR})
+
+    def test_is_none_and_says_so_without_a_sidecar(self, tmp_path, capsys):
+        payload = os.urandom(2 * flash.SECTOR)
+        image = backup_image(tmp_path, payload)
+        backup.sidecar_for(image).unlink()
+
+        meta = restore.check(image, {**CARD, "TotalSize": len(payload)})
+
+        assert meta is None
+        assert "skipping the size and integrity checks" in capsys.readouterr().err
+
+
 class TestRestore:
     def test_writes_verifies_and_ejects(self, tmp_path, monkeypatch, capsys):
         payload = os.urandom(3 * flash.SECTOR + 100)
@@ -119,7 +151,7 @@ class TestRestore:
         ejected = []
         monkeypatch.setattr(restore.disk, "eject", ejected.append)
 
-        restore.restore(image, {**CARD, "TotalSize": len(payload) + 4096})
+        restore.restore(image, {**CARD, "TotalSize": len(payload) + 4096}, restore.sidecar(image))
 
         assert card.read_bytes()[: len(payload)] == payload
         assert ejected == ["disk9"]
@@ -130,41 +162,75 @@ class TestRestore:
         image = backup_image(tmp_path, payload)
         fake_card(tmp_path, bytes(len(payload)), monkeypatch)
 
-        restore.restore(image, {**CARD, "TotalSize": len(payload)})
+        restore.restore(image, {**CARD, "TotalSize": len(payload)}, restore.sidecar(image))
 
         assert "expand-rootfs" not in capsys.readouterr().err
-
-    def test_refuses_a_smaller_card_before_opening_it(self, tmp_path, monkeypatch):
-        payload = os.urandom(4 * flash.SECTOR)
-        image = backup_image(tmp_path, payload)
-        fake_card(tmp_path, bytes(len(payload)), monkeypatch)
-        opened = []
-        monkeypatch.setattr(restore.disk, "open_raw", lambda ident, flags: opened.append(flags))
-
-        with pytest.raises(SystemExit, match="use a larger card"):
-            restore.restore(image, {**CARD, "TotalSize": len(payload) - flash.SECTOR})
-
-        assert opened == []
 
     def test_reports_a_damaged_image(self, tmp_path, monkeypatch):
         payload = os.urandom(2 * flash.SECTOR)
         image = backup_image(tmp_path, payload)
-        backup.write_sidecar(image, len(payload), "00" * 32)
         fake_card(tmp_path, bytes(len(payload)), monkeypatch)
 
         with pytest.raises(SystemExit, match="damaged"):
-            restore.restore(image, {**CARD, "TotalSize": len(payload)})
+            restore.restore(image, {**CARD, "TotalSize": len(payload)}, {"size": len(payload), "sha256": "00" * 32})
 
-    def test_restores_without_a_sidecar_and_says_so(self, tmp_path, monkeypatch, capsys):
+    def test_writes_without_a_sidecar(self, tmp_path, monkeypatch):
         payload = os.urandom(2 * flash.SECTOR)
         image = backup_image(tmp_path, payload)
         backup.sidecar_for(image).unlink()
         card = fake_card(tmp_path, bytes(len(payload)), monkeypatch)
 
-        restore.restore(image, {**CARD, "TotalSize": len(payload)})
+        restore.restore(image, {**CARD, "TotalSize": len(payload)}, None)
 
         assert card.read_bytes() == payload
-        assert "skipping the size and integrity checks" in capsys.readouterr().err
+
+
+class TestMain:
+    def test_refuses_a_smaller_card_before_asking_and_before_opening_it(self, tmp_path, monkeypatch):
+        payload = os.urandom(4 * flash.SECTOR)
+        image = backup_image(tmp_path, payload)
+        fake_card(tmp_path, bytes(len(payload)), monkeypatch)
+        asked, opened = [], []
+        monkeypatch.setattr(sys, "platform", "darwin")
+        monkeypatch.setattr(restore.disk, "card", lambda ident: {**CARD, "TotalSize": len(payload) - flash.SECTOR})
+        monkeypatch.setattr(restore.prompt, "confirm", lambda question: asked.append(question) or True)
+        monkeypatch.setattr(restore.disk, "open_raw", lambda ident, flags: opened.append(flags))
+
+        with pytest.raises(SystemExit, match="use a larger card"):
+            restore.main(["--image", str(image), "--disk", ""])
+
+        assert asked == []
+        assert opened == []
+
+    def test_writes_without_confirmation_when_image_and_disk_are_given(self, tmp_path, monkeypatch):
+        payload = os.urandom(2 * flash.SECTOR)
+        image = backup_image(tmp_path, payload)
+        card = fake_card(tmp_path, bytes(len(payload)), monkeypatch)
+        asked = []
+        monkeypatch.setattr(sys, "platform", "darwin")
+        monkeypatch.setattr(restore.disk, "card", lambda ident: {**CARD, "TotalSize": len(payload)})
+        monkeypatch.setattr(restore.prompt, "confirm", lambda question: asked.append(question) or False)
+
+        code = restore.main(["--image", str(image), "--disk", "disk9"])
+
+        assert code == 0
+        assert asked == []
+        assert card.read_bytes() == payload
+
+    def test_asks_for_confirmation_when_the_card_was_chosen_and_stops_on_no(self, tmp_path, monkeypatch):
+        payload = os.urandom(2 * flash.SECTOR)
+        image = backup_image(tmp_path, payload)
+        card = fake_card(tmp_path, bytes(len(payload)), monkeypatch)
+        asked = []
+        monkeypatch.setattr(sys, "platform", "darwin")
+        monkeypatch.setattr(restore.disk, "card", lambda ident: {**CARD, "TotalSize": len(payload)})
+        monkeypatch.setattr(restore.prompt, "confirm", lambda question: asked.append(question) or False)
+
+        code = restore.main(["--image", str(image), "--disk", ""])
+
+        assert code == 1
+        assert asked == [f"Restore {image.name} onto disk9  USB3.0 CRW   -SD  0.0 GB?"]
+        assert card.read_bytes() == bytes(len(payload))
 
 
 def backup_image(tmp_path, payload: bytes) -> Path:
