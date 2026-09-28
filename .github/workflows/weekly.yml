@@ -20,4 +20,6 @@ jobs:
         with:
           path: ~/.cache/pihero
           key: pihero-base-${{ hashFiles('testkit/src/pihero_testkit/images.lock', 'testkit/src/pihero_testkit/prepare-rootfs') }}
-      - run: make test-tier2 QEMU_ACCEL=tcg
+      # prepare-rootfs mounts the Raspberry Pi OS image through loop devices, which the runner's rootless podman
+      # cannot provide, and QEMU must be able to write what the tools container creates: the whole step runs as root.
+      - run: sudo -E env "PATH=$PATH" make test-tier2 QEMU_ACCEL=tcg
