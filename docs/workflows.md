@@ -78,5 +78,5 @@ curl -fsS https://bkahlert.github.io/pihero/apt/Packages | grep -A1 '^Package: p
 ```
 
 Tags with a pre-release suffix such as `v2.1.0-rc.1` publish as `2.1.0~rc.1` and are marked pre-release on GitHub. The
-signing key lives in the `APT_SIGNING_KEY` repository secret; `make repo` builds and signs the same repository locally from
-`~/.config/pihero-apt-signing-key.asc`.
+signing key is the `APT_SIGNING_KEY` secret of the `release` environment, which only `v*` tags can deploy to; `make repo`
+builds and signs the same repository locally from `~/.config/pihero-apt-signing-key.asc`.

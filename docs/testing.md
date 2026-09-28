@@ -97,3 +97,8 @@ GitHub's Arm runners do not offer, so it runs locally as part of `make release` 
 no loop device for `prepare-rootfs`, while a rootful container alone leaves the boot image owned by root where QEMU, as the
 runner user, cannot open it. The weekly run is the "what rotted" signal. The release workflow builds, signs, and publishes on
 every `v*` tag.
+
+`main` takes changes only through pull requests with tiers 0 and 1 green and can neither be force-pushed nor deleted; `v*` tags
+cannot be moved or deleted. Workflows run with a read-only token, only the release job may write, and it alone sees the signing
+key. Actions are pinned to commits and the repository refuses unpinned ones; Dependabot proposes the monthly bump. Workflows
+from external forks wait for approval before they run.
