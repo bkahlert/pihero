@@ -9,6 +9,10 @@ them here or in a private repository. The reasons behind the workarounds in the 
 
 [sample/user-data](sample/user-data) is a complete device. Top to bottom:
 
+- The leading comments name the board and the image. The `# image:` line is load-bearing: `make flash` writes the image it
+  names, `raspios_lite_arm64` for the Zero 2 W and up or `raspios_lite_armhf` for the Zero W and other ARMv6 boards, and
+  the 64-bit image when the line is absent. The names are the tables of
+  [images.lock](../testkit/src/pihero_testkit/images.lock).
 - `hostname`, `timezone`, `enable_ssh`, `ssh_pwauth: false`, and `users` with your public key: plain cloud-init. Keep
   `lock_passwd: true`; the key is the only way in.
 - `rpi: interfaces:` switches SPI, I²C, and the GPIO UART. Changing them costs the first of the two provisioning reboots.
@@ -65,7 +69,7 @@ Find the card with `diskutil list external`, then:
 
     make flash DEVICE=<host> DISK=disk9
 
-This writes the pinned Raspberry Pi OS Lite (Trixie) image, reads it back to verify, copies the device files onto the boot
+This writes the pinned Raspberry Pi OS Lite (Trixie) image the device file names, reads it back to verify, copies the device files onto the boot
 partition, puts the Wi-Fi regulatory domain on the kernel command line, and ejects the card. macOS asks once for
 authorization; the card takes about two minutes. Raspberry Pi Imager works too: set the Wi-Fi country in its customisation
 and nothing else, then copy `user-data` and `network-config` to `/Volumes/bootfs/` before ejecting.

@@ -17,7 +17,8 @@ platform quirks the device files work around, [devices/README.md](../devices/REA
   SPI, GPIO, and framebuffer access from a container on 512 MB fights the platform. Applications are systemd services delivered
   as packages.
 - The target OS is Raspberry Pi OS Lite on Debian 13 (Trixie), which ships cloud-init. The 32-bit image supports every board
-  including the Zero W; the 64-bit image supports the Zero 2 W and up. `make flash` and the harness pin the 64-bit image.
+  including the Zero W; the 64-bit image supports the Zero 2 W and up. Both are pinned: the device file names its image, 64-bit
+  unless it says otherwise, and the harness runs the 64-bit one.
 - Upstream mechanisms win over own code: `rpi-usb-gadget`, NetworkManager, `raspi-config nonint`, cloud-init's `rpi:` module.
   Own code exists only where they have no option, and then it is Python 3 standard library.
 - The interactive CLI and `gum` are gone from the device: too slow on old boards, and the tests replace the diagnostics. Mac-side

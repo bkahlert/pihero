@@ -18,7 +18,8 @@ make vm-prepare      # caches the tier-2 base image, about ten minutes once
    mkdir devices/mypi && cp devices/sample/user-data devices/sample/network-config devices/mypi/
    ```
    In `user-data` set `hostname`, your SSH public key, the pretty name in `runcmd`, the `MODEL` for the Finder icon, and the USB
-   gadget's name and subnet in `/etc/pihero/usb-gadget.conf`. In `network-config` set the Wi-Fi name and password and keep `regulatory-domain`.
+   gadget's name and subnet in `/etc/pihero/usb-gadget.conf`; a Zero W or another ARMv6 board takes `# image: raspios_lite_armhf`
+   in the header. In `network-config` set the Wi-Fi name and password and keep `regulatory-domain`.
 2. Flash. Insert the card, find it, write it:
    ```shell
    diskutil list external
