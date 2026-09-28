@@ -79,7 +79,7 @@ restore: ## write a backup image onto an SD card (make restore [IMAGE=backups/x.
 3. **Checks.** The card must be removable, as in `flash`, and its `TotalSize` must be at least the image's `size` from the
    sidecar; otherwise the tool names both sizes and exits before touching the card. Without a sidecar the size check and the
    file-integrity check are skipped and the tool says so; the card is still verified.
-4. **Confirmation.** Unless both `IMAGE` and `DISK` were given, one question names the image and the card and requires `y`.
+4. **Confirmation.** Unless both `IMAGE` and `DISK` were given, one question names the image and the card and requires `y` or `yes`.
 5. **Write.** The disk is force-unmounted, opened through `authopen`, and `flash.write_image` streams the image onto it.
    The digest it returns is compared with the sidecar's `sha256`; a mismatch means the backup file is damaged and is reported
    as such. Then `flash.read_back` verifies the card, as `flash` does.
@@ -119,8 +119,7 @@ Tier 0, file-backed like [test_flash.py](../../../testkit/tests/test_flash.py):
   holds its size and sha256, `flash.write_image` writes it back onto another file, and the bytes match.
 - An existing image is refused and left untouched.
 - The size check refuses a smaller card with both sizes in the message and accepts an equal and a larger one.
-- `prompt.choose` returns the numbered pick, the first on Enter, and asks again on an invalid line; `prompt.confirm` accepts
-  only `y`.
+- `prompt.choose` returns the numbered pick, the first on Enter, and asks again on an invalid line; `prompt.confirm` accepts `y` and `yes`.
 - Static checks and the `flash` tests are unchanged apart from imports.
 
 ## Documentation

@@ -56,7 +56,8 @@ make restore                      # asks which image and which card, confirms, w
 ```
 
 Images land in `backups/<hostname>-<date>.img.xz`, gitignored, next to a `.toml` with the size and checksum a restore checks
-first. The hostname comes from the card's `user-data`; `NAME=` overrides it, and `DISK=` and `IMAGE=` skip the questions.
+first. The hostname comes from the card's `user-data`; `NAME=` overrides it, and `DISK=` and `IMAGE=` skip the questions; a
+restore given both writes without asking.
 A 16 GB card took six minutes to back up and nineteen to restore, the card's own write speed setting the latter; a 32 GB card
 takes about twice that. Restore needs a card at least as large as the one imaged, and a nominally equal card from another
 maker can be a few megabytes short, so when replacing a card buy the next size up. On a larger card the root filesystem keeps
