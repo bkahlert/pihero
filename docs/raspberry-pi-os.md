@@ -59,6 +59,24 @@ The stock boot partition already carries `user-data`, `network-config`, and `met
   list.
 - The Raspberry Pi kernel has no `g_ncm` module, only `usb_f_ncm` for configfs.
 
+## Plymouth, tried and dropped
+
+Version 1's splash was built as `pihero-splash`, verified on a Zero 2 W, and dropped on 2026-09-28; these are the facts behind
+the decision in [design.md](design.md).
+
+- **Two kernels, two initrds.** The 64-bit image installs `linux-image-rpi-v8` and `linux-image-rpi-2712`; `update-initramfs`
+  builds `/boot/initrd.img-<version>` for each, and `raspi-firmware`'s hook copies them to `/boot/firmware/initramfs8` and
+  `initramfs_2712`. `update_initramfs=yes`, not `all`, so a bare `update-initramfs -u` covers the running kernel only, and from
+  a maintainer script it defers to the dpkg trigger; a theme package has to run `plymouth-set-default-theme -R`, which is
+  `update-initramfs -u -k all`.
+- **Plymouth comes from Debian**, 24.004.60-5 in Trixie; the Raspberry Pi archive carries none. Installing `plymouth`,
+  `plymouth-themes`, and the theme rebuilt both initrds three times, 64 s, 55 s, and 76 s in dpkg's log on a Zero 2 W, and
+  doubled the emulated tier-2 run to 50 minutes. `plymouthd.conf` is Plymouth's conffile, so a theme package that sets `Theme=`
+  has to hand the file back byte for byte on purge.
+- **The quiet boot hides the console.** `quiet loglevel=3 systemd.show_status=auto` and the splash itself cover the boot
+  messages until `plymouth-quit`, 36 s into the boot on the checkpoint. A board that does not come up shows a spinner instead of
+  the unit that failed. Console blanking is off by default, so version 1's `consoleblank=0` never did anything.
+
 ## Debugging a card
 
 - The journal is volatile even with `/var/log/journal` present; a first boot's NetworkManager log survives only if `runcmd`

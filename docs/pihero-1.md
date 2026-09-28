@@ -11,7 +11,7 @@ each part in Pi Hero 2; the reasoning is in [design.md](design.md).
 | MOTD blocks | `pihero`: one `/etc/update-motd.d/` script |
 | `kernel_parameters` module and `config.txt` edits | `pihero`: `bootconfig`, used only where cloud-init's `rpi:` and `raspi-config nonint` have no option |
 | device_info role: Avahi install, pretty hostname, `_device-info._tcp`, `_ssh._tcp` | `pihero-avahi`, rendered at boot; Raspberry Pi OS ships Avahi |
-| Splash screen during boot and shutdown (Plymouth theme) | planned as `pihero-splash` |
+| Splash screen during boot and shutdown (Plymouth theme) | Dropped; the quiet-boot parameters it needs hide the messages that matter when a headless board does not come up, and Plymouth rebuilds both initrds three times per install; the console stays as Raspberry Pi OS ships it |
 | Samba shares for the home directory and `/` | Dropped; `pihero-avahi` announces `_smb._tcp`, which is what put the Pi into Finder's network browser, and nothing serves files |
 | Bluetooth PAN with trusted devices and a per-device subnet | planned as `pihero-bt-pan`, on a NetworkManager bridge instead of ifupdown and dnsmasq |
 | HDMI display configuration (`hdmi_group`, `hdmi_mode`, `hdmi_cvt`) | planned as `pihero-display-hdmi` with `video=` kernel parameters; Trixie runs full KMS, where the old keys are ignored |
