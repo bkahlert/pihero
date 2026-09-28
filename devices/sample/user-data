@@ -18,6 +18,18 @@ rpi:
     spi: false
     i2c: false
     serial: true
+# cloud-final installs the packages. A fresh card's clock is at the image build date until NTP has synced, and apt rejects every
+# repository signature before that as "not live yet". systemd-time-wait-sync reaches time-sync.target on sync; cloud-final waits for
+# it, five minutes at most. bootcmd runs before the network here and is the only step early enough for the current boot to pick it up.
+bootcmd:
+  - |
+    test -e /etc/systemd/system/cloud-final.service.d/time-sync.conf && exit 0
+    mkdir -p /etc/systemd/system/cloud-final.service.d /etc/systemd/system/systemd-time-wait-sync.service.d
+    printf '[Unit]\nAfter=time-sync.target\nWants=time-sync.target\n' > /etc/systemd/system/cloud-final.service.d/time-sync.conf
+    printf '[Service]\nTimeoutStartSec=5min\n' > /etc/systemd/system/systemd-time-wait-sync.service.d/timeout.conf
+    systemctl daemon-reload
+    systemctl enable systemd-time-wait-sync.service
+    systemctl start --no-block systemd-time-wait-sync.service
 package_update: true
 packages:
   - pihero

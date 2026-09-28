@@ -341,6 +341,9 @@ ssh_pwauth: false
 rpi:
   interfaces:
     spi: true
+bootcmd:
+  - |
+    # orders cloud-final.service after time-sync.target and enables systemd-time-wait-sync (see devices/sample)
 packages: [pihero-avahi, pihero-smb, pihero-splash, pihole-chronometer, epaper-display]
 write_files:
   - path: /etc/apt/sources.list.d/pihero.sources
@@ -386,6 +389,14 @@ Wi-Fi goes into `network-config` next to it, as Imager writes it. `make flash` c
 `regulatory-domain` onto the kernel command line as `cfg80211.ieee80211_regdom=`, as Imager does:
 Raspberry Pi OS brings Wi-Fi up on the first boot only when the domain is already there, and
 netplan's own write during that boot comes too late for the package installation.
+
+A fresh card boots with its clock at the image's build date (Trixie ships no fake-hwclock;
+systemd-timesyncd restores the time it last saved) and cloud-init's final stage runs apt as soon as
+the network is up, before the clock is stepped: every `InRelease` signature is "not live yet", the
+repository counts as unsigned, nothing installs, and the reboot that follows leaves `cloud-init status`
+at `done` without errors. `bootcmd` therefore orders `cloud-final.service` after `time-sync.target` and
+enables `systemd-time-wait-sync`, which reaches the target on sync or after five minutes. It cannot wait
+itself: the NoCloud seed is in local mode, so this image runs the init modules before the network.
 
 ### 9.2 Defaults and overrides never share a file
 
