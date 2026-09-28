@@ -32,12 +32,19 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture(scope="session")
-def version() -> str:
+def version(request) -> str:
+    """The version the tests assert against: what a real device has installed, otherwise what gets built."""
+    if request.config.getoption("--target") == "ssh":
+        from .ssh import installed_version
+
+        return installed_version(request.config.getoption("--target-uri"))
     return build.version_from_git()
 
 
 @pytest.fixture(scope="session")
-def packages(version):
+def packages(request, version):
+    if request.config.getoption("--target") == "ssh":
+        return []
     return build.build_all(version)
 
 
