@@ -30,6 +30,7 @@ platform quirks the device files work around, [devices/README.md](../devices/REA
 | USB Ethernet | `pihero-usb-gadget` on top of upstream `rpi-usb-gadget`, loading `g_cdc` from its own unit | Maintained by Raspberry Pi and handles internet-sharing detection; its `g_ether` default and its cloud-init hook both fail in practice, see [raspberry-pi-os.md](raspberry-pi-os.md) |
 | USB serial console | Dropped for the GPIO UART (`rpi: interfaces: serial: true`) | A broken gadget broke its serial port too, so it never was an independent path |
 | Custom gadget functions (mass storage, HID) | Deferred until an application needs one | Mutually exclusive with `rpi-usb-gadget` on one board |
+| Samba shares | Dropped; `pihero-avahi` announces `_smb._tcp` with nothing behind it | The shares only ever put the Pi into Finder's network browser, which lists file servers and takes the icon from `_device-info._tcp` |
 | On-device logic | Python 3 standard library for anything that parses or edits files; shell only in `ExecStart=` lines and maintainer scripts | Idempotent edits of boot files are where shell bites; cloud-init guarantees Python on every image |
 | Package build | `nfpm` | One YAML manifest plus a file tree, builds in under a second, no Debian toolchain |
 | Tests | pytest with pytest-testinfra | One assertion API over a podman container, a VM, and a real Pi |
@@ -43,8 +44,8 @@ platform quirks the device files work around, [devices/README.md](../devices/REA
 │ Apps            pihole-chronometer, epaper-display, netmon   │  own repos, own packages, own tests
 ├─────────────────────────────────────────────────────────────┤
 │ Pi Hero         pihero, pihero-avahi, pihero-usb-gadget,     │  this repo, packages/*
-│                 later pihero-smb, pihero-splash,             │
-│                 pihero-display-hdmi, pihero-bt-pan           │
+│                 later pihero-splash, pihero-display-hdmi,    │
+│                 pihero-bt-pan                                │
 ├─────────────────────────────────────────────────────────────┤
 │ Raspberry Pi OS Lite (Trixie), cloud-init, rpi-usb-gadget,   │  written by make flash or Imager
 │ NetworkManager, avahi-daemon, raspi-config                   │
@@ -119,10 +120,13 @@ It is named to sort after Raspberry Pi OS's own `40-rpi-enable-watchdog.conf` (`
 
 Depends on `pihero` and `avahi-daemon`. `pihero-avahi-render.service` (`Type=oneshot`, `RemainAfterExit=yes`,
 `Before=avahi-daemon.service`, `EnvironmentFile=-/etc/pihero/device-info.conf`) runs `avahi-render` every boot, which writes
-`/etc/avahi/services/pihero-device-info.service` and `pihero-ssh.service` from the templates: the service name is the pretty
-hostname from `hostnamectl`, `_device-info._tcp` carries `model=` from `MODEL` (default `AirPort4`) and `machine=` from
-`/proc/device-tree/model`, and `_ssh._tcp` and `_sftp-ssh._tcp` point at port 22. Records are plain text because avahi 0.8
-ignores `value-format` and would hand a base64 value to clients undecoded. The unit reloads Avahi with
+`/etc/avahi/services/pihero-device-info.service`, `pihero-ssh.service`, and `pihero-smb.service` from the templates: the
+service name is the pretty hostname from `hostnamectl`, `_device-info._tcp` carries `model=` from `MODEL` (default `AirPort4`)
+and `machine=` from `/proc/device-tree/model`, `_ssh._tcp` and `_sftp-ssh._tcp` point at port 22, and `_smb._tcp` at port
+445. The SMB record is what puts the Pi into Finder's network browser: Finder lists file servers and uses `_device-info._tcp`
+only for the icon, so without it neither shows. Nothing listens on 445, and opening the entry fails; a Samba of its own would
+announce the plain hostname next to the pretty name, which is why version 1 turned Samba's registration off. Records are
+plain text because avahi 0.8 ignores `value-format` and would hand a base64 value to clients undecoded. The unit reloads Avahi with
 `systemctl --no-block try-reload-or-restart`; the blocking form deadlocked the boot. `/etc/avahi/avahi-daemon.conf` is not
 touched: it is a conffile of `avahi-daemon`, and Debian's defaults already match what version 1 set. Purge removes the rendered
 files.
@@ -146,10 +150,6 @@ next boot.
 Each follows the same pattern: files under `root/`, a render unit ordered before its consumer where a value must end up in a
 file another daemon reads, defaults in code, overrides from `/etc/pihero/<feature>.conf`, tests next to it.
 
-- **`pihero-smb`**: depends on `samba`; a render unit before `smbd.service` backs up `/etc/samba/smb.conf` once to
-  `/var/lib/pihero/` and writes it from a template (every user's home read-write, `/` read-only), plus an Avahi record. The
-  password stays a documented `sudo smbpasswd -a $USER`: cloud-init has no prompt and a plaintext password does not belong on
-  the FAT partition. Purge restores the backup.
 - **`pihero-splash`**: depends on `plymouth` and `plymouth-themes`; ships the theme, and postinst adds the quiet-boot
   parameters (`quiet splash plymouth.ignore-serial-consoles logo.nologo loglevel=3 udev.log_level=3 rd.udev.log_level=3
   systemd.show_status=auto vt.global_cursor_default=0 consoleblank=0`) and `disable_splash=1` through `bootconfig`, then

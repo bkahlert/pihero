@@ -13,13 +13,13 @@ no control machine, no playbook.
 | Package             | What it does                                                                                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `pihero`            | The MOTD lists installed features, failed units, pending reboots, and the USB address; the hardware watchdog is armed; `bootconfig` edits the boot files safely |
-| `pihero-avahi`      | The Pi appears in Finder's network browser with an icon and its device information; SSH is advertised too                                                       |
+| `pihero-avahi`      | The Pi appears in Finder's network browser with an icon and its device information, announced as an SMB server because that is what Finder lists; SSH is advertised too |
 | `pihero-usb-gadget` | Ethernet over USB on top of Raspberry Pi's `rpi-usb-gadget`: a Mac on the cable gets an address from the Pi and lists the interface under the board's name      |
 
 | [![network browser](docs%2Fnetwork-browser.png) Pis in the network browser](./docs/network-browser.png) | [![network info foo](docs%2Fnetwork-info-foo.png) device information](./docs/network-info-foo.png) | [![device info bar](docs%2Fdevice-info-bar.png) device information with a custom model](./docs/device-info-bar.png) |
 |---------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
 
-Planned, one package each: splash screen, Samba shares, Bluetooth PAN, HDMI modes. Pi Hero 1, the Ansible playbook, is frozen
+Planned, one package each: splash screen, Bluetooth PAN, HDMI modes. Pi Hero 1, the Ansible playbook, is frozen
 at tag [`pihero-ansible`](https://github.com/bkahlert/pihero/tree/pihero-ansible); [docs/pihero-1.md](docs/pihero-1.md) says
 what became of each of its features.
 

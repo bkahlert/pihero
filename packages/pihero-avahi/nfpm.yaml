@@ -7,8 +7,8 @@ priority: optional
 maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
 description: |
   Pi Hero: advertise the device on the local network.
-  Publishes _device-info._tcp with model and board, and _ssh._tcp/_sftp-ssh._tcp,
-  under the pretty hostname.
+  Publishes _device-info._tcp with model and board, _ssh._tcp/_sftp-ssh._tcp, and _smb._tcp
+  under the pretty hostname; the SMB record makes Finder list the device, nothing serves files.
 homepage: https://github.com/bkahlert/pihero
 license: MIT
 depends:
