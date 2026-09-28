@@ -1,8 +1,8 @@
 # Raspberry Pi OS and cloud-init
 
 Field notes from the Raspberry Pi OS Lite 64-bit (Trixie) image of 2026-09-15 on a Raspberry Pi Zero 2 W, on Wi-Fi and on the
-USB port of a Mac running macOS 27. Each note names the symptom, the cause, and what the [sample device file](../devices/sample/user-data)
-or `make flash` does about it. None of these is a Pi Hero bug; all of them cost a first boot to find.
+USB port of a Mac running macOS 27. Each note names the symptom, the cause, and what the packages, the
+[sample device file](../devices/sample/user-data), or `make flash` do about it. None of these is a Pi Hero bug; all of them cost a first boot to find.
 
 ## How the image runs cloud-init
 
@@ -35,8 +35,9 @@ The stock boot partition already carries `user-data`, `network-config`, and `met
   this, because its saved clock is recent; only a fresh card does.
 - **`rpi: enable_usb_gadget: true` never works on a fresh card.** cloud-init runs `rpi-usb-gadget on -f` with a 15 s timeout,
   the script itself waits 5 s and 10 s for a `usb0` that only exists after a reboot, the module aborts, the rest of `rpi:` is
-  skipped, and no reboot is requested. The device file enables the gadget from `runcmd` and touches `/run/reboot-required`
-  for `power_state`. In the tier-2 VM the script refuses outright because the device tree is not a Raspberry Pi.
+  skipped, and no reboot is requested. `pihero-usb-gadget`'s postinst runs `rpi-usb-gadget on -f`, which has no timeout, and
+  requests the reboot `power_state` takes. In the tier-2 VM the postinst skips it: the script refuses a device tree that is
+  not a Raspberry Pi.
 - **Two reboots, about six minutes.** First boot 2.5 min (Wi-Fi at 70 s, `rpi: interfaces:` applied, reboot), second boot
   2 min (time sync, apt, gadget, reboot), third boot done after 47 s. Re-provisioning a card with `cloud-init clean --logs`
   takes about 4.5 min. SSH answers 70 to 90 s after power-on on any boot.
@@ -49,12 +50,13 @@ The stock boot partition already carries `user-data`, `network-config`, and `met
 
 - **`g_ether` passes no frames to macOS 27.** The host binds the module's RNDIS configuration, which macOS no longer drives.
   `g_cdc` (CDC ECM plus an ACM serial port the Mac sees as `/dev/tty.usbmodem*`) works on macOS and Linux; Windows has no
-  inbox ECM driver and would need RNDIS or, later, a configfs NCM gadget. The device file empties `rpi-usb-gadget`'s
-  modules-load file, which keeps the script's on/off state without loading `g_ether`, and loads `g_cdc` from its own unit.
+  inbox ECM driver and would need RNDIS or, later, a configfs NCM gadget. `pihero-usb-gadget` blacklists `g_ether`, which
+  `systemd-modules-load` honours, so `rpi-usb-gadget`'s on/off marker stays as it is, and loads `g_cdc` from its own unit.
 - **macOS asks for DHCP only while the link comes up**, then settles for a self-assigned address. `g_ether` loaded at 10 s,
   NetworkManager served DHCP at 25 s. The unit is ordered `After=NetworkManager.service`.
 - **macOS creates a network service per host MAC**, and `g_cdc` picks random ones. The unit derives both MACs from the board
-  serial, and the gadget is named like upstream's, `Raspberry Pi USB Gadget`.
+  serial and names the gadget after the board, `Raspberry Pi Zero 2 W Rev 1.0`, so several Pis stay apart in a Mac's network
+  list.
 - The Raspberry Pi kernel has no `g_ncm` module, only `usb_f_ncm` for configfs.
 
 ## Debugging a card

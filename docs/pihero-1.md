@@ -15,7 +15,7 @@ each part in Pi Hero 2; the reasoning is in [design.md](design.md).
 | Samba shares for the home directory and `/` | planned as `pihero-smb` |
 | Bluetooth PAN with trusted devices and a per-device subnet | planned as `pihero-bt-pan`, on a NetworkManager bridge instead of ifupdown and dnsmasq |
 | HDMI display configuration (`hdmi_group`, `hdmi_mode`, `hdmi_cvt`) | planned as `pihero-display-hdmi` with `video=` kernel parameters; Trixie runs full KMS, where the old keys are ignored |
-| Ethernet over USB: dwc2, DHCP, NAT, connection sharing scripts | Upstream `rpi-usb-gadget` with its internet-sharing watcher, enabled from the device file, `g_cdc` instead of `g_ether` |
+| Ethernet over USB: dwc2, DHCP, NAT, connection sharing scripts | `pihero-usb-gadget` on top of upstream `rpi-usb-gadget` and its internet-sharing watcher; `g_cdc` instead of `g_ether`, named after the board, name and subnet in `/etc/pihero/usb-gadget.conf` |
 | Ethernet over USB with RNDIS for Windows | CDC ECM only, which macOS and Linux drive natively; Windows needs a driver until a configfs NCM gadget exists |
 | Serial port over USB, mass storage, keyboard, mouse, composite gadget functions | Dropped; the GPIO UART is the serial path, the rest waits for an application that needs it |
 | `pihero` CLI with `pihero diag` diagnostics and the `gum` interface | Dropped; the test tiers replace the diagnostics, and `gum` was too slow on old boards |

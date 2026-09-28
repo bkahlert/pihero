@@ -10,10 +10,11 @@ Every feature is a Debian package from a signed apt repository, and one [cloud-i
 on the boot partition describes a device. Flash a card, boot, and the Pi installs its packages and shows up in your network:
 no control machine, no playbook.
 
-| Package        | What it does                                                                                                                                                   |
-|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `pihero`       | The MOTD lists installed features, failed units, pending reboots, and the USB address; the hardware watchdog is armed; `bootconfig` edits the boot files safely |
-| `pihero-avahi` | The Pi appears in Finder's network browser with an icon and its device information; SSH is advertised too                                                     |
+| Package             | What it does                                                                                                                                                    |
+|---------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `pihero`            | The MOTD lists installed features, failed units, pending reboots, and the USB address; the hardware watchdog is armed; `bootconfig` edits the boot files safely |
+| `pihero-avahi`      | The Pi appears in Finder's network browser with an icon and its device information; SSH is advertised too                                                       |
+| `pihero-usb-gadget` | Ethernet over USB on top of Raspberry Pi's `rpi-usb-gadget`: a Mac on the cable gets an address from the Pi and lists the interface under the board's name      |
 
 | [![network browser](docs%2Fnetwork-browser.png) Pis in the network browser](./docs/network-browser.png) | [![network info foo](docs%2Fnetwork-info-foo.png) device information](./docs/network-info-foo.png) | [![device info bar](docs%2Fdevice-info-bar.png) device information with a custom model](./docs/device-info-bar.png) |
 |---------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
@@ -27,8 +28,9 @@ what became of each of its features.
 You need a Mac with [Homebrew](https://brew.sh/), a Raspberry Pi that runs the 64-bit Raspberry Pi OS (Zero 2 W and up), and an
 SD card.
 
-1. **Describe the device.** Copy the sample and edit it: hostname, your SSH public key, the pretty name, the Finder icon, and
-   your Wi-Fi in `network-config`. Device directories other than `sample/` are gitignored.
+1. **Describe the device.** Copy the sample and edit it: hostname, your SSH public key, the pretty name, the Finder icon, the
+   USB gadget's name, and your Wi-Fi in `network-config`. The sample installs `pihero`, `pihero-avahi`, and
+   `pihero-usb-gadget`; device directories other than `sample/` are gitignored.
    ```shell
    mkdir devices/mypi && cp devices/sample/user-data devices/sample/network-config devices/mypi/
    ```
@@ -39,7 +41,7 @@ SD card.
    ```
    Two minutes: the image is written, verified, and completed with your files. Raspberry Pi Imager works as well.
 3. **Boot.** Six minutes and two reboots later `ssh pi@mypi.local` greets you with the MOTD, the Pi is in Finder, and a Mac on
-   the USB cable gets an address from it.
+   the USB cable gets an address from the gadget `pihero-usb-gadget` brought up, listed under the name you gave it.
 
 Every key of the device file, the icon choices, and what to do if the Pi does not show up are in
 [devices/README.md](devices/README.md). Updating a device is `sudo apt upgrade` on the Pi; changing it is a reflash.

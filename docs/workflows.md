@@ -18,7 +18,7 @@ make vm-prepare      # caches the tier-2 base image, about ten minutes once
    mkdir devices/mypi && cp devices/sample/user-data devices/sample/network-config devices/mypi/
    ```
    In `user-data` set `hostname`, your SSH public key, the pretty name in `runcmd`, the `MODEL` for the Finder icon, and the USB
-   subnet. In `network-config` set the Wi-Fi name and password and keep `regulatory-domain`.
+   gadget's name and subnet in `/etc/pihero/usb-gadget.conf`. In `network-config` set the Wi-Fi name and password and keep `regulatory-domain`.
 2. Flash. Insert the card, find it, write it:
    ```shell
    diskutil list external
@@ -33,8 +33,9 @@ If it does not show up, [devices/README.md](../devices/README.md) says where to 
 ## Change a device
 
 cloud-init runs once per card. A changed device file means a reflash. Small things are done live and survive updates:
-the Finder icon in `/etc/pihero/device-info.conf` followed by `systemctl restart pihero-avahi-render.service`, network
-settings with `nmcli`, boot settings with `/usr/lib/pihero/bootconfig` (which flags the reboot the MOTD then shows).
+the Finder icon in `/etc/pihero/device-info.conf` followed by `systemctl restart pihero-avahi-render.service`, the USB
+gadget's name and subnet in `/etc/pihero/usb-gadget.conf` followed by a reboot, network settings with `nmcli`, boot settings
+with `/usr/lib/pihero/bootconfig` (which flags the reboot the MOTD then shows).
 
 ## Update devices
 

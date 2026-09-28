@@ -1,0 +1,64 @@
+#!/usr/bin/python3
+"""Loads Pi Hero's USB Ethernet gadget: g_cdc named after the board, with MACs derived from its serial.
+
+Environment:
+  PRODUCT             USB product string (default: the device-tree model)
+  CIDR                address of the "USB Gadget (shared)" profile (default: left as rpi-usb-gadget created it)
+  PIHERO_DEVICE_TREE  directory holding model and serial-number (default /proc/device-tree)
+"""
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+MODULE = "g_cdc"
+MANUFACTURER = "Raspberry Pi Ltd."
+SHARED_PROFILE = "USB Gadget (shared)"
+
+
+def device_tree_string(path: Path) -> str | None:
+    try:
+        return path.read_bytes().rstrip(b"\x00").decode().strip() or None
+    except OSError:
+        return None
+
+
+def macs(serial: str) -> tuple[str, str]:
+    tail = serial[-10:]
+    octets = ":".join(tail[i:i + 2] for i in range(0, len(tail), 2))
+    return f"02:{octets}", f"06:{octets}"
+
+
+def module_args(host_addr: str, dev_addr: str, manufacturer: str, product: str) -> list[str]:
+    # The kernel's parameter parser accepts only double quotes around a value with spaces.
+    return [MODULE, f"host_addr={host_addr}", f"dev_addr={dev_addr}", f'iManufacturer="{manufacturer}"', f'iProduct="{product}"']
+
+
+def fail(message: str) -> int:
+    print(f"usb-gadget: {message}", file=sys.stderr)
+    return 1
+
+
+def main() -> int:
+    device_tree = Path(os.environ.get("PIHERO_DEVICE_TREE", "/proc/device-tree"))
+    serial = device_tree_string(device_tree / "serial-number")
+    if not serial:
+        return fail(f"no serial number in {device_tree}")
+    product = os.environ.get("PRODUCT") or device_tree_string(device_tree / "model")
+    if not product:
+        return fail(f"no model in {device_tree} and PRODUCT is unset")
+    if '"' in product:
+        return fail(f"PRODUCT must not contain a double quote: {product}")
+    cidr = os.environ.get("CIDR")
+    if cidr and subprocess.run(["nmcli", "connection", "modify", SHARED_PROFILE, "ipv4.addresses", cidr]).returncode != 0:
+        return fail(f"could not set {cidr} on '{SHARED_PROFILE}'")
+    args = module_args(*macs(serial), MANUFACTURER, product)
+    if subprocess.run(["modprobe", *args]).returncode != 0:
+        return fail(f"modprobe {' '.join(args)} failed")
+    print(f"usb-gadget: loaded {' '.join(args)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

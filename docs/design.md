@@ -27,7 +27,7 @@ platform quirks the device files work around, [devices/README.md](../devices/REA
 | Decision | Choice | Why |
 |---|---|---|
 | Delivery | Debian packages, a flat signed apt repository, cloud-init on the card | Idiomatic on a Debian-based OS, hard feature boundaries, testable at build, install, and boot, updates are `apt upgrade`, no control machine |
-| USB Ethernet | Upstream `rpi-usb-gadget`, enabled from `runcmd`, driven by the `g_cdc` module | Maintained by Raspberry Pi and handles internet-sharing detection; its `g_ether` default and its cloud-init hook both fail in practice, see [raspberry-pi-os.md](raspberry-pi-os.md) |
+| USB Ethernet | `pihero-usb-gadget` on top of upstream `rpi-usb-gadget`, loading `g_cdc` from its own unit | Maintained by Raspberry Pi and handles internet-sharing detection; its `g_ether` default and its cloud-init hook both fail in practice, see [raspberry-pi-os.md](raspberry-pi-os.md) |
 | USB serial console | Dropped for the GPIO UART (`rpi: interfaces: serial: true`) | A broken gadget broke its serial port too, so it never was an independent path |
 | Custom gadget functions (mass storage, HID) | Deferred until an application needs one | Mutually exclusive with `rpi-usb-gadget` on one board |
 | On-device logic | Python 3 standard library for anything that parses or edits files; shell only in `ExecStart=` lines and maintainer scripts | Idempotent edits of boot files are where shell bites; cloud-init guarantees Python on every image |
@@ -42,9 +42,9 @@ platform quirks the device files work around, [devices/README.md](../devices/REA
 ┌─────────────────────────────────────────────────────────────┐
 │ Apps            pihole-chronometer, epaper-display, netmon   │  own repos, own packages, own tests
 ├─────────────────────────────────────────────────────────────┤
-│ Pi Hero         pihero, pihero-avahi, later pihero-smb,      │  this repo, packages/*
-│                 pihero-splash, pihero-display-hdmi,          │
-│                 pihero-bt-pan                                │
+│ Pi Hero         pihero, pihero-avahi, pihero-usb-gadget,     │  this repo, packages/*
+│                 later pihero-smb, pihero-splash,             │
+│                 pihero-display-hdmi, pihero-bt-pan           │
 ├─────────────────────────────────────────────────────────────┤
 │ Raspberry Pi OS Lite (Trixie), cloud-init, rpi-usb-gadget,   │  written by make flash or Imager
 │ NetworkManager, avahi-daemon, raspi-config                   │
@@ -78,6 +78,10 @@ packages/
     root/usr/lib/pihero/avahi-render
     root/usr/lib/systemd/system/pihero-avahi-render.service
     root/usr/share/pihero/avahi/*.service.in
+  pihero-usb-gadget/
+    root/usr/lib/pihero/usb-gadget                          # Python, loads g_cdc named after the board
+    root/usr/lib/systemd/system/pihero-usb-gadget.service
+    root/usr/lib/modprobe.d/pihero-usb-gadget.conf          # blacklist g_ether
 testkit/                                                    # the harness, a Python package
 devices/                                                    # device files, gitignored except sample/
 ```
@@ -123,6 +127,20 @@ ignores `value-format` and would hand a base64 value to clients undecoded. The u
 touched: it is a conffile of `avahi-daemon`, and Debian's defaults already match what version 1 set. Purge removes the rendered
 files.
 
+## `pihero-usb-gadget`
+
+Depends on `pihero` and Raspberry Pi's `rpi-usb-gadget`, which owns the `dwc2` overlay, the two NetworkManager profiles on
+`usb0`, and the watcher that switches between them when the host shares its internet connection. postinst runs
+`rpi-usb-gadget on -f` once and requests the reboot; purge runs `off` and requests one too. What upstream gets wrong for a
+Mac the package replaces: `/usr/lib/modprobe.d/pihero-usb-gadget.conf` blacklists `g_ether`, which `systemd-modules-load`
+honours, and `pihero-usb-gadget.service` (`Type=oneshot`, `After=NetworkManager.service`,
+`ConditionPathExistsGlob=/sys/class/udc/*`, `EnvironmentFile=-/etc/pihero/usb-gadget.conf`) runs `usb-gadget` every boot,
+which sets `CIDR` on the "USB Gadget (shared)" profile if given and loads `g_cdc` with `host_addr` and `dev_addr` derived
+from the board serial, `iManufacturer` "Raspberry Pi Ltd.", and `iProduct` from `PRODUCT` or the device-tree model. The
+condition keeps the unit skipped, not failed, until the enabling reboot and on anything without a device controller, which
+is what the container and the VM are. Module parameters are read at load time, so a conffile change takes effect on the
+next boot.
+
 ## Planned packages
 
 Each follows the same pattern: files under `root/`, a render unit ordered before its consumer where a value must end up in a
@@ -146,8 +164,6 @@ file another daemon reads, defaults in code, overrides from `/etc/pihero/<featur
   and NAT and no dnsmasq or ifupdown configuration exists. `bt-network --server nap pan0` and `bt-agent` run as units; listed
   devices are trusted through `bluetoothctl` before the server starts. Tier 2 can test the adapter with `hci_vhci` and `btvirt`
   from `bluez-test-tools`; the data path needs hardware.
-- **`pihero-usb-gadget`**: only when a second device needs the gadget or Windows must be served. A configfs NCM gadget would
-  serve macOS, Linux, and Windows alike; until then the sample device file carries the `g_cdc` unit.
 
 ## Configuration contract
 
@@ -162,8 +178,8 @@ file another daemon reads, defaults in code, overrides from `/etc/pihero/<featur
   consumer writes it on every boot. Editing a conffile and rebooting is therefore a complete change procedure, and every
   renderer is a pure function the tests call with environment variables.
 - **Identity.** Hostname from cloud-init; the pretty hostname from one `runcmd` line, read back from `hostnamectl` so
-  `/etc/machine-info` stays the single source; the board model from the device tree; the USB subnet from one `nmcli` line
-  against the profile `rpi-usb-gadget` creates.
+  `/etc/machine-info` stays the single source; the board model from the device tree; the USB gadget's name and subnet
+  from `/etc/pihero/usb-gadget.conf`.
 - **Secrets.** The boot partition is unencrypted FAT. Public keys and password hashes are fine there; a Wi-Fi passphrase or a
   Tailscale auth key is exposed to anyone holding the card. Accepted for devices under physical control; Tailscale keys are
   single-use with an expiry.
