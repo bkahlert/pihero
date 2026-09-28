@@ -11,3 +11,4 @@ __pycache__/
 devices/*
 !devices/sample/
 !devices/README.md
+backups/

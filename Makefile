@@ -6,6 +6,7 @@ QEMU_ACCEL ?= hvf
 TARGET ?=
 DEVICE ?=
 DISK ?=
+NAME ?=
 UV := uv run --frozen
 
 help: ## list targets
@@ -46,6 +47,10 @@ deploy: build ## install built packages on TARGET over SSH
 flash: ## write Raspberry Pi OS and a device's files to an SD card (make flash DEVICE=name DISK=disk9)
 	@test -n "$(DEVICE)" -a -n "$(DISK)" || { echo "usage: make flash DEVICE=name DISK=diskN   (diskutil list external)"; exit 2; }
 	@$(UV) python -m pihero_testkit.flash "$(DEVICE)" "$(DISK)"
+
+.PHONY: backup
+backup: ## image an SD card into backups/<host>-<date>.img.xz (make backup [DISK=disk9] [NAME=host])
+	@$(UV) python -m pihero_testkit.backup --disk="$(DISK)" --name="$(NAME)"
 
 clean: ## remove build outputs
 	rm -rf dist packages/*/.build
