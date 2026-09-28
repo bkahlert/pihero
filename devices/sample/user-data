@@ -55,6 +55,7 @@ write_files:
 
       [Service]
       Type=oneshot
+      RemainAfterExit=yes
       ExecStart=/bin/sh -c 's=$(tr -d "\\0" </proc/device-tree/serial-number | tail -c 10 | sed "s/../&:/g;s/:$//"); modprobe g_cdc host_addr=02:$s dev_addr=06:$s'
 
       [Install]
