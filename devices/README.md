@@ -15,6 +15,6 @@ ejects the card. macOS asks once for authorization to write the disk. Raspberry 
 mounted run `cp devices/<host>/user-data devices/<host>/network-config /Volumes/bootfs/`.
 
 Boot. The device applies its interface settings and reboots, installs its packages, enables the USB gadget and reboots again, and appears as
-`<hostname>.local` after about five minutes.
+`<hostname>.local` after about six minutes.
 An attached display shows `Failed to start userconfig.service` once during the first boot: cloud-init creates the user itself and stops
 Raspberry Pi OS's user setup dialog while it is starting; the unit stays masked afterwards.

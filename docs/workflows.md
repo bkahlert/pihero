@@ -25,7 +25,7 @@ make vm-prepare      # caches the tier-2 base image, about ten minutes once
    make flash DEVICE=mypi DISK=disk9
    ```
    macOS asks once for authorization. The card is ejected when done.
-3. Boot. Provisioning takes about five minutes and reboots twice: once for the interface settings, once for the USB gadget.
+3. Boot. Provisioning takes about six minutes and reboots twice: once for the interface settings, once for the USB gadget.
    Then the Pi answers `ssh pi@mypi.local`, appears in Finder with its icon, and a Mac on the USB cable gets an address from it.
 
 If it does not show up: connect over USB or Wi-Fi and read `cloud-init status --long`, `/var/log/cloud-init-output.log`, and
