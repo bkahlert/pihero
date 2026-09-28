@@ -14,6 +14,7 @@ PACKAGE_DIR = Path(str(files("pihero_testkit")))
 LOCK = PACKAGE_DIR / "images.lock"
 SCRIPT = PACKAGE_DIR / "prepare-rootfs"
 CACHE = Path.home() / ".cache" / "pihero"
+TIER2_IMAGE = "raspios_lite_arm64"
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,11 @@ class BaseImage:
 
 def lock() -> dict:
     return tomllib.loads(LOCK.read_text())
+
+
+def images() -> dict[str, dict]:
+    """Returns the pinned Raspberry Pi OS images by name: every table of the lock with a url."""
+    return {name: table for name, table in lock().items() if "url" in table}
 
 
 def download(url: str, sha256: str) -> Path:
@@ -42,10 +48,11 @@ def download(url: str, sha256: str) -> Path:
 
 def prepare(force: bool = False) -> BaseImage:
     config = lock()
-    key = hashlib.sha256((config["raspios"]["sha256"] + config["kernel"]["package"] + SCRIPT.read_text()).encode()).hexdigest()[:12]
+    raspios = config[TIER2_IMAGE]
+    key = hashlib.sha256((raspios["sha256"] + config["kernel"]["package"] + SCRIPT.read_text()).encode()).hexdigest()[:12]
     out = CACHE / "base" / key
     if force or not (out / "done").exists():
-        image = download(config["raspios"]["url"], config["raspios"]["sha256"])
+        image = download(raspios["url"], raspios["sha256"])
         out.mkdir(parents=True, exist_ok=True)
         tools.run(
             ["/testkit/prepare-rootfs", "--image", f"/cache/downloads/{image.name}", "--out", f"/cache/base/{key}", "--kernel-package", config["kernel"]["package"]],

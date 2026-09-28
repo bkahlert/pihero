@@ -21,6 +21,8 @@ BOOT_LABEL = "bootfs"
 DEVICE_FILES = ("user-data", "network-config", "meta-data")
 REGULATORY_DOMAIN = re.compile(r"""^\s*regulatory-domain:\s*["']?(?P<code>[A-Z]{2})["']?\s*$""", re.MULTILINE)
 CMDLINE_REGDOM = re.compile(r"\s*cfg80211\.ieee80211_regdom=\S*")
+DEFAULT_IMAGE = prepare.TIER2_IMAGE
+IMAGE_LINE = re.compile(r"^#\s*image:\s*(?P<name>\S+)")
 
 
 def device_dir(name: str) -> Path:
@@ -28,6 +30,25 @@ def device_dir(name: str) -> Path:
     if not (path / "user-data").is_file():
         raise SystemExit(f"{path} has no user-data")
     return path
+
+
+def image_name(user_data: str) -> str:
+    """Returns the image named by a `# image:` line among the leading comments of user-data, or DEFAULT_IMAGE."""
+    for line in user_data.splitlines():
+        if not line.startswith("#"):
+            break
+        if match := IMAGE_LINE.match(line):
+            return match["name"]
+    return DEFAULT_IMAGE
+
+
+def image_for(device: Path) -> tuple[str, dict]:
+    """Returns the name and lock entry of the image the device's user-data names."""
+    name = image_name((device / "user-data").read_text())
+    images = prepare.images()
+    if name not in images:
+        raise SystemExit(f"{device / 'user-data'} names the image {name!r}; images.lock pins {', '.join(images)}")
+    return name, images[name]
 
 
 def write_image(fd: int, image: Path, report=lambda message: None) -> tuple[int, str]:
@@ -97,12 +118,12 @@ def flash(device: Path, disk: str) -> None:
     info = disk_info(disk)
     check_removable(info)
     say(f"{disk}: {info.get('MediaName', '').strip()} {info.get('TotalSize', 0) / 1e9:.1f} GB")
-    config = prepare.lock()["raspios"]
+    name, config = image_for(device)
     image = prepare.download(config["url"], config["sha256"])
     unmount(disk)
     fd = open_raw(disk, os.O_RDWR)
     try:
-        say(f"writing {image.name} ...")
+        say(f"writing {name}: {image.name} ...")
         size, expected = write_image(fd, image, say)
         say(f"verifying {size >> 20} MiB ...")
         actual = read_back(fd, size)

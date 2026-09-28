@@ -1,5 +1,6 @@
 #cloud-config
-# board: QEMU virt (tier 2)  image: Raspberry Pi OS Lite 64-bit (Trixie)
+# board: QEMU virt (tier 2)
+# image: raspios_lite_arm64
 hostname: all-features
 manage_etc_hosts: true
 enable_ssh: true
