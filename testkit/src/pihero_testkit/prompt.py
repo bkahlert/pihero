@@ -14,7 +14,7 @@ def choose(title: str, options: list[str], read: Reader = input) -> int:
         answer = read(f"[1-{len(options)}] (1): ").strip()
         if answer == "":
             return 0
-        if answer.isdigit() and 1 <= int(answer) <= len(options):
+        if answer.isdecimal() and 1 <= int(answer) <= len(options):
             return int(answer) - 1
 
 

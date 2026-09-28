@@ -47,6 +47,20 @@ class TestSidecar:
 
         assert meta is None
 
+    def test_refuses_a_malformed_sidecar_naming_it(self, tmp_path):
+        image = tmp_path / "mypi-2026-09-28.img.xz"
+        backup.sidecar_for(image).write_text("size = \n")
+
+        with pytest.raises(SystemExit, match=r"mypi-2026-09-28\.toml is not a valid sidecar"):
+            restore.sidecar(image)
+
+    def test_refuses_a_sidecar_without_a_size(self, tmp_path):
+        image = tmp_path / "mypi-2026-09-28.img.xz"
+        backup.sidecar_for(image).write_text('sha256 = "ab"\n')
+
+        with pytest.raises(SystemExit, match="not a valid sidecar"):
+            restore.sidecar(image)
+
 
 class TestImages:
     def test_lists_images_newest_first(self, tmp_path):
@@ -97,6 +111,13 @@ class TestImageFor:
     def test_refuses_a_missing_path(self, tmp_path):
         with pytest.raises(SystemExit, match="not found"):
             restore.image_for(str(tmp_path / "gone.img.xz"))
+
+    def test_refuses_a_file_that_is_no_image(self, tmp_path):
+        sidecar = tmp_path / "mypi-2026-09-28.toml"
+        sidecar.write_text("size = 1\n")
+
+        with pytest.raises(SystemExit, match=r"is not an \.img\.xz image"):
+            restore.image_for(str(sidecar))
 
     def test_asks_when_the_path_is_empty(self, tmp_path, monkeypatch):
         first = tmp_path / "a-2026-09-28.img.xz"
@@ -173,6 +194,26 @@ class TestRestore:
 
         with pytest.raises(SystemExit, match="damaged"):
             restore.restore(image, {**CARD, "TotalSize": len(payload)}, {"size": len(payload), "sha256": "00" * 32})
+
+    def test_reports_a_file_that_is_no_xz_as_damaged_without_writing(self, tmp_path, monkeypatch):
+        payload = os.urandom(2 * flash.SECTOR)
+        image = backup_image(tmp_path, payload)
+        image.write_bytes(b"not an xz stream at all")
+        card = fake_card(tmp_path, bytes(len(payload)), monkeypatch)
+
+        with pytest.raises(SystemExit, match="damaged"):
+            restore.restore(image, {**CARD, "TotalSize": len(payload)}, restore.sidecar(image))
+
+        assert card.read_bytes() == bytes(len(payload))
+
+    def test_reports_a_truncated_image_as_damaged(self, tmp_path, monkeypatch):
+        payload = os.urandom(2 * flash.SECTOR)
+        image = backup_image(tmp_path, payload)
+        image.write_bytes(image.read_bytes()[: image.stat().st_size // 2])
+        fake_card(tmp_path, bytes(len(payload)), monkeypatch)
+
+        with pytest.raises(SystemExit, match="damaged"):
+            restore.restore(image, {**CARD, "TotalSize": len(payload)}, restore.sidecar(image))
 
     def test_writes_without_a_sidecar(self, tmp_path, monkeypatch):
         payload = os.urandom(2 * flash.SECTOR)

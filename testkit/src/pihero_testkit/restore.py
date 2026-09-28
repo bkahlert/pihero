@@ -5,6 +5,7 @@ read-back.
 """
 
 import argparse
+import lzma
 import os
 import sys
 import tomllib
@@ -17,7 +18,13 @@ from .flash import read_back, say, write_image
 
 def sidecar(image: Path) -> dict | None:
     path = sidecar_for(image)
-    return tomllib.loads(path.read_text()) if path.is_file() else None
+    if not path.is_file():
+        return None
+    try:
+        meta = tomllib.loads(path.read_text())
+        return {"size": int(meta["size"]), "sha256": str(meta["sha256"])}
+    except (tomllib.TOMLDecodeError, KeyError, TypeError, ValueError) as error:
+        raise SystemExit(f"{path} is not a valid sidecar: {error}") from None
 
 
 def images(backups: Path = BACKUPS) -> list[Path]:
@@ -34,6 +41,8 @@ def image_for(path: str, backups: Path = BACKUPS) -> Path:
     """Returns the given image, or the one chosen from the images in backups when path is empty."""
     if path:
         image = Path(path)
+        if not image.name.endswith(".img.xz"):
+            raise SystemExit(f"{image} is not an .img.xz image")
         if not image.is_file():
             raise SystemExit(f"{image} not found")
         return image
@@ -70,7 +79,10 @@ def restore(image: Path, info: dict, meta: dict | None) -> None:
     fd = disk.open_raw(ident, os.O_RDWR)
     try:
         say(f"writing {image.name} ...")
-        size, written = write_image(fd, image, say)
+        try:
+            size, written = write_image(fd, image, say)
+        except (lzma.LZMAError, EOFError) as error:
+            raise SystemExit(f"{image.name} is damaged: {error}") from None
         if meta and written != meta["sha256"]:
             raise SystemExit(f"{image.name} is damaged: its content hashes to {written}, the sidecar says {meta['sha256']}")
         say(f"verifying {size >> 20} MiB ...")

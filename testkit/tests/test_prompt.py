@@ -21,6 +21,11 @@ class TestChoose:
 
         assert index == 1
 
+    def test_asks_again_on_a_digit_that_is_no_number(self):
+        index = prompt.choose("Card:", ["a", "b"], read=answers("\u00b3", "2"))
+
+        assert index == 1
+
     def test_prints_the_title_and_numbered_options(self, capsys):
         prompt.choose("Card:", ["disk9  SD  31.9 GB", "disk10  SD  63.9 GB"], read=answers("1"))
 
