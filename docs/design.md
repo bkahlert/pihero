@@ -33,6 +33,7 @@ platform quirks the device files work around, [devices/README.md](../devices/REA
 | USB serial console | Dropped for the GPIO UART (`rpi: interfaces: serial: true`) | A broken gadget broke its serial port too, so it never was an independent path |
 | Custom gadget functions (mass storage, HID) | Deferred until an application needs one | Mutually exclusive with `rpi-usb-gadget` on one board |
 | Samba shares | Dropped; `pihero-avahi` announces `_smb._tcp` with nothing behind it | The shares only ever put the Pi into Finder's network browser, which lists file servers and takes the icon from `_device-info._tcp` |
+| Splash screen | Dropped; the console stays as Raspberry Pi OS ships it | Version 1's Plymouth theme needs `quiet`, `loglevel=3`, and `systemd.show_status=auto`, which hide the messages that matter when a headless board does not come up; installing Plymouth rebuilds both initrds three times, three and a half minutes on a Zero 2 W and double the emulated tier-2 run; a spinner is not worth that surface, see [raspberry-pi-os.md](raspberry-pi-os.md) |
 | On-device logic | Python 3 standard library for anything that parses or edits files; shell only in `ExecStart=` lines and maintainer scripts | Idempotent edits of boot files are where shell bites; cloud-init guarantees Python on every image |
 | Package build | `nfpm` | One YAML manifest plus a file tree, builds in under a second, no Debian toolchain |
 | Tests | pytest with pytest-testinfra | One assertion API over a podman container, a VM, and a real Pi |
@@ -47,8 +48,7 @@ platform quirks the device files work around, [devices/README.md](../devices/REA
 │ Apps            pihole-chronometer, epaper-display, netmon   │  own repos, own packages, own tests
 ├─────────────────────────────────────────────────────────────┤
 │ Pi Hero         pihero, pihero-avahi, pihero-usb-gadget,     │  this repo, packages/*
-│                 later pihero-splash, pihero-display-hdmi,    │
-│                 pihero-bt-pan                                │
+│                 later pihero-display-hdmi, pihero-bt-pan     │
 ├─────────────────────────────────────────────────────────────┤
 │ Raspberry Pi OS Lite (Trixie), cloud-init, rpi-usb-gadget,   │  written by make flash or Imager
 │ NetworkManager, avahi-daemon, raspi-config                   │
@@ -154,11 +154,6 @@ next boot.
 Each follows the same pattern: files under `root/`, a render unit ordered before its consumer where a value must end up in a
 file another daemon reads, defaults in code, overrides from `/etc/pihero/<feature>.conf`, tests next to it.
 
-- **`pihero-splash`**: depends on `plymouth` and `plymouth-themes`; ships the theme, and postinst adds the quiet-boot
-  parameters (`quiet splash plymouth.ignore-serial-consoles logo.nologo loglevel=3 udev.log_level=3 rd.udev.log_level=3
-  systemd.show_status=auto vt.global_cursor_default=0 consoleblank=0`) and `disable_splash=1` through `bootconfig`, then
-  `plymouth-set-default-theme -R`. `raspi-config nonint do_boot_splash` is not usable: it insists on the desktop's `pix` theme.
-  Purge reverts every parameter. Not installing the package is how the splash is disabled.
 - **`pihero-display-hdmi`**: `VIDEO` in `/etc/pihero/display-hdmi.conf` becomes `video=<VIDEO>` on the kernel command line
   through `bootconfig`. Trixie runs full KMS, where version 1's `hdmi_group`, `hdmi_mode`, and `hdmi_cvt` are ignored. Note that
   a properly attached display works with the stock configuration; the package is for panels that need a forced mode.

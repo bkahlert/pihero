@@ -19,7 +19,7 @@ no control machine, no playbook.
 | [![network browser](docs%2Fnetwork-browser.png) Pis in the network browser](./docs/network-browser.png) | [![network info foo](docs%2Fnetwork-info-foo.png) device information](./docs/network-info-foo.png) | [![device info bar](docs%2Fdevice-info-bar.png) device information with a custom model](./docs/device-info-bar.png) |
 |---------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
 
-Planned, one package each: splash screen, Bluetooth PAN, HDMI modes. Pi Hero 1, the Ansible playbook, is frozen
+Planned, one package each: Bluetooth PAN, HDMI modes. Pi Hero 1, the Ansible playbook, is frozen
 at tag [`pihero-ansible`](https://github.com/bkahlert/pihero/tree/pihero-ansible); [docs/pihero-1.md](docs/pihero-1.md) says
 what became of each of its features.
 
