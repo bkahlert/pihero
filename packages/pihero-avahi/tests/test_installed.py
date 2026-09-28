@@ -17,6 +17,7 @@ class TestRecords:
     def test_files_are_rendered(self, host):
         assert host.file("/etc/avahi/services/pihero-device-info.service").contains("_device-info._tcp")
         assert host.file("/etc/avahi/services/pihero-ssh.service").contains("_sftp-ssh._tcp")
+        assert host.file("/etc/avahi/services/pihero-smb.service").contains("_smb._tcp")
 
     def test_device_info_is_advertised(self, host, avahi_utils):
         browse = browse_until(host, "_device-info._tcp", "model=")
@@ -28,6 +29,11 @@ class TestRecords:
         browse = browse_until(host, "_ssh._tcp", ";22;")
 
         assert ";22;" in browse
+
+    def test_smb_is_advertised(self, host, avahi_utils):
+        browse = browse_until(host, "_smb._tcp", ";445;")
+
+        assert ";445;" in browse
 
     def test_machine_record_follows_the_device_tree(self, host, avahi_utils):
         browse = browse_until(host, "_device-info._tcp", "model=")
@@ -59,6 +65,7 @@ class TestRemoval:
 
         assert not host.file("/etc/avahi/services/pihero-device-info.service").exists
         assert not host.file("/etc/avahi/services/pihero-ssh.service").exists
+        assert not host.file("/etc/avahi/services/pihero-smb.service").exists
 
         target.reinstall()
 

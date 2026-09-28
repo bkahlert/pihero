@@ -17,11 +17,17 @@ render_script = load_script(SCRIPT)
 
 
 class TestRender:
-    def test_uses_the_name_for_both_services(self):
+    def test_uses_the_name_for_every_service(self):
         files = render_script.render(TEMPLATES, "Foo", "AirPort4", None)
 
-        assert sorted(files) == ["device-info.service", "ssh.service"]
+        assert sorted(files) == ["device-info.service", "smb.service", "ssh.service"]
         assert all('<name replace-wildcards="yes">Foo</name>' in content for content in files.values())
+
+    def test_announces_smb_on_port_445(self):
+        files = render_script.render(TEMPLATES, "Foo", "AirPort4", None)
+
+        services = ET.fromstring(files["smb.service"]).findall("service")
+        assert [(service.findtext("type"), service.findtext("port")) for service in services] == [("_smb._tcp", "445")]
 
     def test_escapes_xml_special_characters_in_the_name(self):
         files = render_script.render(TEMPLATES, "Foo & <Bar>", "AirPort4", None)
@@ -80,7 +86,7 @@ class TestWriteIfChanged:
 
 
 class TestCli:
-    def test_renders_both_services_with_defaults(self, tmp_path):
+    def test_renders_every_service_with_defaults(self, tmp_path):
         services = tmp_path / "services"
         services.mkdir()
 
@@ -89,6 +95,7 @@ class TestCli:
         assert result.returncode == 0, result.stderr
         device_info = ET.parse(services / "pihero-device-info.service").getroot()
         ET.parse(services / "pihero-ssh.service")
+        ET.parse(services / "pihero-smb.service")
         assert txt_records(ET.tostring(device_info, encoding="unicode")) == ["model=AirPort4"]
 
     def test_applies_model_from_the_environment_unchanged(self, tmp_path):
