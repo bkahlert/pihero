@@ -63,6 +63,9 @@ dump-model-icons: ## dump the Finder device icons of CoreTypes.bundle (make dump
 	@test -n "$(OUT)" || { echo "usage: make dump-model-icons OUT=dir [IDS=\"com.apple.airport-express ...\"]"; exit 2; }
 	@$(UV) python -m pihero_testkit.dump_model_icons "$(OUT)" $(IDS)
 
+update-model-icons: ## refresh docs/models/ from this Mac's CoreTypes.bundle
+	@$(UV) python -m pihero_testkit.update_model_icons
+
 clean: ## remove build outputs
 	rm -rf dist packages/*/.build
 

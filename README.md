@@ -91,6 +91,7 @@ make test-tier2                     # boot a QEMU VM from a device file
 make test                           # tiers 0 and 1, what CI runs on every push
 make test-all                       # tiers 0 to 2, what make release runs
 make deploy TARGET=pi@mypi.local    # the built packages onto a real device
+make update-model-icons             # refresh docs/models/ from this Mac's CoreTypes.bundle
 make dump-model-icons OUT=dir       # every Finder device icon, sidebar template, and SF Symbol in CoreTypes.bundle
 ```
 
