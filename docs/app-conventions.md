@@ -21,7 +21,8 @@ Apps run as systemd services installed by their own Debian package. Pi Hero pack
     [Install]
     WantedBy=multi-user.target
 
-- One dedicated system user per app, created in `postinst` with `adduser --system --group --no-create-home`.
+- One dedicated system user per app, created in `postinst` with `adduser --system --group --no-create-home`; the package
+  depends on `adduser`, which Trixie's minimal images no longer carry.
 - `Restart=always` so a crash never leaves the device without its app; `MemoryMax=` so a leak never starves sshd.
 - Hardware access through group membership (`spi`, `gpio`, `i2c`, `video`), never by running as root.
 - Configuration overrides in `/etc/<app>/<app>.conf` as `KEY=VALUE`, read with `EnvironmentFile=-`.

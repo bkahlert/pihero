@@ -1,3 +1,4 @@
+import re
 import shutil
 from importlib.resources import files
 from pathlib import Path
@@ -30,6 +31,23 @@ def unit_files():
     yield from (ROOT / "packages").glob("*/root/usr/lib/systemd/system/*.service")
 
 
+def package_dirs():
+    yield from (p for p in (ROOT / "packages").iterdir() if (p / "nfpm.yaml").is_file())
+
+
+def declared_depends(nfpm: Path) -> list[str]:
+    """The package names under `depends:` of an nfpm.yaml, version constraints stripped."""
+    names, inside = [], False
+    for line in nfpm.read_text().splitlines():
+        if line.startswith("depends:"):
+            inside = True
+        elif inside and line.startswith("  - "):
+            names.append(line[4:].split()[0])
+        elif inside and line and not line.startswith(" "):
+            break
+    return names
+
+
 def device_files():
     yield from (ROOT / "devices").glob("*/user-data")
     yield from TESTKIT_DEVICES.glob("*/user-data")
@@ -40,6 +58,16 @@ def test_shell_file_passes_shellcheck(script):
     result = tools.run(["shellcheck", f"/work/{script.relative_to(ROOT)}"], check=False, capture=True)
 
     assert result.returncode == 0, result.stdout
+
+
+@pytest.mark.parametrize("package", sorted(package_dirs()), ids=lambda p: p.name)
+def test_maintainer_scripts_that_manage_users_depend_on_adduser(package):
+    """Trixie's minimal images carry no adduser: a postinst that calls it without the dependency fails the install with 127."""
+    fragments = " ".join(f.read_text() for f in (package / "scripts").glob("*.sh"))
+    if not re.search(r"\b(adduser|addgroup|deluser|delgroup)\b", fragments):
+        pytest.skip("the maintainer scripts manage no users")
+
+    assert "adduser" in declared_depends(package / "nfpm.yaml")
 
 
 @pytest.mark.parametrize("unit", sorted(unit_files()), ids=lambda p: p.name)
