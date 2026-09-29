@@ -67,29 +67,26 @@ make doctor                                  # lists what is missing
 
 ### Repository layout
 
-| Directory                | Contents                                                                                                                                                                                |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [packages/](packages)    | One directory per Debian package: the files it installs under `root/`, its `nfpm.yaml` manifest, its tests                                                                              |
-| [testkit/](testkit)      | The test harness: a Python package with the pytest plugin and the commands behind `make`. It builds the packages and tests them in podman containers, in a QEMU VM, or on a Pi over SSH |
-| [devices/](devices)      | Device files; only `sample/` is committed                                                                                                                                               |
-| [docs/](docs)            | Design, testing, operations, and platform notes; see [Documentation](#documentation)                                                                                                    |
+| Directory              | Contents                                                                                                                                                        |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [packages/](packages)  | One directory per Debian package: what it installs under `root/`, its `nfpm.yaml` manifest, its tests                                                           |
+| [testkit/](testkit)    | The test harness: the pytest plugin and the commands behind `make`; builds the packages and tests them in podman containers, a QEMU VM, or on a Pi over SSH     |
+| [devices/](devices)    | Device files, one directory per device, documented in [devices/README.md](devices/README.md); only `sample/` is committed                                       |
+| [docs/](docs)          | Design, testing, operations, and platform notes                                                                                                                 |
 
 ### Build and test
 
-Tests run in tiers, cheapest first. Each tier needs the podman machine from the prerequisites.
+```shell
+make build                          # every package into dist/
+make test-tier0                     # unit tests and static checks
+make test-tier1                     # install, remove, purge in a systemd container
+make test-tier2                     # boot a QEMU VM from a device file
+make test                           # tiers 0 and 1, what CI runs on every push
+make test-all                       # tiers 0 to 2, what make release runs
+make deploy TARGET=pi@mypi.local    # the built packages onto a real device
+```
 
-| Command                            | What it does                                                                                               |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `make build`                       | Builds every package into `dist/`                                                                          |
-| `make test-tier0`                  | Unit tests and static checks: shellcheck, `systemd-analyze verify`, `cloud-init schema`                    |
-| `make test-tier1`                  | Installs, removes, and purges the packages in a systemd container                                          |
-| `make test-tier2`                  | Boots a QEMU VM from a device file and tests the provisioned system                                        |
-| `make test`                        | Tiers 0 and 1; what CI runs on every push                                                                  |
-| `make test-all`                    | Tiers 0 to 2; what `make release` runs                                                                     |
-| `make deploy TARGET=pi@mypi.local` | Installs the built packages on a real device over SSH                                                      |
-
-`uv run pytest packages/<name>/tests -m tier0` runs one package's unit tests. What each tier proves and how to write a
-test is in [docs/testing.md](docs/testing.md).
+What each tier proves and how to write a test is in [docs/testing.md](docs/testing.md).
 
 ### Release
 
@@ -98,26 +95,20 @@ make release VERSION=2.1.0   # clean tree required; runs tiers 0 to 2, then tags
 git push origin v2.1.0       # CI builds, signs, and publishes
 ```
 
-### Contributing
+### See also
 
-`main` takes changes through pull requests with tiers 0 and 1 green. Commits follow
-[Conventional Commits](https://www.conventionalcommits.org/) with the package or area as scope, for example
-`fix(pihero-kiosk): stop with SIGKILL`.
+- [docs/design.md](docs/design.md): the decisions and their reasons
+- [docs/operations.md](docs/operations.md): day to day: set up the Mac, bring up, change, update, back up devices
+- [docs/raspberry-pi-os.md](docs/raspberry-pi-os.md): Raspberry Pi OS and cloud-init quirks the device file works around
+- [docs/app-conventions.md](docs/app-conventions.md): conventions for applications built on top of Pi Hero
 
-Starring the project and raising issues help too, as does a [PayPal donation](https://www.paypal.me/bkahlert) or a
-[coffee](https://www.buymeacoffee.com/bkahlert). Thank you! :pray:
+## Contributing
 
-## Documentation
+Want to contribute? Awesome! The most basic way to show your support is to star the project, or to raise issues. You
+can also support this project by making
+a [PayPal donation](https://www.paypal.me/bkahlert) to ensure this journey continues indefinitely!
 
-| Document                                                 | Answers                                                                                                                  |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| [docs/design.md](docs/design.md)                         | Why things are built the way they are: goals, decisions, package anatomy, configuration contract, operations             |
-| [docs/testing.md](docs/testing.md)                       | The test tiers, what each proves, how the harness works, how to write a test                                             |
-| [docs/operations.md](docs/operations.md)                   | Day-to-day operations: setting up the Mac, bringing up, changing, updating, backing up, and restoring devices, releasing |
-| [docs/raspberry-pi-os.md](docs/raspberry-pi-os.md)       | Raspberry Pi OS and cloud-init quirks the device file works around                                                       |
-| [docs/app-conventions.md](docs/app-conventions.md)       | Conventions for applications built on top of Pi Hero                                                                     |
-| [devices/README.md](devices/README.md)                   | Every key of the device file, the Finder icons, first boot, troubleshooting                                              |
-| [docs/pihero-1.md](docs/pihero-1.md)                     | What became of each feature of Pi Hero 1, the Ansible playbook                                                           |
+Thanks again for your support, it is much appreciated! :pray:
 
 ## License
 
