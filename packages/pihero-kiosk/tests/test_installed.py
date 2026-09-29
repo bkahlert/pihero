@@ -64,10 +64,11 @@ class TestStop:
             pytest.skip("the kiosk runs only with a connected display")
 
         host.check_output("sudo systemctl stop pihero-kiosk.service")
-        result = host.check_output("systemctl show -p ActiveState -p Result --value pihero-kiosk.service").split()
+        state = host.check_output("systemctl show -p ActiveState --value pihero-kiosk.service").strip()
+        result = host.check_output("systemctl show -p Result --value pihero-kiosk.service").strip()
         host.check_output("sudo systemctl start pihero-kiosk.service")
 
-        assert result == ["inactive", "success"]
+        assert (state, result) == ("inactive", "success")
 
 
 class TestRemoval:
