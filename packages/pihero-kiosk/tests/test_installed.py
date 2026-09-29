@@ -48,6 +48,9 @@ class TestUnit:
         assert states == ["inactive", "no"]
 
     def test_is_running_with_a_connected_display(self, host):
+        # A container shares the host's /sys, which may list a connected connector, while the unit's condition looks at /dev.
+        if not host.file("/dev/dri").exists:
+            pytest.skip("no display adapter")
         statuses = host.run("cat /sys/class/drm/card*-*/status").stdout.split()
         if "connected" not in statuses:
             pytest.skip("no connected display")
