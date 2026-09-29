@@ -162,7 +162,12 @@ covers a panel that appears late; `MemoryMax=300M` binds once the device file ha
 `COG_PLATFORM_DRM_VIDEO_MODE=800x480` in the same file.
 
 Why cog: the Zero 2 W has 512 MB, and Chromium fit there only with a gigabyte of swap; WPE runs a page in roughly a third
-of Chromium's footprint, and the whole stack is one upstream tool in one unit. The documented fallback, not built, is `cage`
+of Chromium's footprint, and the whole stack is one upstream tool in one unit. Measured on the netmon board (2026-09-29,
+the kiosk next to a JVM scanner): the kiosk's cgroup holds about 80 MB in RAM and swaps another 120 to 175 MB into the
+zram device Raspberry Pi OS Trixie configures (`rpi-swap`), so `free -m` alone understates the footprint; tightening
+`MemoryMax=` and `MemorySwapMax=` below that working set made the board thrash and the hardware watchdog reset it. The
+caps are leak guards, not a budget, and `rpi-zram-writeback.timer`, which pages the zram device out to a file on the
+SD card, is worth masking on a board that swaps. The documented fallback, not built, is `cage`
 with `chromium --ozone-platform=wayland --kiosk` and zram swap: a different `ExecStart`, not a different design. The wait
 for the URL replaces an ordering dependency: no Pi Hero unit depends on an application unit, yet the page an app serves
 comes up seconds after the kiosk would otherwise have loaded an error page for the rest of the uptime.
