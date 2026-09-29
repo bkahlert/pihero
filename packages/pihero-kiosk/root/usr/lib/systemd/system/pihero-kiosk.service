@@ -18,6 +18,9 @@ RuntimeDirectory=pihero-kiosk
 CacheDirectory=pihero-kiosk
 StateDirectory=pihero-kiosk
 ExecStart=/usr/lib/pihero/kiosk
+# cog 0.18 segfaults on SIGTERM while tearing down the DRM output, which would leave the unit failed after a stop;
+# it has nothing to flush, and the kernel releases DRM master on exit.
+KillSignal=SIGKILL
 Restart=always
 RestartSec=5
 MemoryMax=300M

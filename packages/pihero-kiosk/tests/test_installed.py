@@ -58,6 +58,18 @@ class TestUnit:
         assert host.service("pihero-kiosk").is_running
 
 
+class TestStop:
+    def test_a_stop_leaves_the_unit_inactive_not_failed(self, host):
+        if not host.service("pihero-kiosk").is_running:
+            pytest.skip("the kiosk runs only with a connected display")
+
+        host.check_output("sudo systemctl stop pihero-kiosk.service")
+        result = host.check_output("systemctl show -p ActiveState -p Result --value pihero-kiosk.service").split()
+        host.check_output("sudo systemctl start pihero-kiosk.service")
+
+        assert result == ["inactive", "success"]
+
+
 class TestRemoval:
     @pytest.mark.mutating
     def test_purge_leaves_nothing_behind(self, host, target):
