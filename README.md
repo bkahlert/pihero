@@ -44,8 +44,14 @@ You need a Mac with [Homebrew](https://brew.sh/), a Raspberry Pi (Zero W and up)
 3. **Boot.** Six minutes and two reboots later `ssh pi@mypi.local` greets you with the MOTD, the Pi is in Finder, and a Mac on
    the USB cable gets an address from the gadget `pihero-usb-gadget` brought up, listed under the name you gave it.
 
-Every key of the device file, the icon choices, and what to do if the Pi does not show up are in
-[devices/README.md](devices/README.md). Updating a device is `sudo apt upgrade` on the Pi; changing it is a reflash.
+`MODEL` in the device file picks the Finder icon. The three in use:
+
+|                       `AirPort4` (default)                      |                            `MacPro6,1`                             |                          `MacPro7,1@ECOLOR=226,226,224`                          |
+| :-------------------------------------------------------------: | :----------------------------------------------------------------: | :------------------------------------------------------------------------------: |
+|  ![AirPort Express](docs/models/com.apple.airport-express.png)  |     ![Mac Pro 2013](docs/models/com.apple.macpro-cylinder.png)     |      ![Mac Pro 2019 rack](docs/models/com.apple.macpro-2019-rackmount.png)       |
+
+All ten choices are pictured in [devices/README.md](devices/README.md#the-finder-icon), along with every key of the device
+file and what to do if the Pi does not show up. Updating a device is `sudo apt upgrade` on the Pi; changing it is a reflash.
 
 ## The apt repository
 

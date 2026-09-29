@@ -57,6 +57,9 @@ The stock boot partition already carries `user-data`, `network-config`, and `met
 - **macOS creates a network service per host MAC**, and `g_cdc` picks random ones. The unit derives both MACs from the board
   serial and names the gadget after the board, `Raspberry Pi Zero 2 W Rev 1.0`, so several Pis stay apart in a Mac's network
   list.
+- **macOS keeps the service name it gave the gadget's MAC.** After a `PRODUCT` rename the hardware port carries the new
+  name, but Network settings shows the old one until the service is removed there and the Pi replugged, which creates a
+  service under the new name.
 - The Raspberry Pi kernel has no `g_ncm` module, only `usb_f_ncm` for configfs.
 
 ## Plymouth, tried and dropped
