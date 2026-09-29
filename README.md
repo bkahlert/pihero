@@ -46,10 +46,10 @@ You need a Mac with [Homebrew](https://brew.sh/), a Raspberry Pi (Zero W and up)
 
 `MODEL` in the device file picks the Finder icon. The three in use:
 
-|                                          `AirPort4` (default)                                          |                                             `MacPro6,1`                                             |                                         `MacPro7,1@ECOLOR=226,226,224`                                         |
-| :----------------------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------: |
-|         <img src="docs/models/com.apple.airport-express.png" alt="AirPort Express" width="64">         |         <img src="docs/models/com.apple.macpro-cylinder.png" alt="Mac Pro 2013" width="64">         |         <img src="docs/models/com.apple.macpro-2019-rackmount.png" alt="Mac Pro 2019 rack" width="64">         |
-| <img src="docs/models/com.apple.airport-express-sidebar.png" alt="AirPort Express sidebar" width="64"> | <img src="docs/models/com.apple.macpro-cylinder-sidebar.png" alt="Mac Pro 2013 sidebar" width="64"> | <img src="docs/models/com.apple.macpro-2019-rackmount-sidebar.png" alt="Mac Pro 2019 rack sidebar" width="64"> |
+|                                        `AirPort4` (default)                                        |                                           `MacPro6,1`                                           |                                         `MacPro7,1@ECOLOR=226,226,224`                                         |
+| :------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------: |
+|       <img src="docs/models/com.apple.airport-express.png" alt="AirPort Express" width="64">       |       <img src="docs/models/com.apple.macpro-cylinder.png" alt="Mac Pro 2013" width="64">       |         <img src="docs/models/com.apple.macpro-2019-rackmount.png" alt="Mac Pro 2019 rack" width="64">         |
+| <img src="docs/models/sidebar/SidebarAirportExpress.png" alt="AirPort Express sidebar" width="64"> | <img src="docs/models/sidebar/SidebarMacProCylinder.png" alt="Mac Pro 2013 sidebar" width="64"> | <img src="docs/models/sidebar/com.apple.macpro-2019-rackmount.png" alt="Mac Pro 2019 rack sidebar" width="64"> |
 
 All ten choices are pictured in [devices/README.md](devices/README.md#the-finder-icon), along with every key of the device
 file and what to do if the Pi does not show up. Updating a device is `sudo apt upgrade` on the Pi; changing it is a reflash.
@@ -91,6 +91,8 @@ make test-tier2                     # boot a QEMU VM from a device file
 make test                           # tiers 0 and 1, what CI runs on every push
 make test-all                       # tiers 0 to 2, what make release runs
 make deploy TARGET=pi@mypi.local    # the built packages onto a real device
+make update-model-icons             # refresh docs/models/ from this Mac's CoreTypes.bundle
+make dump-model-icons OUT=dir       # every Finder device icon, sidebar template, and SF Symbol in CoreTypes.bundle
 ```
 
 What each tier proves and how to write a test is in [docs/testing.md](docs/testing.md).
