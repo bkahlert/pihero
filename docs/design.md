@@ -166,6 +166,14 @@ covers a panel that appears late; `MemoryMax=300M` binds once the device file ha
 [app-conventions.md](app-conventions.md)). Cog's own environment passes through, so a panel with several modes takes
 `COG_PLATFORM_DRM_VIDEO_MODE=800x480` in the same file.
 
+A panel on SPI with a `mipi-dbi` KMS driver (`ili9486` and its relatives, `dtoverlay=piscreen,drm` for the Waveshare 3.5-inch)
+lists only XRGB8888 and RGB565. Cog's default "modeset" renderer scans out WPE's ARGB8888 buffer unchanged, so such a panel
+refuses every frame with `failed to create framebuffer: Invalid argument` while cog still logs `Loaded successfully`, and the
+console stays on the screen. `COG_ARGS=--platform-params=renderer=gles` makes cog draw into its own buffer in a format the
+plane lists. The same board needs the vc4 card hidden from the unit (a drop-in with `DevicePolicy=closed` and `DeviceAllow=`
+for the panel's card by path, the render node and `char-input`), `fbcon=map:1` so the panel's CRTC is lit before cog starts,
+and `video=HDMI-A-1:d`; the busy-screen device file in its repository is the worked example (2026-09-29).
+
 Why cog: the Zero 2 W has 512 MB, and Chromium fit there only with a gigabyte of swap; WPE runs a page in roughly a third
 of Chromium's footprint, and the whole stack is one upstream tool in one unit. Measured on the netmon board (2026-09-29,
 the kiosk next to a JVM scanner): the kiosk's cgroup holds about 80 MB in RAM and swaps another 120 to 175 MB into the
