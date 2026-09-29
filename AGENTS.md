@@ -10,9 +10,8 @@ is written nowhere else.
 
 ## Where to look
 
-- Setup, the change loop, and releasing:
-  [README.md](README.md) "Development", then [docs/operations.md](docs/operations.md) "Set up the Mac once",
-  "Change a package", and "Release".
+- Setup, the change loop, and releasing: [README.md](README.md) "Development" and [docs/testing.md](docs/testing.md)
+  "Release".
 - Tiers, targets, pytest options, and how to write a test (markers, fixtures, `load_script`, what differs between a
   container, the VM, and a Pi): [docs/testing.md](docs/testing.md) "Tiers" and "Writing tests".
 - Package anatomy, names and paths, how a `.deb` and its maintainer scripts are generated, the version scheme:
@@ -23,8 +22,8 @@ is written nowhere else.
   breaks one needs a decision recorded there, not a workaround.
 - Branch protection, CI, and the pull-request rule: [docs/testing.md](docs/testing.md) "CI".
 - A boot-time symptom on a Pi: [docs/raspberry-pi-os.md](docs/raspberry-pi-os.md) before concluding it is a Pi Hero bug.
-- Device-file keys: [devices/README.md](devices/README.md). Apps built on top:
-  [docs/app-conventions.md](docs/app-conventions.md).
+- Devices, from the device file's keys to flashing, changing, updating, and backing up:
+  [devices/README.md](devices/README.md). Apps built on top: [docs/app-conventions.md](docs/app-conventions.md).
 
 ## Everything has tests
 
@@ -45,7 +44,7 @@ the clock is synced`. Design specs go to [docs/superpowers/specs](docs/superpowe
 ## Keeping the docs true
 
 Each package has a section in [docs/design.md](docs/design.md); a change to what it does, why, or what was measured goes
-there in the same change. A new or changed command updates [docs/operations.md](docs/operations.md); a new or changed
-device-file key updates [devices/README.md](devices/README.md). Apps in other repositories depend on `pihero-testkit`
-pinned to a tag, so its fixtures, markers, CLI options, and `load_script` are an API, and changing them breaks those
-repositories.
+there in the same change. A device task or device-file key updates [devices/README.md](devices/README.md); a developer
+command updates the README's Development section, and [docs/testing.md](docs/testing.md) wherever it shows the same
+command. Apps in other repositories depend on `pihero-testkit` pinned to a tag, so its fixtures, markers, CLI options,
+and `load_script` are an API, and changing them breaks those repositories.

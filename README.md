@@ -48,7 +48,7 @@ You need a Mac with [Homebrew](https://brew.sh/), a Raspberry Pi (Zero W and up)
 
 |                                          `AirPort4` (default)                                          |                                             `MacPro6,1`                                             |                                         `MacPro7,1@ECOLOR=226,226,224`                                         |
 | :----------------------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------: |
-|        <img src="docs/models/com.apple.airport-express.png" alt="AirPort Express" width="64">         |         <img src="docs/models/com.apple.macpro-cylinder.png" alt="Mac Pro 2013" width="64">        |        <img src="docs/models/com.apple.macpro-2019-rackmount.png" alt="Mac Pro 2019 rack" width="64">         |
+|         <img src="docs/models/com.apple.airport-express.png" alt="AirPort Express" width="64">         |         <img src="docs/models/com.apple.macpro-cylinder.png" alt="Mac Pro 2013" width="64">         |         <img src="docs/models/com.apple.macpro-2019-rackmount.png" alt="Mac Pro 2019 rack" width="64">         |
 | <img src="docs/models/com.apple.airport-express-sidebar.png" alt="AirPort Express sidebar" width="64"> | <img src="docs/models/com.apple.macpro-cylinder-sidebar.png" alt="Mac Pro 2013 sidebar" width="64"> | <img src="docs/models/com.apple.macpro-2019-rackmount-sidebar.png" alt="Mac Pro 2019 rack sidebar" width="64"> |
 
 All ten choices are pictured in [devices/README.md](devices/README.md#the-finder-icon), along with every key of the device
@@ -79,7 +79,7 @@ make doctor                                  # lists what is missing
 | [packages/](packages)  | One directory per Debian package: what it installs under `root/`, its `nfpm.yaml` manifest, its tests                                                           |
 | [testkit/](testkit)    | The test harness: the pytest plugin and the commands behind `make`; builds the packages and tests them in podman containers, a QEMU VM, or on a Pi over SSH     |
 | [devices/](devices)    | Device files, one directory per device, documented in [devices/README.md](devices/README.md); only `sample/` is committed                                       |
-| [docs/](docs)          | Design, testing, operations, and platform notes                                                                                                                 |
+| [docs/](docs)          | Design, testing, and platform notes                                                                                                                             |
 
 ### Build and test
 
@@ -105,7 +105,6 @@ git push origin v2.1.0       # CI builds, signs, and publishes
 ### See also
 
 - [docs/design.md](docs/design.md): the decisions and their reasons
-- [docs/operations.md](docs/operations.md): day to day: set up the Mac, bring up, change, update, back up devices
 - [docs/raspberry-pi-os.md](docs/raspberry-pi-os.md): Raspberry Pi OS and cloud-init quirks the device file works around
 - [docs/app-conventions.md](docs/app-conventions.md): conventions for applications built on top of Pi Hero
 

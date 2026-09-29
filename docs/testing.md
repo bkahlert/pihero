@@ -2,7 +2,7 @@
 
 Every test is pytest. Machine assertions use pytest-testinfra, whose backends let one test file run against a podman container,
 a QEMU VM over SSH, or a real Pi over SSH. Tests pick a target with `--target=podman|vm|ssh` and a tier with the markers
-`tier0`, `installed`, `boot`, and `mutating`. The harness is the Python package under [testkit/](../testkit/); apps depend on
+`tier0`, `installed`, `boot`, and `mutating`. The harness is the Python package under [testkit/](../testkit); apps depend on
 it as a pinned git dependency.
 
 ## Tiers
@@ -76,7 +76,8 @@ registered, systemd as PID 1 in an `arm/v7` container comes up degraded. The con
 
 The harness plays the firmware.
 
-- **Root filesystem, prepared once and cached.** `prepare-rootfs` runs in the tools container, privileged and with `/dev` bind
+- **Root filesystem, prepared once and cached** (`make vm-prepare` does it ahead of the first run, about ten minutes).
+  `prepare-rootfs` runs in the tools container, privileged and with `/dev` bind
   mounted (podman populates `/dev` once at start, so without the mount `losetup --partscan` never sees the partition nodes it
   creates). It extracts the root partition of the pinned Raspberry Pi OS Lite arm64 image, chroots in, installs Debian's
   `linux-image-arm64` (the Raspberry Pi kernel hooks skip it harmlessly), sets `MODULES=most` for the initramfs (the image's
@@ -128,3 +129,23 @@ the "what rotted" signal. The release workflow builds, signs, and publishes on e
 cannot be moved or deleted. Workflows run with a read-only token, only the release job may write, and it alone sees the signing
 key. Actions are pinned to commits and the repository refuses unpinned ones; Dependabot proposes the monthly bump. Workflows
 from external forks wait for approval before they run.
+
+## Release
+
+```shell
+make release VERSION=2.1.0        # clean tree required; runs tiers 0 to 2, then tags v2.1.0
+git push origin v2.1.0            # the release workflow builds, signs, and publishes
+curl -fsS https://bkahlert.github.io/pihero/apt/Packages | grep -A1 '^Package: pihero'
+```
+
+Tags with a pre-release suffix such as `v2.1.0-rc.1` publish as `2.1.0~rc.1` and are marked pre-release on GitHub. The
+signing key is the `APT_SIGNING_KEY` secret of the `release` environment, which only `v*` tags can deploy to. The key itself
+is kept in KeePassXC as the attachment of the `PIHERO_APT_SIGNING_KEY` entry. `make repo` builds and signs the same
+repository locally and reads the key from `~/.config/pihero-apt-signing-key.asc`, so export it there for the run and remove
+it afterwards:
+
+```shell
+keepassxc-cli attachment-export <vault>.kdbx PIHERO_APT_SIGNING_KEY pihero-apt-signing-key.asc ~/.config/pihero-apt-signing-key.asc
+make repo
+rm -P ~/.config/pihero-apt-signing-key.asc
+```

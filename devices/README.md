@@ -1,10 +1,13 @@
-# Device files
+# Devices
 
 One directory per device with the cloud-init files that go onto the boot partition after flashing: `user-data` (required),
 `network-config` (Wi-Fi, optional), `meta-data` (optional). Directories other than [`sample/`](sample) are gitignored; keep
-them here or in a private repository.
+them here or in a private repository. Everything an operator does with a device is on this page; the Mac needs
+[Homebrew](https://brew.sh/) and `brew bundle` first.
 
-## user-data
+## Describe a device
+
+### user-data
 
 [sample/user-data](sample/user-data) is a complete device. Its keys, top to bottom:
 
@@ -21,13 +24,13 @@ them here or in a private repository.
 
 The reasons behind the workarounds are in [docs/raspberry-pi-os.md](../docs/raspberry-pi-os.md).
 
-## network-config
+### network-config
 
 [sample/network-config](sample/network-config) is netplan as Imager writes it: one access point with its passphrase, DHCP,
 `optional: true`, and `regulatory-domain`. `make flash` copies the domain onto the kernel command line; without it the first
 boot has no Wi-Fi.
 
-## The Finder icon
+### The Finder icon
 
 `MODEL` in `device-info.conf` selects the icon. `AirPort4` is the default: recognised everywhere and a small network device
 rather than a computer. Other good choices:
@@ -40,7 +43,7 @@ rather than a computer. Other good choices:
 
 Changing it later: edit `/etc/pihero/device-info.conf` on the Pi and `systemctl restart pihero-avahi-render.service`.
 
-## Ethernet over USB
+### Ethernet over USB
 
 `pihero-usb-gadget` turns on Raspberry Pi's `rpi-usb-gadget` and loads a CDC ECM gadget with MACs derived from the board
 serial, so a Mac sees the same device on every boot. `/etc/pihero/usb-gadget.conf` takes two optional keys:
@@ -87,23 +90,43 @@ both are Raspberry Pi OS behaviour.
 3. The root partition can be read with `debugfs -c` in the tools container from a dump; see
    [docs/raspberry-pi-os.md](../docs/raspberry-pi-os.md).
 
-## Later changes
+## Change a device
 
-### Updates
-
-`sudo apt update && sudo apt upgrade` on the Pi; the MOTD says when a reboot is due. cloud-init runs once per card, so a
-changed device file means a reflash.
-
-### Live changes
-
-These are done on the Pi and survive updates:
+cloud-init runs once per card, so a changed device file means a reflash. Small things are done live on the Pi and survive
+updates:
 
 - the Finder icon: `/etc/pihero/device-info.conf`, then `systemctl restart pihero-avahi-render.service`
 - the gadget's name and subnet: `/etc/pihero/usb-gadget.conf`, then a reboot
 - network settings: `nmcli`
 - boot settings: `/usr/lib/pihero/bootconfig`
 
-### Cards from before pihero-usb-gadget
+## Update a device
+
+```shell
+ssh pi@mypi.local sudo apt update '&&' sudo apt upgrade
+```
+
+The repository is signed; the device trusts only the key embedded in its device file. Reboot when the MOTD says so.
+
+## Back up a device
+
+Before a risky change, or once a device holds state its device file cannot recreate, image its card. Power the Pi off, put the
+card into the Mac, and:
+
+```shell
+make backup                       # asks which card; the image is named after the Pi and the day
+make restore                      # asks which image and which card, confirms, writes, verifies, ejects
+```
+
+Images land in `backups/<hostname>-<date>.img.xz`, gitignored, next to a `.toml` with the size and checksum a restore checks
+first. The hostname comes from the card's `user-data`; `NAME=` overrides it, and `DISK=` and `IMAGE=` skip the questions; a
+restore given both writes without asking.
+A 16 GB card took six minutes to back up and nineteen to restore, the card's own write speed setting the latter; a 32 GB card
+takes about twice that. Restore needs a card at least as large as the one imaged, and a nominally equal card from another
+maker can be a few megabytes short, so when replacing a card buy the next size up. On a larger card the root filesystem keeps
+its old size until `sudo raspi-config --expand-rootfs` and a reboot.
+
+## Cards from before pihero-usb-gadget
 
 A card provisioned before `pihero-usb-gadget` existed carries its own `usb-gadget.service` and `g_cdc.conf` from the old
 sample; they would race the package's unit for the module. Reflash it, or remove them before installing the package and
