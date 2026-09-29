@@ -32,3 +32,6 @@ Apps run as systemd services installed by their own Debian package. Pi Hero pack
   waits until the URL answers, so the app's units need no ordering towards it.
 - `MemoryMax=` only binds once the memory controller is on: Raspberry Pi OS boots with `cgroup_disable=memory`, so a device
   file that wants the caps enforced adds `/usr/lib/pihero/bootconfig add cmdline cgroup_enable=memory` to its `runcmd`.
+- Measure memory with swap: Raspberry Pi OS Trixie swaps into a zram device (`rpi-swap`), so `free -m`'s Swap line and
+  `systemctl show -p MemorySwapPeak` belong to every figure, and `MemoryMax=` bounds RAM only. A cap below the working set
+  makes the board thrash rather than the unit shrink; on a Zero 2 W the hardware watchdog then resets it.
