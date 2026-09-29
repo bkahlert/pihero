@@ -19,8 +19,10 @@ CacheDirectory=pihero-kiosk
 StateDirectory=pihero-kiosk
 ExecStart=/usr/lib/pihero/kiosk
 # cog 0.18 segfaults on SIGTERM while tearing down the DRM output, which would leave the unit failed after a stop;
-# it has nothing to flush, and the kernel releases DRM master on exit.
+# it has nothing to flush, and the kernel releases DRM master on exit. systemd counts only SIGHUP, SIGINT, SIGTERM and
+# SIGPIPE as clean, so the kill signal is declared a success status too.
 KillSignal=SIGKILL
+SuccessExitStatus=SIGKILL
 Restart=always
 RestartSec=5
 MemoryMax=300M
