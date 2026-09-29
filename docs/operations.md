@@ -1,4 +1,4 @@
-# Workflows
+# Operations
 
 The day-to-day with Pi Hero 2. Commands run from the repository root on the Mac unless they say `pi@`.
 

@@ -113,7 +113,7 @@ Starring the project and raising issues help too, as does a [PayPal donation](ht
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | [docs/design.md](docs/design.md)                         | Why things are built the way they are: goals, decisions, package anatomy, configuration contract, operations             |
 | [docs/testing.md](docs/testing.md)                       | The test tiers, what each proves, how the harness works, how to write a test                                             |
-| [docs/workflows.md](docs/workflows.md)                   | Day-to-day operations: setting up the Mac, bringing up, changing, updating, backing up, and restoring devices, releasing |
+| [docs/operations.md](docs/operations.md)                   | Day-to-day operations: setting up the Mac, bringing up, changing, updating, backing up, and restoring devices, releasing |
 | [docs/raspberry-pi-os.md](docs/raspberry-pi-os.md)       | Raspberry Pi OS and cloud-init quirks the device file works around                                                       |
 | [docs/app-conventions.md](docs/app-conventions.md)       | Conventions for applications built on top of Pi Hero                                                                     |
 | [devices/README.md](devices/README.md)                   | Every key of the device file, the Finder icons, first boot, troubleshooting                                              |

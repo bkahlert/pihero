@@ -11,7 +11,7 @@ is written nowhere else.
 ## Where to look
 
 - Setup, the change loop, contributing (pull requests, commit messages), and releasing:
-  [README.md](README.md) "Development", then [docs/workflows.md](docs/workflows.md) "Set up the Mac once",
+  [README.md](README.md) "Development", then [docs/operations.md](docs/operations.md) "Set up the Mac once",
   "Change a package", and "Release".
 - Tiers, targets, pytest options, and how to write a test (markers, fixtures, `load_script`, what differs between a
   container, the VM, and a Pi): [docs/testing.md](docs/testing.md) "Tiers" and "Writing tests".
@@ -39,7 +39,7 @@ check in [docs/testing.md](docs/testing.md) "Real devices", as the gadget's post
 Design specs go to [docs/superpowers/specs](docs/superpowers/specs) and implementation plans to
 [docs/superpowers/plans](docs/superpowers/plans), named `YYYY-MM-DD-<topic>[-design].md`; once shipped, the decision and
 its reason move into [docs/design.md](docs/design.md). Each package has a section in [docs/design.md](docs/design.md); a change to what it does, why, or what was measured goes
-there in the same change. A new or changed command updates [docs/workflows.md](docs/workflows.md); a new or changed
+there in the same change. A new or changed command updates [docs/operations.md](docs/operations.md); a new or changed
 device-file key updates [devices/README.md](devices/README.md). Apps in other repositories depend on `pihero-testkit`
 pinned to a tag, so its fixtures, markers, CLI options, and `load_script` are an API, and changing them breaks those
 repositories.
