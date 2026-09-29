@@ -1,0 +1,27 @@
+name: pihero-kiosk
+arch: all
+platform: linux
+version: ${VERSION}
+section: admin
+priority: optional
+maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+description: |
+  Pi Hero: one web page full screen on the display.
+  Runs cog, the WPE WebKit launcher, straight on the DRM device as a system user; no X server,
+  display manager or compositor. The page is URL in /etc/pihero/kiosk.conf.
+homepage: https://github.com/bkahlert/pihero
+license: MIT
+depends:
+  - pihero
+  - cog
+  # WPE's renderer loads libGLESv2.so.2 at runtime and crashes without it; nothing in cog's own chain pulls it in.
+  - libgles2
+  - fonts-dejavu-core
+contents:
+  - src: root/
+    dst: /
+    type: tree
+scripts:
+  postinstall: .build/postinst
+  preremove: .build/prerm
+  postremove: .build/postrm

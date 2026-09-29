@@ -1,0 +1,4 @@
+Types: deb
+URIs: https://bkahlert.github.io/pihero/apt
+Suites: ./
+Signed-By: /etc/apt/keyrings/pihero.asc

@@ -48,7 +48,7 @@ platform quirks the device files work around, [devices/README.md](../devices/REA
 │ Apps            pihole-chronometer, epaper-display, netmon   │  own repos, own packages, own tests
 ├─────────────────────────────────────────────────────────────┤
 │ Pi Hero         pihero, pihero-avahi, pihero-usb-gadget,     │  this repo, packages/*
-│                 later pihero-display-hdmi, pihero-bt-pan     │
+│                 pihero-kiosk, later pihero-bt-pan           │
 ├─────────────────────────────────────────────────────────────┤
 │ Raspberry Pi OS Lite (Trixie), cloud-init, rpi-usb-gadget,   │  written by make flash or Imager
 │ NetworkManager, avahi-daemon, raspi-config                   │
@@ -149,14 +149,34 @@ condition keeps the unit skipped, not failed, until the enabling reboot and on a
 is what the container and the VM are. Module parameters are read at load time, so a conffile change takes effect on the
 next boot.
 
+## `pihero-kiosk`
+
+Depends on `pihero`, `cog`, and `fonts-dejavu-core`. `pihero-kiosk.service` runs `/usr/lib/pihero/kiosk` as the system user
+`kiosk` with the supplementary groups `video`, `render`, and `input`: the script waits until `URL` answers (file or http),
+then execs `cog --platform=drm URL`, so WPE WebKit paints straight onto the DRM device with no X server, display manager, or
+compositor. `URL` and `COG_ARGS` come from `/etc/pihero/kiosk.conf` (`EnvironmentFile=-`), the default page is a black
+`/usr/share/pihero/kiosk/index.html` saying where to set the URL. `ConditionPathExistsGlob=/dev/dri/card*` keeps the unit
+skipped, not failed, in the container, the VM, and on a headless board; `Restart=always` with `StartLimitIntervalSec=0`
+covers a panel that appears late; `MemoryMax=300M` binds once the device file has turned the memory controller on (see
+[app-conventions.md](app-conventions.md)). Cog's own environment passes through, so a panel with several modes takes
+`COG_PLATFORM_DRM_VIDEO_MODE=800x480` in the same file.
+
+Why cog: the Zero 2 W has 512 MB, and Chromium fit there only with a gigabyte of swap; WPE runs a page in roughly a third
+of Chromium's footprint, and the whole stack is one upstream tool in one unit. The documented fallback, not built, is `cage`
+with `chromium --ozone-platform=wayland --kiosk` and zram swap: a different `ExecStart`, not a different design. The wait
+for the URL replaces an ordering dependency: no Pi Hero unit depends on an application unit, yet the page an app serves
+comes up seconds after the kiosk would otherwise have loaded an error page for the rest of the uptime.
+
 ## Planned packages
 
 Each follows the same pattern: files under `root/`, a render unit ordered before its consumer where a value must end up in a
 file another daemon reads, defaults in code, overrides from `/etc/pihero/<feature>.conf`, tests next to it.
 
-- **`pihero-display-hdmi`**: `VIDEO` in `/etc/pihero/display-hdmi.conf` becomes `video=<VIDEO>` on the kernel command line
-  through `bootconfig`. Trixie runs full KMS, where version 1's `hdmi_group`, `hdmi_mode`, and `hdmi_cvt` are ignored. Note that
-  a properly attached display works with the stock configuration; the package is for panels that need a forced mode.
+- **`pihero-display-hdmi`**: dropped. Trixie runs full KMS, where version 1's `hdmi_group`, `hdmi_mode`, and `hdmi_cvt` are
+  ignored; a display with EDID works with the stock configuration, and a panel without one (the HAMTYSAN 7-inch reports no
+  EDID and no hotplug) needs a single kernel parameter, `video=HDMI-A-1:800x480M@60e`, which is one `bootconfig add cmdline`
+  line in its device file. A package that renders one never-changing parameter from one conffile key is a render unit for a
+  device constant.
 - **`pihero-bt-pan`**: depends on `bluez`, `bluez-tools`, and `network-manager`; a render unit applies `CLASS` and
   `DISCOVERABLE_TIMEOUT` to `/etc/bluetooth/main.conf`, writes the PIN file from `/etc/pihero/bt-pan.devices`, and ensures a
   NetworkManager bridge `pan0` with `ipv4.method shared` on `CIDR` (default `10.11.10.10/29`), so NetworkManager provides DHCP

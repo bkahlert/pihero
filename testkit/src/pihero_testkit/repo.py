@@ -9,21 +9,25 @@ from pathlib import Path
 
 from . import tools
 
-RELEASE_OPTIONS = [
-    "-o", "APT::FTPArchive::Release::Origin=pihero",
-    "-o", "APT::FTPArchive::Release::Label=pihero",
-    "-o", "APT::FTPArchive::Release::Suite=stable",
-    "-o", "APT::FTPArchive::Release::Architectures=all",
-    "-o", "APT::FTPArchive::Release::Description=Pi Hero packages",
-]
 
 
-def build_repo(debs: list[Path], out: Path) -> Path:
+def release_options(origin: str = "pihero", label: str = "pihero", description: str = "Pi Hero packages") -> list[str]:
+    """apt-ftparchive options for the Release file; an application publishing its own repository passes its name."""
+    return [
+        "-o", f"APT::FTPArchive::Release::Origin={origin}",
+        "-o", f"APT::FTPArchive::Release::Label={label}",
+        "-o", "APT::FTPArchive::Release::Suite=stable",
+        "-o", "APT::FTPArchive::Release::Architectures=all",
+        "-o", f"APT::FTPArchive::Release::Description={description}",
+    ]
+
+
+def build_repo(debs: list[Path], out: Path, *, origin: str = "pihero", label: str = "pihero", description: str = "Pi Hero packages") -> Path:
     out.mkdir(parents=True, exist_ok=True)
     for deb in debs:
         shutil.copy(deb, out / deb.name)
     relative = out.relative_to(Path.cwd())
-    options = shlex.join(RELEASE_OPTIONS)
+    options = shlex.join(release_options(origin, label, description))
     tools.run(["sh", "-c", f"cd /work/{relative} && apt-ftparchive packages . > Packages && gzip -kf Packages && apt-ftparchive {options} release . > Release"])
     return out
 
@@ -59,9 +63,12 @@ def main(argv: list[str]) -> int:
     publish.add_argument("--debs", required=True, help="glob of .deb files")
     publish.add_argument("--repo", required=True, help="repository directory, existing packages are kept")
     publish.add_argument("--key", required=True, help="armored private signing key")
+    publish.add_argument("--origin", default="pihero", help="Release Origin, the repository's name (default: pihero)")
+    publish.add_argument("--label", default="pihero", help="Release Label (default: pihero)")
+    publish.add_argument("--description", default="Pi Hero packages", help="Release Description (default: Pi Hero packages)")
     args = parser.parse_args(argv)
     repo_dir = Path(args.repo).resolve()
-    build_repo([Path(p) for p in sorted(glob.glob(args.debs))], repo_dir)
+    build_repo([Path(p) for p in sorted(glob.glob(args.debs))], repo_dir, origin=args.origin, label=args.label, description=args.description)
     sign_repo(repo_dir, Path(args.key).resolve())
     print(repo_dir)
     return 0

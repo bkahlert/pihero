@@ -1,0 +1,29 @@
+[Unit]
+Description=Pi Hero: the kiosk page on the display
+Documentation=https://github.com/bkahlert/pihero
+After=network-online.target
+Wants=network-online.target
+# Skipped, not failed, where there is no display adapter: the container, the VM, a headless board.
+ConditionPathExistsGlob=/dev/dri/card*
+StartLimitIntervalSec=0
+
+[Service]
+User=kiosk
+Group=kiosk
+SupplementaryGroups=video render input
+Environment=URL=file:///usr/share/pihero/kiosk/index.html
+EnvironmentFile=-/etc/pihero/kiosk.conf
+Environment=XDG_RUNTIME_DIR=/run/pihero-kiosk XDG_CACHE_HOME=/var/cache/pihero-kiosk XDG_DATA_HOME=/var/lib/pihero-kiosk XDG_CONFIG_HOME=/var/lib/pihero-kiosk
+RuntimeDirectory=pihero-kiosk
+CacheDirectory=pihero-kiosk
+StateDirectory=pihero-kiosk
+ExecStart=/usr/lib/pihero/kiosk
+Restart=always
+RestartSec=5
+MemoryMax=300M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target
