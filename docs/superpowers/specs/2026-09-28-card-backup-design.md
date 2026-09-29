@@ -124,7 +124,7 @@ Tier 0, file-backed like [test_flash.py](../../../testkit/tests/test_flash.py):
 
 ## Documentation
 
-- [docs/workflows.md](../../workflows.md): a section "Back up a device" after "Update devices": when to do it, both commands,
+- [devices/README.md](../../../devices/README.md): a section "Back up a device" after "Update devices": when to do it, both commands,
   where the images are, the card-size rule, the expand-rootfs step.
 - [docs/design.md](../../design.md): a row in the decisions table; the goals bullet that bans the interactive CLI gains "on the
   device"; the layout tree gains `backups/`; the operations list gains "Backup is a card image" with the same-size rule and

@@ -210,7 +210,7 @@ ssh-tier tests green there, and a Mac listing the USB interface under the board 
   is added once confirmed on hardware.
 - [docs/raspberry-pi-os.md](../../raspberry-pi-os.md): field notes that say "the device file does X" say "the package does X";
   the gadget-name sentence names the model.
-- [docs/workflows.md](../../workflows.md): the bring-up step names the conffile for the subnet.
+- [devices/README.md](../../../devices/README.md): the bring-up step names the conffile for the subnet.
 - [docs/testing.md](../../testing.md): the tier-1 image description mentions the Raspberry Pi archive; "what a container
   cannot show" gains the gadget.
 

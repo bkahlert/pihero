@@ -2,7 +2,7 @@
 
 Every test is pytest. Machine assertions use pytest-testinfra, whose backends let one test file run against a podman container,
 a QEMU VM over SSH, or a real Pi over SSH. Tests pick a target with `--target=podman|vm|ssh` and a tier with the markers
-`tier0`, `installed`, `boot`, and `mutating`. The harness is the Python package under [testkit/](../testkit/); apps depend on
+`tier0`, `installed`, `boot`, and `mutating`. The harness is the Python package under [testkit/](../testkit); apps depend on
 it as a pinned git dependency.
 
 ## Tiers
@@ -26,15 +26,33 @@ uv run pytest -m installed --target=ssh --target-uri=pi@mypi.local
 uv run pytest packages/pihero/tests -m tier0   # one package
 ```
 
+## Writing tests
+
+The plugin, [plugin.py](../testkit/src/pihero_testkit/plugin.py), provides the markers, fixtures, and options. Markers go in
+`pytestmark` at module level: `tier0` runs against fixtures and the tools container with no target; `installed` runs against
+any target with the packages installed; `boot` needs a booted system and is skipped on podman; `mutating` changes the
+target's state and is skipped over ssh. Fixtures: `host` is the testinfra host; `target` is the container, VM, or ssh target
+with `install_extra`, `purge`, `reinstall`, and `reboot`; `version` is what the installed packages must report, the built
+version or, over ssh, the one on the device; `packages` are the built `.deb` paths. Options beyond `--target` and
+`--target-uri`: `--platform` for podman, `--qemu-accel` for the VM, `--device` for a device directory other than the testkit's
+`all-features`, and `--keep` to leave the container or VM running. `VERSION=` overrides the git-derived version.
+
+On-device executables are extensionless Python files; tier-0 tests import them with `pihero_testkit.scripts.load_script` and
+call their functions, so a script keeps its logic in functions with injectable dependencies (`environ`, `execvp`, `sleep`,
+`now`) rather than at module level. One `test_installed.py` runs on all three targets, which differ: a container has no
+`/proc/device-tree/model`, no USB device controller, and no DRM device, so a unit with `ConditionPathExistsGlob=` is skipped
+there, not active; assert on the condition, or check the device exists before asserting `is_running`. A `mutating` test
+restores what it changed: `target.reinstall()` after a purge, the previous conffile after an override.
+
 ## Tools container
 
 Linux-side tooling (nfpm, cloud-init, shellcheck, apt-utils, mtools, dosfstools, e2fsprogs, qemu-utils) runs in one image built
 from `debian:trixie-slim` pinned by digest, tagged by the hash of its Containerfile, built on first use and rebuilt when the
 file changes. It is built for the host architecture on purpose: a cross-architecture pull once left a wrong-arch image under the
 same tag, which `podman build` then silently reused. The command comes from the `PODMAN` environment variable, `podman` by
-default. Mac-side tooling is QEMU, podman, and uv from the [Brewfile](../Brewfile); `uv.lock` pins pytest and testinfra;
-upstream inputs are pinned in `testkit/src/pihero_testkit/images.lock` and cached under `~/.cache/pihero/`. `make doctor`
-reports what is missing.
+default. Mac-side tooling is QEMU, podman, and uv from the [Brewfile](../Brewfile); [uv.lock](../uv.lock) pins pytest and
+testinfra; upstream inputs are pinned in [images.lock](../testkit/src/pihero_testkit/images.lock) and cached under
+`~/.cache/pihero/`. `make doctor` reports what is missing.
 
 ## Tier 1
 
@@ -58,7 +76,8 @@ registered, systemd as PID 1 in an `arm/v7` container comes up degraded. The con
 
 The harness plays the firmware.
 
-- **Root filesystem, prepared once and cached.** `prepare-rootfs` runs in the tools container, privileged and with `/dev` bind
+- **Root filesystem, prepared once and cached** (`make vm-prepare` does it ahead of the first run, about ten minutes).
+  `prepare-rootfs` runs in the tools container, privileged and with `/dev` bind
   mounted (podman populates `/dev` once at start, so without the mount `losetup --partscan` never sees the partition nodes it
   creates). It extracts the root partition of the pinned Raspberry Pi OS Lite arm64 image, chroots in, installs Debian's
   `linux-image-arm64` (the Raspberry Pi kernel hooks skip it harmlessly), sets `MODULES=most` for the initramfs (the image's
@@ -99,14 +118,34 @@ TARGET=pi@host` installs freshly built packages over SSH for the development loo
 
 ## CI
 
-Tiers 0 and 1 run on every push on `ubuntu-24.04-arm`, tier 1 for both platforms. Tier 2 needs hardware virtualization, which
-GitHub's Arm runners do not offer, so it runs locally as part of `make release` and weekly in CI under software emulation
-(about 25 minutes). The weekly job runs as root: the runner's podman is rootless, and even a privileged rootless container gets
-no loop device for `prepare-rootfs`, while a rootful container alone leaves the boot image owned by root where QEMU, as the
-runner user, cannot open it. The weekly run is the "what rotted" signal. The release workflow builds, signs, and publishes on
-every `v*` tag.
+Tiers 0 and 1 run on every push on GitHub's Arm runners ([ci.yml](../.github/workflows/ci.yml)), tier 1 for both
+platforms. Tier 2 needs hardware virtualization, which GitHub's Arm runners do not offer, so it runs locally as part of
+`make release` and weekly in CI under software emulation (about 25 minutes). The weekly job runs as root: the runner's
+podman is rootless, and even a privileged rootless container gets no loop device for `prepare-rootfs`, while a rootful
+container alone leaves the boot image owned by root where QEMU, as the runner user, cannot open it. The weekly run is
+the "what rotted" signal. The release workflow builds, signs, and publishes on every `v*` tag.
 
 `main` takes changes only through pull requests with tiers 0 and 1 green and can neither be force-pushed nor deleted; `v*` tags
 cannot be moved or deleted. Workflows run with a read-only token, only the release job may write, and it alone sees the signing
 key. Actions are pinned to commits and the repository refuses unpinned ones; Dependabot proposes the monthly bump. Workflows
 from external forks wait for approval before they run.
+
+## Release
+
+```shell
+make release VERSION=2.1.0        # clean tree required; runs tiers 0 to 2, then tags v2.1.0
+git push origin v2.1.0            # the release workflow builds, signs, and publishes
+curl -fsS https://bkahlert.github.io/pihero/apt/Packages | grep -A1 '^Package: pihero'
+```
+
+Tags with a pre-release suffix such as `v2.1.0-rc.1` publish as `2.1.0~rc.1` and are marked pre-release on GitHub. The
+signing key is the `APT_SIGNING_KEY` secret of the `release` environment, which only `v*` tags can deploy to. The key itself
+is kept in KeePassXC as the attachment of the `PIHERO_APT_SIGNING_KEY` entry. `make repo` builds and signs the same
+repository locally and reads the key from `~/.config/pihero-apt-signing-key.asc`, so export it there for the run and remove
+it afterwards:
+
+```shell
+keepassxc-cli attachment-export <vault>.kdbx PIHERO_APT_SIGNING_KEY pihero-apt-signing-key.asc ~/.config/pihero-apt-signing-key.asc
+make repo
+rm -P ~/.config/pihero-apt-signing-key.asc
+```
