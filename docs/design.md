@@ -155,7 +155,8 @@ next boot.
 
 ## `pihero-kiosk`
 
-Depends on `pihero`, `cog`, and `fonts-dejavu-core`. `pihero-kiosk.service` runs `/usr/lib/pihero/kiosk` as the system user
+Depends on `pihero`, `cog`, `libgles2`, `fonts-dejavu-core`, and `adduser`, which its postinst needs for the `kiosk` user and
+which Trixie's minimal images no longer carry. `pihero-kiosk.service` runs `/usr/lib/pihero/kiosk` as the system user
 `kiosk` with the supplementary groups `video`, `render`, and `input`: the script waits until `URL` answers (file or http),
 then execs `cog --platform=drm URL`, so WPE WebKit paints straight onto the DRM device with no X server, display manager, or
 compositor. `URL` and `COG_ARGS` come from `/etc/pihero/kiosk.conf` (`EnvironmentFile=-`), the default page is a black

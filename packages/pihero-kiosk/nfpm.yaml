@@ -17,6 +17,8 @@ depends:
   # WPE's renderer loads libGLESv2.so.2 at runtime and crashes without it; nothing in cog's own chain pulls it in.
   - libgles2
   - fonts-dejavu-core
+  # postinst creates the kiosk user with adduser, which Trixie's minimal images no longer carry.
+  - adduser
 contents:
   - src: root/
     dst: /
