@@ -70,6 +70,11 @@ A feature is one directory under [packages/](packages/); the harness lives in [t
 [docs/raspberry-pi-os.md](docs/raspberry-pi-os.md), and the conventions for applications built on top in
 [docs/app-conventions.md](docs/app-conventions.md).
 
+Changes reach `main` through pull requests with tiers 0 and 1 green. Commit messages read `<scope>: <what changed; why>`, the
+scope being a package name, `testkit`, `devices`, `docs`, or `ci`. Design specs and implementation plans live under
+[docs/superpowers/](docs/superpowers/) as `YYYY-MM-DD-<topic>[-design].md`; once shipped, the decision and its reason move
+into [docs/design.md](docs/design.md).
+
 ## Contributing
 
 Want to contribute? Awesome! The most basic way to show your support is to star the project, or to raise issues. You
