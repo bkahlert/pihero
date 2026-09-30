@@ -39,6 +39,9 @@ class TestPaint:
     def test_clip_drops_what_does_not_fit(self):
         assert bash(f"{self.SPRITE}; kaomoji_paint --clip 3 sprite{self.RESULT}") == "a蓬 3"
 
+    def test_count_paints_that_many_graphemes(self):
+        assert bash(f"{self.SPRITE}; kaomoji_paint --offset 1 --count 1 sprite{self.RESULT}") == "蓬 2"
+
     def test_clips_the_padding_of_a_negative_offset_too(self):
         assert bash(f"{self.SPRITE}; kaomoji_paint --offset -2 --clip 3 sprite{self.RESULT}") == "  a 3"
 
@@ -87,6 +90,16 @@ class TestFrameCache:
         out = bash(self.COUNTING_HERO + 'kaomoji_animate hero --no-entrance --loops 3 --frame-ms 0 >/dev/null; printf %s "$renders"')
 
         assert out == "12"
+
+    def test_renders_ahead_while_there_is_time(self):
+        out = bash(
+            "SLOW_MOODS=(only); slow_timeline() { local -n out=$3; out=(2 4 3); }; rendered=(); "
+            'slow_frame() { local step; while [ $# -gt 0 ]; do case $1 in --step) step=$2; shift 2 ;; *) shift ;; esac; done; rendered+=("$step"); KAOMOJI_TEXT=x; KAOMOJI_WIDTH=1; }; '
+            'pauses=(); kaomoji_sleep_ms() { pauses+=("${rendered[*]}"); }; '  # no waiting: the whole frame time is left for rendering ahead
+            'kaomoji_animate slow --loops 1 --exit --frame-ms 40 >/dev/null; printf "%s" "${pauses[0]}"'
+        )
+
+        assert out == "0 1 2 3 4 5 6 7 8 9"  # everything up to the last frame, at the first pause
 
     def test_renders_the_preview_frames_once_however_many_loops(self):
         out = bash(self.COUNTING_HERO + 'kaomoji_grid hero --mood happy --no-entrance --loops 2 --frame-ms 0 >/dev/null; printf %s "$renders"')

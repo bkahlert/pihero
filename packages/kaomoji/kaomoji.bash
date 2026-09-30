@@ -243,16 +243,20 @@ kaomoji_sprite() {
 }
 
 # Renders a frame through <name>_frame once: the same arguments give the same frame, so later
-# calls come from the cache. Leaves KAOMOJI_TEXT and KAOMOJI_WIDTH like the frame does.
+# calls come from the cache. Leaves KAOMOJI_TEXT and KAOMOJI_WIDTH like the frame does, and
+# KAOMOJI_RENDERED tells whether the frame was rendered (1) or found (0).
 #   <name>   the character, followed by the arguments of <name>_frame
 declare -A KAOMOJI_FRAME_TEXT=() KAOMOJI_FRAME_WIDTH=()
+KAOMOJI_RENDERED=0
 kaomoji_frame() {
     local key=$*
     if [ -n "${KAOMOJI_FRAME_TEXT[$key]+set}" ]; then
         KAOMOJI_TEXT=${KAOMOJI_FRAME_TEXT[$key]}
         KAOMOJI_WIDTH=${KAOMOJI_FRAME_WIDTH[$key]}
+        KAOMOJI_RENDERED=0
         return 0
     fi
+    KAOMOJI_RENDERED=1
     "${1}_frame" "${@:2}"
     KAOMOJI_FRAME_TEXT[$key]=$KAOMOJI_TEXT
     KAOMOJI_FRAME_WIDTH[$key]=$KAOMOJI_WIDTH
@@ -351,7 +355,8 @@ kaomoji_animate() {
     local -a timeline
     "${name}_timeline" --mood "$mood" timeline
     local -i entrance_steps=${timeline[0]} cycle=${timeline[1]} exit_steps=${timeline[2]}
-    local -i first=0 last=-1 exit_step=-1 step stop=0 shown
+    local -i first=0 last=-1 exit_step=-1 step stop=0 shown ahead estimate=0 started
+    local text
     if ((!entrance)); then first=$((entrance_steps + 1)); fi # the first hover step
     if ((loops >= 0)); then
         last=$((entrance_steps + loops * cycle))
@@ -363,12 +368,24 @@ kaomoji_animate() {
     kaomoji_animation_begin
     if ((exit && loops < 0)); then trap 'stop=1' INT TERM; fi # endless: leave when stopped
     kaomoji_step_frame "$name" "$mood" "$first" "$entrance_steps" "$cycle" "$exit_step" "${flags[@]}"
+    text=$KAOMOJI_TEXT
+    ahead=$((first + 1))
     for ((step = first; ; step++)); do
         shown=${EPOCHREALTIME/./}
-        printf '\r%s%s' "$KAOMOJI_TEXT" "${KAOMOJI_CAP[el]}"
+        printf '\r%s%s' "$text" "${KAOMOJI_CAP[el]}"
         if ((last >= 0 && step >= last)); then break; fi
-        # the next frame renders while this one shows
+        # The next frame renders while this one shows, and further ones as long as the time
+        # the last render took suggests there is room before the frame is due.
         kaomoji_step_frame "$name" "$mood" "$((step + 1))" "$entrance_steps" "$cycle" "$exit_step" "${flags[@]}"
+        text=$KAOMOJI_TEXT
+        if ((ahead <= step + 1)); then ahead=$((step + 2)); fi
+        while ((last >= 0 ? ahead <= last : ahead <= step + cycle)); do
+            started=${EPOCHREALTIME/./}
+            ((started - shown + estimate < frame_ms * 1000)) || break
+            kaomoji_step_frame "$name" "$mood" "$ahead" "$entrance_steps" "$cycle" "$exit_step" "${flags[@]}"
+            if ((KAOMOJI_RENDERED)); then estimate=$((${EPOCHREALTIME/./} - started)); fi
+            ahead+=1
+        done
         kaomoji_sleep_ms "$frame_ms" "$shown"
         if ((stop)); then # leave from the current step
             stop=0
@@ -377,6 +394,8 @@ kaomoji_animate() {
             exit_step=$step
             last=$((step + exit_steps))
             kaomoji_step_frame "$name" "$mood" "$((step + 1))" "$entrance_steps" "$cycle" "$exit_step" "${flags[@]}"
+            text=$KAOMOJI_TEXT
+            ahead=$((step + 2))
         fi
     done
     printf '\n'
