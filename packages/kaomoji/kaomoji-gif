@@ -100,6 +100,7 @@ record() {
     shift 2
     local raw rest
     raw=$(kaomoji_main "$KAOMOJI" --color --loops 1 "$@"; printf x) # x keeps trailing newlines
+    kaomoji_tput civis cnorm cuu1 # the subshell above fetched them for itself only
     rest=${raw%x}
     out_frames=()
     out_delays=()
@@ -109,7 +110,7 @@ record() {
         out_delays+=("${rest%%"$DELAY_END"*}")
         rest=${rest#*"$DELAY_END"}
     done
-    rest=${rest//"$KAOMOJI_CNORM"/} # neither the cursor coming back
+    rest=${rest//"${KAOMOJI_CAP[cnorm]}"/} # neither the cursor coming back
     out_frames+=("${rest%$'\n'}")  # nor the final newline are part of the picture
 }
 
@@ -120,7 +121,7 @@ measure() {
     local frame line text
     local -i row=1 rows=1 cols=0
     for frame in "${recorded[@]}"; do
-        row=$((row - $(count "$frame" "$KAOMOJI_CUU1") + $(count "$frame" $'\n')))
+        row=$((row - $(count "$frame" "${KAOMOJI_CAP[cuu1]}") + $(count "$frame" $'\n')))
         if ((row > rows)); then rows=$row; fi
     done
     text=$(printf '%s' "${recorded[@]}" | sed $'s/\x1b\\[[0-9;?]*[A-Za-z]//g; s/\x1b(B//g' | tr '\r' '\n')
@@ -161,7 +162,7 @@ write_cast() {
             frame=${frame//$'\r'/$'\r'$indent}   # indent every redraw of the current line ...
             frame=${frame//$'\n'/$'\r\n'$indent} # ... and every new one; a tty would add the \r, too
             if ((i == 0)); then frame="$lead$indent$frame"; fi
-            if ((i == ${#cast_frames[@]} - 1)); then frame+=$KAOMOJI_CIVIS; fi # no cursor in the last frame
+            if ((i == ${#cast_frames[@]} - 1)); then frame+=${KAOMOJI_CAP[civis]}; fi # no cursor in the last frame
             json=$(json_string "$frame")
             printf '[%d.%03d, "o", %s]\n' "$((time / 1000))" "$((time % 1000))" "$json"
             if ((i < ${#cast_delays[@]})); then time+=${cast_delays[i]}; fi

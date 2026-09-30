@@ -52,6 +52,31 @@ class TestPaint:
             assert out == "x\x1b(B\x1b[m"
 
 
+class TestCapabilities:
+    def test_fetches_several_in_one_tput_call(self):
+        out = bash('kaomoji_tput civis el cuu1; printf "%s|%s|%s" "${KAOMOJI_CAP[civis]}" "${KAOMOJI_CAP[el]}" "${KAOMOJI_CAP[cuu1]}"')
+
+        assert out == "|".join(tput(cap) for cap in ["civis", "el", "cuu1"])
+
+    def test_counts_the_colors(self):
+        assert bash('kaomoji_tput colors; printf %s "${KAOMOJI_CAP[colors]}"') == "256"
+
+    def test_static_plain_output_runs_no_tput(self, kaomoji, tput_log):
+        kaomoji("hero", path=tput_log.directory).run("--no-color")
+
+        assert tput_log.calls() == []
+
+    def test_a_colored_frame_takes_three_calls(self, kaomoji, tput_log):
+        kaomoji("hero", path=tput_log.directory).run("--mood", "happy", "--color")
+
+        assert len(tput_log.calls()) == 3  # sgr0 as the separator, the color count, the palette
+
+    def test_a_colored_animation_takes_three_calls(self, kaomoji, tput_log):
+        kaomoji("hero", path=tput_log.directory).run("--color", "--no-entrance", "--loops", "1", "--frame-ms", "0")
+
+        assert len(tput_log.calls()) == 3
+
+
 class TestPacing:
     def test_holds_every_frame_for_the_frame_time(self, kaomoji):
         started = time.monotonic()

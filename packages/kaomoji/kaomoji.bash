@@ -24,16 +24,35 @@ esac
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
 die() { printf '%s: %s\nSee '\''%s --help'\''\n' "${0##*/}" "$1" "${0##*/}" >&2; exit 2; }
 
-# Terminal capabilities, resolved once: tput is slow enough to make animations stutter.
-KAOMOJI_COLORS=$(tput colors 2>/dev/null || echo 0)
-KAOMOJI_SGR0=$(tput sgr0 2>/dev/null || true)
-KAOMOJI_CIVIS=$(tput civis 2>/dev/null || true)
-KAOMOJI_CNORM=$(tput cnorm 2>/dev/null || true)
-KAOMOJI_CUU1=$(tput cuu1 2>/dev/null || true)
-KAOMOJI_EL=$(tput el 2>/dev/null || true)
-readonly KAOMOJI_COLORS KAOMOJI_SGR0 KAOMOJI_CIVIS KAOMOJI_CNORM KAOMOJI_CUU1 KAOMOJI_EL
-declare -A KAOMOJI_SGR=()    # style → escape sequence, filled by kaomoji_sgr_cache
+declare -A KAOMOJI_CAP=()    # capability with its arguments → sequence or count, see kaomoji_tput
+declare -A KAOMOJI_SGR=()    # style → escape sequence, filled by kaomoji_sgr_fetch
 declare -A KAOMOJI_WIDTHS=() # character → cells, filled by kaomoji_text_width
+
+# Fills KAOMOJI_CAP with the given capabilities, in a single tput call for all missing ones:
+# tput is a fork, 40 ms on a Raspberry Pi 1, and static plain output needs none at all. The
+# batch output is split on sgr0, which is therefore fetched first.
+#   <capability>...   a terminfo capability name with its arguments, e.g. "setaf 214"
+kaomoji_tput() {
+    if [ -z "${KAOMOJI_CAP[sgr0]+set}" ]; then KAOMOJI_CAP[sgr0]=$(tput sgr0 2>/dev/null || true); fi
+    local cap list out sep=${KAOMOJI_CAP[sgr0]}
+    local -a missing=()
+    for cap; do [ -n "${KAOMOJI_CAP[$cap]+set}" ] || missing+=("$cap"); done
+    ((${#missing[@]})) || return 0
+    if [ -n "$sep" ]; then
+        printf -v list '%s\nsgr0\n' "${missing[@]}"
+        out=$(tput -S <<<"$list" 2>/dev/null || true)
+        for cap in "${missing[@]}"; do
+            KAOMOJI_CAP[$cap]=${out%%"$sep"*}
+            KAOMOJI_CAP[$cap]=${KAOMOJI_CAP[$cap]%$'\n'} # a count like colors ends in a newline
+            out=${out#*"$sep"}
+        done
+    else # a terminal without sgr0 has little else; ask for each
+        for cap in "${missing[@]}"; do
+            # shellcheck disable=SC2086 # a capability may carry arguments
+            KAOMOJI_CAP[$cap]=$(tput $cap 2>/dev/null || true)
+        done
+    fi
+}
 
 # Sets REPLY to the number of terminal cells the given text occupies: two for East Asian wide
 # characters, one for everything else (ambiguous ones included, as Western terminals render them).
@@ -62,27 +81,40 @@ kaomoji_text_width() {
 # Makes sure KAOMOJI_SGR[<style>] holds the escape sequence that starts the style.
 # A style is "<fg>/<bg>" with color indices (either may be empty) or "dim". Colors are applied
 # only if the terminal has all of the style's colors.
-kaomoji_sgr_cache() {
-    local style=$1
-    [ -z "${KAOMOJI_SGR[$style]+set}" ] || return 0
-    local seq='' fg bg
+kaomoji_style_caps() {
+    local style=$1 fg bg
+    local -n into=$2
     case $style in
-    dim) seq=$(tput dim 2>/dev/null || true) ;;
+    dim) into+=(dim) ;;
     */*)
         fg=${style%/*}
         bg=${style#*/}
-        if ((${fg:-0} < KAOMOJI_COLORS && ${bg:-0} < KAOMOJI_COLORS)); then
-            [ -z "$fg" ] || seq+=$(tput setaf "$fg" 2>/dev/null || true)
-            [ -z "$bg" ] || seq+=$(tput setab "$bg" 2>/dev/null || true)
+        if ((${fg:-0} < ${KAOMOJI_CAP[colors]:-0} && ${bg:-0} < ${KAOMOJI_CAP[colors]:-0})); then
+            [ -z "$fg" ] || into+=("setaf $fg")
+            [ -z "$bg" ] || into+=("setab $bg")
         fi
         ;;
     *) die "${FUNCNAME[0]}: unknown style: $style" ;;
     esac
-    KAOMOJI_SGR[$style]=$seq
+}
+
+# Fills KAOMOJI_SGR for the given styles, fetching their capabilities in one go.
+kaomoji_sgr_fetch() {
+    kaomoji_tput colors
+    local style cap
+    local -a caps=() parts
+    for style; do kaomoji_style_caps "$style" caps; done
+    kaomoji_tput "${caps[@]}"
+    for style; do
+        parts=()
+        kaomoji_style_caps "$style" parts
+        KAOMOJI_SGR[$style]=''
+        for cap in "${parts[@]}"; do KAOMOJI_SGR[$style]+=${KAOMOJI_CAP[$cap]}; done
+    done
 }
 
 # Prints the graphemes of a sprite (no trailing newline) and sets REPLY to the display width printed.
-# A sprite is an array of graphemes, each as "<style><TAB><text>", see kaomoji_sgr_cache for styles.
+# A sprite is an array of graphemes, each as "<style><TAB><text>", see kaomoji_style_caps for styles.
 #   --offset <n>   drop <n> graphemes from the left, or pad the left with -<n> spaces if negative (default: 0)
 #   --width <n>    pad the right with spaces up to a display width of <n> (default: 0)
 #   --clip <n>     drop the graphemes that don't fit into a display width of <n> (default: 0, keep all)
@@ -106,8 +138,17 @@ kaomoji_paint() {
     done
     local -n graphemes=${1?${FUNCNAME[0]}: array name missing}
 
-    local out='' pad style text
+    local out='' pad style text sgr0=''
     local -i i shown=0
+    if ((color)); then # every style of the sprite in one go, before painting
+        local -a missing=()
+        for ((i = 0; i < ${#graphemes[@]}; i++)); do
+            style=${graphemes[i]%%$'\t'*}
+            [ -n "${KAOMOJI_SGR[$style]+set}" ] || missing+=("$style")
+        done
+        ((${#missing[@]} == 0)) || kaomoji_sgr_fetch "${missing[@]}"
+        sgr0=${KAOMOJI_CAP[sgr0]}
+    fi
     if ((offset < 0)); then
         printf -v out '%*s' "$((-offset))" ''
         shown=-offset
@@ -120,8 +161,7 @@ kaomoji_paint() {
         if ((clip > 0 && shown + REPLY > clip)); then break; fi
         shown+=REPLY
         if ((color)); then
-            kaomoji_sgr_cache "$style"
-            out+="${KAOMOJI_SGR[$style]}$text$KAOMOJI_SGR0"
+            out+="${KAOMOJI_SGR[$style]}$text$sgr0"
         else
             out+=$text
         fi
@@ -155,9 +195,10 @@ readonly KAOMOJI_QUIT='printf "\n"; exit 130'
 
 # Hides the cursor for an animation and brings it back when the script ends, also on Ctrl-C.
 kaomoji_animation_begin() {
-    trap 'printf "%s" "$KAOMOJI_CNORM"' EXIT
+    kaomoji_tput civis cnorm el cuu1 colors
+    trap 'printf "%s" "${KAOMOJI_CAP[cnorm]}"' EXIT
     trap "$KAOMOJI_QUIT" INT
-    printf '%s' "$KAOMOJI_CIVIS"
+    printf '%s' "${KAOMOJI_CAP[civis]}"
     # The pipe kaomoji_sleep_ms waits on: a FIFO opened for reading and writing never sees EOF.
     local fifo=${TMPDIR:-/tmp}/kaomoji.$$
     if mkfifo -m 600 "$fifo" 2>/dev/null; then
@@ -167,7 +208,7 @@ kaomoji_animation_begin() {
 }
 
 kaomoji_animation_end() {
-    printf '%s' "$KAOMOJI_CNORM"
+    printf '%s' "${KAOMOJI_CAP[cnorm]}"
     trap - EXIT INT
     if [ -n "${KAOMOJI_TICK:-}" ]; then
         exec {KAOMOJI_TICK}>&-
@@ -224,7 +265,7 @@ kaomoji_animate() {
         shown=${EPOCHREALTIME/./}
         printf '\r'
         "${name}_frame" --mood "$mood" --step "$step" "${color[@]}" "${flags[@]}"
-        printf '%s' "$KAOMOJI_EL"
+        printf '%s' "${KAOMOJI_CAP[el]}"
         if ((last >= 0 && step >= last)); then break; fi
         kaomoji_sleep_ms "$frame_ms" "$shown"
         if ((stop)); then # leave from the current step
@@ -270,9 +311,10 @@ kaomoji_grid() {
     done
 
     local -a titles=('static plain' 'static color' 'animated plain' 'animated color')
-    local dim
-    kaomoji_sgr_cache dim
+    local dim sgr0
+    kaomoji_sgr_fetch dim
     dim=${KAOMOJI_SGR[dim]}
+    sgr0=${KAOMOJI_CAP[sgr0]}
 
     # The label column fits every mood, a cell fits its title and every frame of a hover cycle,
     # and each mood's animation runs from its own first to its own last step.
@@ -303,18 +345,18 @@ kaomoji_grid() {
     for ((step = 0; ; step++)); do
         shown=${EPOCHREALTIME/./}
         if ((step > 0)); then
-            for ((i = 0; i < rows; i++)); do printf '%s' "$KAOMOJI_CUU1"; done
+            for ((i = 0; i < rows; i++)); do printf '%s' "${KAOMOJI_CAP[cuu1]}"; done
         fi
         printf '%s%-*s' "$dim" "$label" mood
         for title in "${titles[@]}"; do printf ' %-*s' "$cell" "$title"; done
-        printf '%s%s\n' "$KAOMOJI_SGR0" "$KAOMOJI_EL"
+        printf '%s%s\n' "$sgr0" "${KAOMOJI_CAP[el]}"
         for i in "${!moods[@]}"; do
-            printf '%s\n' "$KAOMOJI_EL"
+            printf '%s\n' "${KAOMOJI_CAP[el]}"
             mood=${moods[i]}
             s=$((first_steps[i] + step))
             if ((loops >= 0 && s > last_steps[i])); then s=${last_steps[i]}; fi
             if ((exit)); then exit_flags=(--exit "${exit_steps[i]}"); fi
-            printf '%s%-*s%s' "$dim" "$label" "$mood" "$KAOMOJI_SGR0"
+            printf '%s%-*s%s' "$dim" "$label" "$mood" "$sgr0"
             printf ' '
             "${name}_frame" --mood "$mood" --width "$cell"
             printf ' '
@@ -323,7 +365,7 @@ kaomoji_grid() {
             "${name}_frame" --mood "$mood" --width "$cell" --step "$s" "${flags[@]}" "${exit_flags[@]}"
             printf ' '
             "${name}_frame" --mood "$mood" --width "$cell" --step "$s" --color "${flags[@]}" "${exit_flags[@]}"
-            printf '%s\n' "$KAOMOJI_EL"
+            printf '%s\n' "${KAOMOJI_CAP[el]}"
         done
         if ((loops >= 0 && step >= last)); then break; fi
         kaomoji_sleep_ms "$frame_ms" "$shown"
