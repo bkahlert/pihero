@@ -59,13 +59,6 @@ backup: ## image an SD card into backups/<host>-<date>.img.xz (make backup [DISK
 restore: ## write a backup image onto an SD card (make restore [IMAGE=backups/x.img.xz] [DISK=disk9])
 	@$(UV) python -m pihero_testkit.restore --image="$(IMAGE)" --disk="$(DISK)"
 
-dump-model-icons: ## dump the Finder device icons of CoreTypes.bundle (make dump-model-icons OUT=dir [IDS="com.apple.xserve ..."])
-	@test -n "$(OUT)" || { echo "usage: make dump-model-icons OUT=dir [IDS=\"com.apple.airport-express ...\"]"; exit 2; }
-	@$(UV) python -m pihero_testkit.dump_model_icons "$(OUT)" $(IDS)
-
-update-model-icons: ## refresh docs/models/ from this Mac's CoreTypes.bundle
-	@$(UV) python -m pihero_testkit.update_model_icons
-
 clean: ## remove build outputs
 	rm -rf dist packages/*/.build
 

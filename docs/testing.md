@@ -36,8 +36,8 @@ with `install_extra`, `purge`, `reinstall`, and `reboot`; `version` is what the 
 version or, over ssh, the one on the device; `packages` are the built `.deb` paths. Options beyond `--target` and
 `--target-uri`: `--platform` for podman, `--qemu-accel` for the VM, `--device` for a device directory other than the testkit's
 `all-features`, and `--keep` to leave the container or VM running. `VERSION=` overrides the git-derived version. A tier-0
-test of a Mac-side command that needs macOS tools, such as `iconutil` and `osascript` behind `make dump-model-icons`, is `skipif` not
-darwin: it runs locally and under `make release`, and CI's Linux runners skip it.
+test of a Mac-side command that needs macOS tools is `skipif` not darwin: it runs locally and under `make release`, and
+CI's Linux runners skip it.
 
 On-device executables are extensionless Python files; tier-0 tests import them with `pihero_testkit.scripts.load_script` and
 call their functions, so a script keeps its logic in functions with injectable dependencies (`environ`, `execvp`, `sleep`,

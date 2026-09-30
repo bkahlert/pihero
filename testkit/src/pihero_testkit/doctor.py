@@ -9,7 +9,6 @@ TOOLS = {
     "qemu-system-aarch64": ["qemu-system-aarch64", "--version"],
     "qemu-img": ["qemu-img", "--version"],
     "uv": ["uv", "--version"],
-    "pngquant": ["pngquant", "--version"],
     "ssh": ["ssh", "-V"],
     "git": ["git", "--version"],
 }
