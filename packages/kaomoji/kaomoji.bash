@@ -9,8 +9,12 @@
 #                      --exit <step>, --color (see hero_frame)
 #   <name>_timeline    fills an array with the number of entrance steps, the steps of one hover
 #                      cycle and the number of exit steps: <name>_timeline --mood <mood> <array>
+#   <name>_pose        fills an array with the sprite of a step of the hover cycle, through
+#                      kaomoji_sprite so that a pose is built once: <name>_pose <mood> <step> <array>;
+#                      the steps of one cycle show every pose the character has
 # A frame paints with kaomoji_paint. Frames are deterministic and the hover frames repeat every
-# cycle, so the engine renders each of them once and plays them from a cache.
+# cycle, so the engine renders each of them once and plays them from a cache; the poses are
+# built before an animation starts.
 # Needs bash 5.0+.
 
 [ -z "${KAOMOJI_BASH:-}" ] || return 0
@@ -262,6 +266,24 @@ kaomoji_timeline() {
     into=(${KAOMOJI_TIMELINES[$key]})
 }
 
+# Builds and lays out every sprite a character has for a mood, so that no frame pays for a
+# pose later: <name>_pose is asked for each step of one hover cycle, and each distinct sprite
+# is painted once.
+#   <name> <mood> [--color]
+kaomoji_warm() {
+    local -a timeline sprite
+    local -A painted=()
+    kaomoji_timeline "$1" "$2" timeline
+    local -i step
+    for ((step = 0; step < timeline[1]; step++)); do
+        "${1}_pose" "$2" "$step" sprite
+        if [ -z "${painted[${#sprite[@]}:${sprite[*]}]+set}" ]; then
+            kaomoji_paint "${@:3}" sprite
+            painted[${#sprite[@]}:${sprite[*]}]=1
+        fi
+    done
+}
+
 # Renders a frame through <name>_frame once: the same arguments give the same frame, so later
 # calls come from the cache. Leaves KAOMOJI_TEXT and KAOMOJI_WIDTH like the frame does, and
 # KAOMOJI_RENDERED tells whether the frame was rendered (1) or found (0).
@@ -354,13 +376,13 @@ kaomoji_animate() {
     shift
     local -n moods=${name^^}_MOODS
     local mood=${moods[0]}
-    local -a flags=() # passed on to the frame
+    local -a flags=() color=() # passed on to the frame; the color also to the warm-up
     local -i entrance=1 exit=0 loops=-1 frame_ms=50
     while [ $# -gt 0 ]; do
         case $1 in
         --mood) mood=${2?$1: missing value}; shift 2 ;;
         --mood=*) mood=${1#*=}; shift ;;
-        --color) flags+=(--color); shift ;;
+        --color) flags+=(--color); color=(--color); shift ;;
         --no-entrance) entrance=0; flags+=(--no-entrance); shift ;;
         --exit) exit=1; shift ;;
         --loops) loops=${2?$1: missing value}; shift 2 ;;
@@ -387,6 +409,7 @@ kaomoji_animate() {
     fi
     kaomoji_animation_begin
     if ((exit && loops < 0)); then trap 'stop=1' INT TERM; fi # endless: leave when stopped
+    kaomoji_warm "$name" "$mood" "${color[@]}"
     kaomoji_step_frame "$name" "$mood" "$first" "$entrance_steps" "$cycle" "$exit_step" "${flags[@]}"
     text=$KAOMOJI_TEXT
     ahead=$((first + 1))
@@ -472,6 +495,8 @@ kaomoji_grid() {
         kaomoji_timeline "$name" "$mood" timeline
         entrances[i]=${timeline[0]}
         cycles[i]=${timeline[1]}
+        kaomoji_warm "$name" "$mood"
+        kaomoji_warm "$name" "$mood" --color
         for ((s = timeline[0]; s <= timeline[0] + timeline[1]; s++)); do
             kaomoji_step_frame "$name" "$mood" "$s" "${entrances[i]}" "${cycles[i]}" -1 "${flags[@]}"
             if ((KAOMOJI_WIDTH > cell)); then cell=$KAOMOJI_WIDTH; fi

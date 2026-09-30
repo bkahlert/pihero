@@ -93,6 +93,29 @@ class TestSprite:
         assert out == str(poses)
 
 
+class TestWarm:
+    def test_builds_and_lays_out_every_pose_of_a_mood(self):
+        out = bash(f". '{PACKAGE}/visitor'; kaomoji_warm visitor neutral; printf '%s %s %s' \"${{#KAOMOJI_SPRITES[@]}}\" \"${{#KAOMOJI_LAYOUTS[@]}}\" \"${{#KAOMOJI_COLORED[@]}}\"")
+
+        assert out == "3 3 0"
+
+    def test_colors_the_layouts_on_request(self):
+        out = bash(f". '{PACKAGE}/hero'; kaomoji_warm hero neutral --color; printf '%s %s' \"${{#KAOMOJI_SPRITES[@]}}\" \"${{#KAOMOJI_COLORED[@]}}\"")
+
+        assert out == "4 4"
+
+    def test_an_animation_builds_every_pose_before_its_first_frame(self):
+        out = bash(
+            f". '{PACKAGE}/hero'; "
+            'eval "original_$(declare -f hero_sprite)"; builds=0; '
+            'hero_sprite() { builds=$((builds + 1)); original_hero_sprite "$@"; }; '
+            'at_first_pause=""; kaomoji_sleep_ms() { at_first_pause=${at_first_pause:-$builds}; }; '
+            'kaomoji_animate hero --loops 1 --exit --frame-ms 0 >/dev/null; printf "%s %s" "$at_first_pause" "$builds"'
+        )
+
+        assert out == "4 4"
+
+
 class TestFrameCache:
     COUNTING_HERO = (
         f". '{PACKAGE}/hero'; "
@@ -107,7 +130,7 @@ class TestFrameCache:
 
     def test_renders_ahead_while_there_is_time(self):
         out = bash(
-            "SLOW_MOODS=(only); slow_timeline() { local -n out=$3; out=(2 4 3); }; rendered=(); "
+            "SLOW_MOODS=(only); slow_timeline() { local -n out=$3; out=(2 4 3); }; slow_pose() { local -n s=$3; s=(); }; rendered=(); "
             'slow_frame() { local step; while [ $# -gt 0 ]; do case $1 in --step) step=$2; shift 2 ;; *) shift ;; esac; done; rendered+=("$step"); KAOMOJI_TEXT=x; KAOMOJI_WIDTH=1; }; '
             'pauses=(); kaomoji_sleep_ms() { pauses+=("${rendered[*]}"); }; '  # no waiting: the whole frame time is left for rendering ahead
             'kaomoji_animate slow --loops 1 --exit --frame-ms 40 >/dev/null; printf "%s" "${pauses[0]}"'
@@ -158,7 +181,7 @@ class TestPacing:
     def test_absorbs_the_render_time_of_a_frame(self):
         started = time.monotonic()
         out = bash(
-            "SLOW_MOODS=(only); slow_timeline() { local -n out=$3; out=(0 10 0); }; "
+            "SLOW_MOODS=(only); slow_timeline() { local -n out=$3; out=(0 10 0); }; slow_pose() { local -n s=$3; s=(); }; "
             "slow_frame() { sleep 0.03; printf x; }; "
             "kaomoji_animate slow --no-entrance --loops 1 --frame-ms 40 | tr -cd x | wc -c"
         )
