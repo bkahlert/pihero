@@ -1,4 +1,5 @@
 import os
+import signal
 import subprocess
 from pathlib import Path
 
@@ -67,11 +68,10 @@ class TestMain:
         assert result.returncode == 2
         assert "unknown mood: grumpy" in result.stderr
 
-    def test_exit_needs_loops(self, kaomoji):
-        result = kaomoji("hero").run("--mood", "happy", "--animate", "--exit")
+    def test_renders_the_first_mood_by_default(self, kaomoji):
+        result = kaomoji("hero").run()
 
-        assert result.returncode == 2
-        assert "--exit needs --loops" in result.stderr
+        assert result.stdout == "─=≡▰▩▩[ 蓬•ｏ•]⊐\n"
 
     def test_is_plain_when_stdout_is_no_terminal(self, kaomoji):
         result = kaomoji("hero").run("--mood", "happy")
@@ -82,6 +82,51 @@ class TestMain:
         result = kaomoji("hero").run("--mood", "happy", "--color")
 
         assert "\x1b[38;5;214m" in result.stdout
+
+    class TestAnimate:
+        def test_is_off_by_default(self, kaomoji):
+            result = kaomoji("hero").run("--mood", "happy")
+
+            assert "\r" not in result.stdout
+
+        @pytest.mark.parametrize("option", [["--no-entrance"], ["--exit"], ["--frame-ms", "0"]])
+        def test_is_implied_by_the_animation_options(self, kaomoji, option):
+            result = kaomoji("hero").run(*option, "--loops", "1")
+
+            assert result.returncode == 0
+            assert result.stdout.count("\r") > 1
+
+        def test_is_implied_by_loops(self, kaomoji):
+            result = kaomoji("hero").run("--loops", "1", "--frame-ms", "0")
+
+            assert result.stdout.count("\r") > 1
+
+    class TestExitWhileEndless:
+        @pytest.mark.parametrize("stop", [signal.SIGINT, signal.SIGTERM])
+        def test_plays_the_exit_when_stopped(self, kaomoji, stop):
+            result = kaomoji("colleague").stopped("--exit", "--no-entrance", "--frame-ms", "20", signals=[stop])
+
+            assert result.returncode == 0
+            assert kaomoji.split_frames(result.stdout)[-4:] == ["┬┴┤", "┴┤", "┤", ""]
+
+        def test_quits_at_once_on_a_second_interrupt(self, kaomoji):
+            result = kaomoji("colleague").stopped("--exit", "--no-entrance", "--frame-ms", "50", signals=[signal.SIGINT] * 2)
+
+            drawn = [frame for frame in kaomoji.split_frames(result.stdout) if frame]
+            assert result.returncode == 130
+            assert drawn[-1].startswith("┴┬┴┤")
+
+    class TestPreview:
+        def test_shows_a_grid_of_every_mood(self, kaomoji):
+            header, *rows = kaomoji("hero").grid("--loops", "1")[-1]
+
+            assert header.split()[0] == "mood"
+            assert [row.split()[0] for row in rows] == ["neutral", "happy", "sad", "unknown"]
+
+        def test_narrows_to_the_given_mood(self, kaomoji):
+            header, *rows = kaomoji("hero").grid("--mood", "happy", "--loops", "1")[-1]
+
+            assert [row.split()[0] for row in rows] == ["happy"]
 
 
 def bash(snippet: str, term: str = "xterm-256color") -> str:

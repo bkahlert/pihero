@@ -18,26 +18,46 @@ class Kaomoji:
         self.term = term
 
     def run(self, *args: str) -> subprocess.CompletedProcess:
-        env = {**os.environ, "TERM": self.term}
-        env.pop("NO_COLOR", None)
-        result = subprocess.run([str(self.script), *args], capture_output=True, env=env)
+        result = subprocess.run([str(self.script), *args], capture_output=True, env=self.env())
         # decoded by hand: text mode would turn the \r between frames into newlines
         return subprocess.CompletedProcess(result.args, result.returncode, result.stdout.decode(), result.stderr.decode())
+
+    def stopped(self, *args: str, signals: list[int]) -> subprocess.CompletedProcess:
+        """Runs an endless animation and sends each signal once two more frames have shown."""
+        proc = subprocess.Popen(
+            [str(self.script), "--no-color", *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env(), bufsize=0
+        )
+        out = b""
+        for sig in signals:
+            seen = out.count(b"\r")
+            while out.count(b"\r") < seen + 2:
+                chunk = proc.stdout.read(4096)
+                if not chunk:
+                    break
+                out += chunk
+            proc.send_signal(sig)
+        rest, err = proc.communicate(timeout=10)
+        return subprocess.CompletedProcess(proc.args, proc.returncode, (out + rest).decode(), err.decode())
 
     def static(self, mood: str) -> str:
         return self.run("--mood", mood, "--no-color").stdout.rstrip("\n")
 
     def frames(self, *args: str, color: bool = False) -> list[str]:
-        """The frames of a single-line animation, one per step, escape sequences stripped unless colored."""
-        out = self.run("--animate", "--color" if color else "--no-color", "--frame-ms", "0", *args).stdout
+        """The frames of a single-line animation, one per step; --frame-ms implies --animate."""
+        out = self.run("--color" if color else "--no-color", "--frame-ms", "0", *args).stdout
+        return self.split_frames(out, color)
+
+    @staticmethod
+    def split_frames(out: str, color: bool = False) -> list[str]:
+        """Splits an animation's output into its frames, escape sequences stripped unless colored."""
         chunks = out.split("\r")[1:]  # before the first \r the cursor is only hidden
         chunks[-1] = chunks[-1].split("\n")[0]  # the newline and the returning cursor end the animation
         return [c if color else ESCAPES.sub("", c) for c in chunks]
 
     def grid(self, *args: str) -> list[list[str]]:
-        """The frames of a grid, each as its header line followed by one line per mood."""
-        out = self.run("--frame-ms", "0", *args).stdout
-        rows = 1 + 2 * len(self.moods())
+        """The frames of the preview grid, each as its header line followed by one line per mood."""
+        out = self.run("--preview", "--frame-ms", "0", *args).stdout
+        rows = 1 + 2 * (1 if "--mood" in args else len(self.moods()))
         frames = []
         for chunk in out.split(CUU1 * rows):
             lines = [line for line in ESCAPES.sub("", chunk).split("\n") if line.strip()]
@@ -46,7 +66,12 @@ class Kaomoji:
 
     def moods(self) -> list[str]:
         line = next(l for l in self.run("--help").stdout.splitlines() if l.strip().startswith("--mood <mood>"))
-        return line.split("One of", 1)[1].strip(" .").split(", ")
+        return line.split("One of", 1)[1].split(" (")[0].strip(" .").split(", ")
+
+    def env(self) -> dict[str, str]:
+        env = {**os.environ, "TERM": self.term}
+        env.pop("NO_COLOR", None)
+        return env
 
 
 @pytest.fixture

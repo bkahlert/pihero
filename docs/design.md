@@ -196,11 +196,15 @@ The Pi Hero cast, not shipped yet: [packages/kaomoji](../packages/kaomoji) has n
 while its tests run in tier 0 and its scripts pass the static checks like every package's. The engine,
 [kaomoji.bash](../packages/kaomoji/kaomoji.bash), paints sprites of styled graphemes with tput, paces an animation on one
 line, draws the grid of all variants, and provides the command line; a character script adds its moods, a frame function,
-and a timeline (entrance steps, hover cycle, exit steps). `hero` flies in from the left, hovers, and flies out to the right;
+and a timeline (entrance steps, hover cycle, exit steps). Every call prints one kaomoji: the first mood, static, colored on a
+terminal; `--animate` or any animation option animates it, and `--exit` on an endless animation plays the exit when the script
+is stopped, so an app can show a face until it is done and let it leave. Only `--help` and `--preview`, the grid, print
+anything else. `hero` flies in from the left, hovers, and flies out to the right;
 `wizard` slides in, conjures its magic particle by particle, runs the colors along it, and slides out to the left;
 `colleague` peeks out from behind a wall that slides in, waves and blinks, and ducks back before the wall slides out.
 [kaomoji-gif](../packages/kaomoji/kaomoji-gif) replaces the engine's pacing hook to record every frame and renders the GIFs
-in [assets](../assets) with agg. Where the faces end up is open: the engine in `pihero` with each app owning its face, or the
+in [assets](../assets) with agg; it is to become a generic renderer that records the command given after `--` instead of
+mirroring the characters' options. Where the faces end up is open: the engine in `pihero` with each app owning its face, or the
 whole cast in one package. Tests, performance, and the function API come first.
 
 ## Planned packages

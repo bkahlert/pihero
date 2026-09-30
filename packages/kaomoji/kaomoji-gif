@@ -35,7 +35,7 @@
 #
 # Examples:
 #   kaomoji-gif hero --font-family "Menlo,Apple Symbols" --mood neutral --animate --no-entrance   # hovering hero, seamless loop
-#   kaomoji-gif hero --output hero-grid.gif --font-family "Menlo,Apple Symbols" --font-size 24 --hold 1 --loops 4 --exit   # the whole grid: flies in, hovers four times, flies out, restarts after 1 s
+#   kaomoji-gif hero --output hero-grid.gif --font-family "Menlo,Apple Symbols" --font-size 24 --hold 1 --preview --loops 4 --exit   # the whole grid: flies in, hovers four times, flies out, restarts after 1 s
 #   kaomoji-gif wizard --output wizard.gif --hold 1 --mood neutral --animate --loops 2 --exit    # the wizard's entrance, two hover cycles and exit
 #   kaomoji-gif hero --mood happy                                                                # a single frame
 #   kaomoji-gif hero --output hero-badge.gif --font-family "Menlo,Apple Symbols" --font-size 21 --line-height 1.428571 \

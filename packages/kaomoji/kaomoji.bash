@@ -140,13 +140,16 @@ kaomoji_paint() {
 kaomoji_sleep_ms() {
     local pause
     printf -v pause '%d.%03d' "$(($1 / 1000))" "$(($1 % 1000))"
-    sleep "$pause"
+    sleep "$pause" || : # a signal may cut it short; the trap decides what happens then
 }
+
+# What a signal does during an animation: quit at once, leaving the cursor on a fresh line.
+readonly KAOMOJI_QUIT='printf "\n"; exit 130'
 
 # Hides the cursor for an animation and brings it back when the script ends, also on Ctrl-C.
 kaomoji_animation_begin() {
     trap 'printf "%s" "$KAOMOJI_CNORM"' EXIT
-    trap 'printf "\n"; exit 130' INT
+    trap "$KAOMOJI_QUIT" INT
     printf '%s' "$KAOMOJI_CIVIS"
 }
 
@@ -161,7 +164,8 @@ kaomoji_animation_end() {
 #   --color           colored output
 #   --no-entrance     skip the entrance and start hovering right away
 #   --loops <n>       stop after <n> hover cycles (default: -1, endless)
-#   --exit            play the exit after the last hover cycle
+#   --exit            play the exit after the last hover cycle; while endless, when the script is
+#                     stopped by SIGINT or SIGTERM, a second signal quitting at once
 #   --frame-ms <ms>   delay between frames (default: 50)
 kaomoji_animate() {
     local name=${1?${FUNCNAME[0]}: character name missing}
@@ -188,20 +192,30 @@ kaomoji_animate() {
 
     local -a timeline
     "${name}_timeline" --mood "$mood" timeline
-    local -i first=0 last step
+    local -i first=0 last=-1 step stop=0
     if ((!entrance)); then first=$((timeline[0] + 1)); fi # the first hover step
-    last=$((timeline[0] + loops * timeline[1]))           # meaningless while endless
-    if ((exit)); then
-        flags+=(--exit "$last")
-        last=$((last + timeline[2]))
+    if ((loops >= 0)); then
+        last=$((timeline[0] + loops * timeline[1]))
+        if ((exit)); then
+            flags+=(--exit "$last")
+            last=$((last + timeline[2]))
+        fi
     fi
     kaomoji_animation_begin
+    if ((exit && loops < 0)); then trap 'stop=1' INT TERM; fi # endless: leave when stopped
     for ((step = first; ; step++)); do
         printf '\r'
         "${name}_frame" --mood "$mood" --step "$step" "${color[@]}" "${flags[@]}"
         printf '%s' "$KAOMOJI_EL"
-        if ((loops >= 0 && step >= last)); then break; fi
+        if ((last >= 0 && step >= last)); then break; fi
         kaomoji_sleep_ms "$frame_ms"
+        if ((stop)); then # leave from the current step
+            stop=0
+            trap "$KAOMOJI_QUIT" INT
+            trap - TERM
+            flags+=(--exit "$step")
+            last=$((step + timeline[2]))
+        fi
     done
     printf '\n'
     kaomoji_animation_end
@@ -210,6 +224,7 @@ kaomoji_animate() {
 # Prints a grid of all variants: one row per mood, one column per style
 # (static and animated, each plain and colored). The animated columns play in place.
 #   <name>            the character
+#   --mood <mood>     only this mood's row (default: all moods)
 #   --no-entrance     skip the entrance and start hovering right away
 #   --loops <n>       stop after <n> hover cycles (default: -1, endless)
 #   --exit            play the exit after the last hover cycle
@@ -217,11 +232,14 @@ kaomoji_animate() {
 kaomoji_grid() {
     local name=${1?${FUNCNAME[0]}: character name missing}
     shift
-    local -n moods=${name^^}_MOODS
+    local -n all_moods=${name^^}_MOODS
+    local -a moods=("${all_moods[@]}")
     local -i entrance=1 exit=0 loops=-1 frame_ms=50
     local -a flags=() # passed on to the frame
     while [ $# -gt 0 ]; do
         case $1 in
+        --mood) moods=("${2?$1: missing value}"); shift 2 ;;
+        --mood=*) moods=("${1#*=}"); shift ;;
         --no-entrance) entrance=0; flags=(--no-entrance); shift ;;
         --exit) exit=1; shift ;;
         --loops) loops=${2?$1: missing value}; shift 2 ;;
@@ -293,44 +311,47 @@ kaomoji_grid() {
     kaomoji_animation_end
 }
 
-# The command line every kaomoji script shares, see the usage of hero.
+# The command line every kaomoji script shares, see the usage of hero. Every call prints one
+# kaomoji, static unless animated; only --help and --preview print something else.
 #   <name>   the character, followed by the script's arguments
 kaomoji_main() {
     local name=${1?${FUNCNAME[0]}: character name missing}
     shift
     local -n moods=${name^^}_MOODS
-    local mood='' use_color=''
-    local -a flags=() # passed on to the animation
-    local -i animate=0 exit=0 loops=-1 frame_ms=50
+    local use_color=''
+    local -a mood_flag=() flags=() # passed on to the grid or the animation
+    local -i animate=0 preview=0 loops=-1 frame_ms=50
     while [ $# -gt 0 ]; do
         case $1 in
         -h | --help) usage; exit 0 ;;
-        --mood) mood=${2?--mood: missing value}; shift 2 ;;
-        --mood=*) mood=${1#*=}; shift ;;
+        --mood) mood_flag=(--mood "${2?--mood: missing value}"); shift 2 ;;
+        --mood=*) mood_flag=(--mood "${1#*=}"); shift ;;
+        --preview) preview=1; shift ;;
         --animate) animate=1; shift ;;
-        --no-entrance) flags+=(--no-entrance); shift ;;
-        --exit) exit=1; flags+=(--exit); shift ;;
+        --no-entrance) animate=1; flags+=(--no-entrance); shift ;;
+        --exit) animate=1; flags+=(--exit); shift ;;
         --color) use_color=1; shift ;;
         --no-color) use_color=0; shift ;;
-        --loops) loops=${2?--loops: missing value}; shift 2 ;;
-        --loops=*) loops=${1#*=}; shift ;;
-        --frame-ms) frame_ms=${2?--frame-ms: missing value}; shift 2 ;;
-        --frame-ms=*) frame_ms=${1#*=}; shift ;;
+        --loops) animate=1; loops=${2?--loops: missing value}; shift 2 ;;
+        --loops=*) animate=1; loops=${1#*=}; shift ;;
+        --frame-ms) animate=1; frame_ms=${2?--frame-ms: missing value}; shift 2 ;;
+        --frame-ms=*) animate=1; frame_ms=${1#*=}; shift ;;
         -?*) die "unknown option: $1" ;;
         *) die "unexpected argument: $1" ;;
         esac
     done
-    if ((exit && loops < 0)); then die "--exit needs --loops"; fi
 
-    if [ -z "$mood" ]; then
-        kaomoji_grid "$name" "${flags[@]}" --loops "$loops" --frame-ms "$frame_ms"
-        return 0
+    if [ "${#mood_flag[@]}" -gt 0 ]; then
+        case " ${moods[*]} " in
+        *" ${mood_flag[1]} "*) ;;
+        *) die "unknown mood: ${mood_flag[1]}" ;;
+        esac
     fi
 
-    case " ${moods[*]} " in
-    *" $mood "*) ;;
-    *) die "unknown mood: $mood" ;;
-    esac
+    if ((preview)); then
+        kaomoji_grid "$name" "${mood_flag[@]}" "${flags[@]}" --loops "$loops" --frame-ms "$frame_ms"
+        return 0
+    fi
 
     if [ -z "$use_color" ]; then
         if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then use_color=1; else use_color=0; fi
@@ -339,9 +360,9 @@ kaomoji_main() {
     if ((use_color)); then color_flag=(--color); fi
 
     if ((animate)); then
-        kaomoji_animate "$name" --mood "$mood" "${color_flag[@]}" "${flags[@]}" --loops "$loops" --frame-ms "$frame_ms"
+        kaomoji_animate "$name" "${mood_flag[@]}" "${color_flag[@]}" "${flags[@]}" --loops "$loops" --frame-ms "$frame_ms"
     else
-        "${name}_frame" --mood "$mood" "${color_flag[@]}"
+        "${name}_frame" "${mood_flag[@]}" "${color_flag[@]}"
         printf '\n'
     fi
 }

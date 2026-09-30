@@ -1,33 +1,41 @@
 #!/usr/bin/env bash
 # Purpose: Render the Netmon wizard kaomoji (つ◕౪◕)つ─｡ﾟ․☆･*ﾟ in all moods, plain or colored, static or animated.
-# Usage:   wizard [--no-entrance] [--loops <n> [--exit]] [--frame-ms <ms>]
-#          wizard --mood <mood> [--animate [--no-entrance]] [--color|--no-color] [--loops <n> [--exit]] [--frame-ms <ms>]
+# Usage:   wizard [--mood <mood>] [--color|--no-color]
+#          wizard [--mood <mood>] [--color|--no-color] --animate [--no-entrance] [--loops <n>] [--exit] [--frame-ms <ms>]
+#          wizard --preview [--mood <mood>] [--no-entrance] [--loops <n>] [--exit] [--frame-ms <ms>]
 #
-# Without --mood, all variants are shown in a grid: one row per mood, one column per style.
-# With --mood, a single variant is rendered. Colors need a 16-color terminal. Needs bash 4.4+.
+# Prints one kaomoji, static unless animated. --preview shows all variants instead: a grid with one
+# row per mood and one column per style. Colors need a 16-color terminal. Needs bash 4.4+.
 #
 # The wizard slides in from the left and conjures the magic particle by particle; while hovering,
 # the colors run along the particles. On exit the particles vanish from the right and the wizard
 # slides out to the left.
 #
 # Options:
-#   --mood <mood>     One of neutral, happy, sad, unknown.
-#   --animate         Slide the wizard in from the left and let it hover (default: static).
+#   --mood <mood>     One of neutral, happy, sad, unknown (default: neutral).
+#   --animate         Slide the wizard in from the left and let it hover (default: static). Implied by the options below.
 #   --no-entrance     Skip the entrance and start hovering right away.
+#   --loops <n>       Stop after <n> hover cycles (default: endless, until stopped with Ctrl-C).
+#   --exit            Let the wizard leave after the last hover cycle, or when an endless animation is
+#                     stopped with Ctrl-C or SIGTERM; a second Ctrl-C quits at once.
+#   --frame-ms <ms>   Delay between animation frames (default: 50).
 #   --color           Colored output (default: if stdout is a terminal and NO_COLOR is unset).
 #   --no-color        Plain output.
-#   --loops <n>       Stop after <n> hover cycles (default: endless, until Ctrl-C).
-#   --exit            Let the wizard leave after the last hover cycle (needs --loops).
-#   --frame-ms <ms>   Delay between animation frames (default: 50).
+#   --preview         Show all variants in a grid, animated, instead of one kaomoji.
 #   -h, --help        Show this help.
 #
 # Examples:
-#   wizard                                  # grid of all variants, animated until Ctrl-C
-#   wizard --loops 2 --exit                 # grid, hovering twice, then leaving
+#   wizard
+#   (つ◕౪◕)つ─｡ﾟ․☆･*ﾟ
 #   wizard --mood happy
 #   (＾∀＾)つ─｡ﾟ․☆･*ﾟ
-#   wizard --mood sad --animate --loops 3 --exit
-#   wizard --mood neutral --no-color > motd  # plain text for a file
+#   wizard --animate                        # entrance, then hovering until Ctrl-C
+#   wizard --animate --exit                 # ... leaving on Ctrl-C
+#   wizard --mood sad --loops 3 --exit      # entrance, three hover cycles, exit
+#   wizard --no-entrance                    # hovering right away, until Ctrl-C
+#   wizard --no-color > motd                # plain text for a file
+#   wizard --preview                        # grid of all variants, animated until Ctrl-C
+#   wizard --preview --loops 2 --exit       # grid, hovering twice, then leaving
 
 set -euo pipefail
 
