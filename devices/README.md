@@ -43,9 +43,9 @@ rather than a computer. Other good choices:
 
 Changing it later: edit `/etc/pihero/device-info.conf` on the Pi and `systemctl restart pihero-avahi-render.service`.
 
-The pictures come from macOS itself. `make update-model-icons` regenerates them from this Mac's `CoreTypes.bundle`,
-quantised with pngquant to keep the repository small; `make dump-model-icons OUT=dir` dumps the icon, sidebar template,
-and SF Symbol of every device type there is. Sidebar images keep their macOS names under `sidebar/`, linked from
+The pictures come from macOS itself: the scripts in [experiments/model-icons](../experiments/model-icons/README.md)
+regenerate them from this Mac's `CoreTypes.bundle`, dump the icon and sidebar template of every device type there is,
+and show how to preview a code in Finder. Sidebar images keep their macOS names under `sidebar/`, linked from
 `<identifier>-sidebar.png`; the table names the files, not the links, because GitHub does not follow symbolic links.
 
 ### Ethernet over USB
