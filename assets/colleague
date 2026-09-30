@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+# Purpose: Render the Busy Screen colleague kaomoji ┴┬┴┤´Ｏ´)ﾉ in all moods, plain or colored, static or animated.
+# Usage:   colleague [--no-entrance] [--loops <n> [--exit]] [--frame-ms <ms>]
+#          colleague --mood <mood> [--animate [--no-entrance]] [--color|--no-color] [--loops <n> [--exit]] [--frame-ms <ms>]
+#
+# Without --mood, all variants are shown in a grid: one row per mood, one column per style.
+# With --mood, a single variant is rendered. Colors need a 16-color terminal. Needs bash 4.4+.
+#
+# The wall slides in from the left and the colleague peeks out from behind it; while hovering,
+# they wave and blink. On exit they duck back behind the wall, which then slides out to the left.
+#
+# Options:
+#   --mood <mood>     One of neutral, happy, sad, unknown.
+#   --animate         Let the colleague appear and hover (default: static).
+#   --no-entrance     Skip the entrance and start hovering right away.
+#   --color           Colored output (default: if stdout is a terminal and NO_COLOR is unset).
+#   --no-color        Plain output.
+#   --loops <n>       Stop after <n> hover cycles (default: endless, until Ctrl-C).
+#   --exit            Let the colleague leave after the last hover cycle (needs --loops).
+#   --frame-ms <ms>   Delay between animation frames (default: 50).
+#   -h, --help        Show this help.
+#
+# Examples:
+#   colleague                               # grid of all variants, animated until Ctrl-C
+#   colleague --loops 2 --exit              # grid, hovering twice, then leaving
+#   colleague --mood happy
+#   ┴┬┴┤ ･‿･)ﾉ
+#   colleague --mood sad --animate --loops 3 --exit
+#   colleague --mood neutral --no-color > motd   # plain text for a file
+
+set -euo pipefail
+
+# shellcheck source=kaomoji.bash
+. "$(dirname "${BASH_SOURCE[0]}")/kaomoji.bash"
+
+readonly COLLEAGUE_WHITE=15 # 16-color palette
+
+readonly -a COLLEAGUE_MOODS=(neutral happy sad unknown)
+readonly -a COLLEAGUE_WALL=('┴' '┬' '┴' '┤')
+
+# While hovering, the hand alternates between two poses held for COLLEAGUE_SWING steps each, and
+# the eyes close once per cycle for COLLEAGUE_BLINK steps.
+readonly -a COLLEAGUE_HAND_POSES=('ﾉ' 'ノ')
+readonly COLLEAGUE_SWING=6
+readonly COLLEAGUE_CYCLE=36
+readonly COLLEAGUE_BLINK_AT=30
+readonly COLLEAGUE_BLINK=2
+
+# Fills an array with the colleague's graphemes, each as "<style><TAB><text>", see kaomoji_paint.
+# The first ${#COLLEAGUE_WALL[@]} graphemes are the wall, the rest is the person.
+#   --mood <mood>   neutral (default), happy, sad or unknown
+#   --step <n>      step of the hover cycle, selects the hand pose and the blink (default: 0, at rest)
+#   <array>         name of the array to fill
+colleague_sprite() {
+    local mood=neutral
+    local -i step=0
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --mood) mood=${2?$1: missing value}; shift 2 ;;
+        --mood=*) mood=${1#*=}; shift ;;
+        --step) step=${2?$1: missing value}; shift 2 ;;
+        --step=*) step=${1#*=}; shift ;;
+        --) shift; break ;;
+        -?*) die "${FUNCNAME[0]}: unknown option: $1" ;;
+        *) break ;;
+        esac
+    done
+    local -n target=${1?${FUNCNAME[0]}: array name missing}
+
+    local -a face # a gap towards the wall, an eye, the mouth, an eye
+    case $mood in
+    neutral) face=('' '´' 'Ｏ' '´') ;;
+    happy) face=(' ' '･' '‿' '･') ;;
+    sad) face=('' '◕' '︿' '◕') ;;
+    unknown) face=('' '⊙' '﹏' '⊙') ;;
+    *) die "unknown mood: $mood" ;;
+    esac
+    local -i at=$((step % COLLEAGUE_CYCLE))
+    if ((at >= COLLEAGUE_BLINK_AT && at < COLLEAGUE_BLINK_AT + COLLEAGUE_BLINK)); then
+        face[1]='-'
+        face[3]='-'
+    fi
+    local hand=${COLLEAGUE_HAND_POSES[step / COLLEAGUE_SWING % ${#COLLEAGUE_HAND_POSES[@]}]}
+
+    local text
+    target=()
+    for text in "${COLLEAGUE_WALL[@]}"; do
+        target+=("dim"$'\t'"$text")
+    done
+    for text in "${face[@]}"; do
+        [ -z "$text" ] || target+=("$COLLEAGUE_WHITE/"$'\t'"$text")
+    done
+    target+=(
+        "$COLLEAGUE_WHITE/"$'\t'')'
+        "$COLLEAGUE_WHITE/"$'\t'"$hand"
+    )
+}
+
+# Prints one frame of the colleague (no trailing newline).
+#   --mood <mood>   neutral (default), happy, sad or unknown
+#   --step <n>      step of the animation: the wall slides in from the left, one grapheme per
+#                   step, then the person peeks out from behind it, one grapheme per step, and
+#                   hovers afterwards (default: at rest)
+#   --no-entrance   accepted for symmetry with the other kaomoji; the colleague hovers where it landed
+#   --exit <n>      step after which the person ducks behind the wall, one grapheme per step, and
+#                   the wall slides out to the left, one grapheme per step (default: never)
+#   --width <n>     pad the right with spaces up to this display width (default: 0)
+#   --color         colored output
+colleague_frame() {
+    local mood=neutral step='' exit_step=''
+    local -i width=0
+    local -a color=()
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --mood) mood=${2?$1: missing value}; shift 2 ;;
+        --mood=*) mood=${1#*=}; shift ;;
+        --step) step=${2?$1: missing value}; shift 2 ;;
+        --step=*) step=${1#*=}; shift ;;
+        --no-entrance) shift ;;
+        --exit) exit_step=${2?$1: missing value}; shift 2 ;;
+        --exit=*) exit_step=${1#*=}; shift ;;
+        --width) width=${2?$1: missing value}; shift 2 ;;
+        --width=*) width=${1#*=}; shift ;;
+        --color) color=(--color); shift ;;
+        -?*) die "${FUNCNAME[0]}: unknown option: $1" ;;
+        *) die "${FUNCNAME[0]}: unexpected argument: $1" ;;
+        esac
+    done
+
+    local -a sprite
+    if [ -z "$step" ]; then
+        colleague_sprite --mood "$mood" sprite
+        kaomoji_paint "${color[@]}" --width "$width" sprite
+        return 0
+    fi
+
+    colleague_sprite --mood "$mood" sprite # only to count the graphemes
+    local -i wall=${#COLLEAGUE_WALL[@]}
+    local -i person=$((${#sprite[@]} - wall))
+    local -i entrance=$((wall + person))
+    local -i hover=$((step - entrance)) wall_shown=$wall person_shown=$person gone
+    if ((hover < 0)); then hover=0; fi
+    if ((step <= wall)); then
+        wall_shown=$step
+        person_shown=0
+    elif ((step < entrance)); then
+        person_shown=$((step - wall))
+    fi
+    if [ -n "$exit_step" ] && ((step > exit_step)); then
+        gone=$((step - exit_step))
+        if ((gone <= person)); then
+            person_shown=$((person - gone))
+        else
+            person_shown=0
+            wall_shown=$((wall - (gone - person)))
+            if ((wall_shown < 0)); then wall_shown=0; fi
+        fi
+    fi
+    # Both the wall and the person show their rightmost graphemes, whether coming or going.
+    colleague_sprite --mood "$mood" --step "$hover" sprite
+    local -a frame=("${sprite[@]:wall-wall_shown:wall_shown}" "${sprite[@]:wall+person-person_shown:person_shown}")
+    kaomoji_paint "${color[@]}" --width "$width" frame
+}
+
+# Fills an array with the steps of the colleague's entrance (one per grapheme), of one hover cycle,
+# and of its exit (one per grapheme), see kaomoji.bash.
+#   --mood <mood>   neutral (default), happy, sad or unknown
+#   <array>         name of the array to fill
+colleague_timeline() {
+    local mood=neutral
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --mood) mood=${2?$1: missing value}; shift 2 ;;
+        --mood=*) mood=${1#*=}; shift ;;
+        --) shift; break ;;
+        -?*) die "${FUNCNAME[0]}: unknown option: $1" ;;
+        *) break ;;
+        esac
+    done
+    local -n out=${1?${FUNCNAME[0]}: array name missing}
+    local -a sprite
+    colleague_sprite --mood "$mood" sprite
+    out=("${#sprite[@]}" "$COLLEAGUE_CYCLE" "${#sprite[@]}")
+}
+
+# Run only when executed; kaomoji-gif sources this file to reuse its functions.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    kaomoji_main colleague "$@"
+fi
