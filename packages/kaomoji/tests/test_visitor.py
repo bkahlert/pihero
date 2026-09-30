@@ -10,7 +10,7 @@ STATIC = {
 }
 WALL, PERSON, CYCLE = 4, 5, 36  # neutral: graphemes of the wall, of the person, hover steps
 ENTRANCE = EXIT = WALL + PERSON
-SWING, BLINK_AT = 6, 30
+SWING, BLINK_AT = 6, 32
 
 
 @pytest.fixture
@@ -45,8 +45,8 @@ class TestAnimation:
         assert frames[ENTRANCE + SWING].endswith("ノ")
         assert frames[ENTRANCE + 2 * SWING].endswith("ﾉ")
 
-    def test_blinks_once_per_cycle(self, frames):
-        assert frames[ENTRANCE + BLINK_AT - 1] == "┴┬┴┤´Ｏ´)ﾉ"
+    def test_blinks_once_per_cycle_in_the_middle_of_a_wave(self, frames):
+        assert frames[ENTRANCE + BLINK_AT - 1] == "┴┬┴┤´Ｏ´)ノ"
         assert frames[ENTRANCE + BLINK_AT] == "┴┬┴┤-Ｏ-)ノ"
         assert frames[ENTRANCE + BLINK_AT + 1] == "┴┬┴┤-Ｏ-)ノ"
         assert frames[ENTRANCE + BLINK_AT + 2] == "┴┬┴┤´Ｏ´)ノ"

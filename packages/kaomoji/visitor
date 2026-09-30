@@ -48,11 +48,12 @@ readonly -a VISITOR_MOODS=(neutral happy sad unknown)
 readonly -a VISITOR_WALL=('┴' '┬' '┴' '┤')
 
 # While hovering, the hand alternates between two poses held for VISITOR_SWING steps each, and
-# the eyes close once per cycle for VISITOR_BLINK steps.
+# the eyes close once per cycle for VISITOR_BLINK steps, in the middle of a hold so that the
+# blink does not fall together with a change of the hand.
 readonly -a VISITOR_HAND_POSES=('ﾉ' 'ノ')
 readonly VISITOR_SWING=6
 readonly VISITOR_CYCLE=36
-readonly VISITOR_BLINK_AT=30
+readonly VISITOR_BLINK_AT=32
 readonly VISITOR_BLINK=2
 
 # Fills an array with the visitor's graphemes, each as "<style><TAB><text>", see kaomoji_paint.
