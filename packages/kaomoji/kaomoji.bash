@@ -9,7 +9,7 @@
 #   <name>_timeline    fills an array with the number of entrance steps, the steps of one hover
 #                      cycle and the number of exit steps: <name>_timeline --mood <mood> <array>
 # A frame paints exactly once with kaomoji_paint, which leaves its display width in REPLY.
-# Needs bash 4.4+.
+# Needs bash 5.0+.
 
 [ -z "${KAOMOJI_BASH:-}" ] || return 0
 readonly KAOMOJI_BASH=1
@@ -135,12 +135,19 @@ kaomoji_paint() {
     REPLY=$shown
 }
 
-# Paces an animation: sleeps for the given number of milliseconds. Every frame but the last
-# is followed by a call to this function, which is what kaomoji-gif hooks into.
+# Paces an animation: sleeps until the current frame has been shown for <ms> milliseconds.
+# Every frame but the last is followed by a call to this function, which is what kaomoji-gif
+# hooks into.
+#   <ms>      how long a frame stays
+#   <since>   when it was shown, as ${EPOCHREALTIME/./} (microseconds)
 kaomoji_sleep_ms() {
+    local -i left=$(($2 + $1 * 1000 - ${EPOCHREALTIME/./}))
+    ((left > 0)) || return 0
     local pause
-    printf -v pause '%d.%03d' "$(($1 / 1000))" "$(($1 % 1000))"
-    sleep "$pause" || : # a signal may cut it short; the trap decides what happens then
+    printf -v pause '%d.%06d' "$((left / 1000000))" "$((left % 1000000))"
+    # A read timing out on a pipe of our own, as sleep is a fork: 35 ms on a Raspberry Pi 1.
+    # Either may be cut short by a signal; the trap decides what happens then.
+    if [ -n "${KAOMOJI_TICK:-}" ]; then read -rt "$pause" -u "$KAOMOJI_TICK" || :; else sleep "$pause" || :; fi
 }
 
 # What a signal does during an animation: quit at once, leaving the cursor on a fresh line.
@@ -151,11 +158,21 @@ kaomoji_animation_begin() {
     trap 'printf "%s" "$KAOMOJI_CNORM"' EXIT
     trap "$KAOMOJI_QUIT" INT
     printf '%s' "$KAOMOJI_CIVIS"
+    # The pipe kaomoji_sleep_ms waits on: a FIFO opened for reading and writing never sees EOF.
+    local fifo=${TMPDIR:-/tmp}/kaomoji.$$
+    if mkfifo -m 600 "$fifo" 2>/dev/null; then
+        exec {KAOMOJI_TICK}<>"$fifo"
+        rm -f "$fifo"
+    fi
 }
 
 kaomoji_animation_end() {
     printf '%s' "$KAOMOJI_CNORM"
     trap - EXIT INT
+    if [ -n "${KAOMOJI_TICK:-}" ]; then
+        exec {KAOMOJI_TICK}>&-
+        unset KAOMOJI_TICK
+    fi
 }
 
 # Animates a single kaomoji on the current line and ends it with a newline.
@@ -192,7 +209,7 @@ kaomoji_animate() {
 
     local -a timeline
     "${name}_timeline" --mood "$mood" timeline
-    local -i first=0 last=-1 step stop=0
+    local -i first=0 last=-1 step stop=0 shown
     if ((!entrance)); then first=$((timeline[0] + 1)); fi # the first hover step
     if ((loops >= 0)); then
         last=$((timeline[0] + loops * timeline[1]))
@@ -204,11 +221,12 @@ kaomoji_animate() {
     kaomoji_animation_begin
     if ((exit && loops < 0)); then trap 'stop=1' INT TERM; fi # endless: leave when stopped
     for ((step = first; ; step++)); do
+        shown=${EPOCHREALTIME/./}
         printf '\r'
         "${name}_frame" --mood "$mood" --step "$step" "${color[@]}" "${flags[@]}"
         printf '%s' "$KAOMOJI_EL"
         if ((last >= 0 && step >= last)); then break; fi
-        kaomoji_sleep_ms "$frame_ms"
+        kaomoji_sleep_ms "$frame_ms" "$shown"
         if ((stop)); then # leave from the current step
             stop=0
             trap "$KAOMOJI_QUIT" INT
@@ -279,10 +297,11 @@ kaomoji_grid() {
     done
 
     # The header and the rows are separated by empty lines; all of them are redrawn per step.
-    local -i rows=$((1 + 2 * ${#moods[@]})) step
+    local -i rows=$((1 + 2 * ${#moods[@]})) step shown
     printf '\n'
     kaomoji_animation_begin
     for ((step = 0; ; step++)); do
+        shown=${EPOCHREALTIME/./}
         if ((step > 0)); then
             for ((i = 0; i < rows; i++)); do printf '%s' "$KAOMOJI_CUU1"; done
         fi
@@ -307,7 +326,7 @@ kaomoji_grid() {
             printf '%s\n' "$KAOMOJI_EL"
         done
         if ((loops >= 0 && step >= last)); then break; fi
-        kaomoji_sleep_ms "$frame_ms"
+        kaomoji_sleep_ms "$frame_ms" "$shown"
     done
     printf '\n'
     kaomoji_animation_end

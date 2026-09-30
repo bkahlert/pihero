@@ -5,7 +5,7 @@
 #          wizard --preview [--mood <mood>] [--no-entrance] [--loops <n>] [--exit] [--frame-ms <ms>]
 #
 # Prints one kaomoji, static unless animated. --preview shows all variants instead: a grid with one
-# row per mood and one column per style. Colors need a 16-color terminal. Needs bash 4.4+.
+# row per mood and one column per style. Colors need a 16-color terminal. Needs bash 5.0+.
 #
 # The wizard slides in from the left and conjures the magic particle by particle; while hovering,
 # the colors run along the particles. On exit the particles vanish from the right and the wizard

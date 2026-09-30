@@ -5,7 +5,7 @@
 #          visitor --preview [--mood <mood>] [--no-entrance] [--loops <n>] [--exit] [--frame-ms <ms>]
 #
 # Prints one kaomoji, static unless animated. --preview shows all variants instead: a grid with one
-# row per mood and one column per style. Colors need a 16-color terminal. Needs bash 4.4+.
+# row per mood and one column per style. Colors need a 16-color terminal. Needs bash 5.0+.
 #
 # The wall slides in from the left and the visitor peeks out from behind it; while hovering,
 # they wave and blink. On exit they duck back behind the wall, which then slides out to the left.

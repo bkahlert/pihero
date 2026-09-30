@@ -2,6 +2,7 @@ import os
 import re
 import signal
 import subprocess
+import time
 import unicodedata
 from pathlib import Path
 
@@ -49,6 +50,28 @@ class TestPaint:
             out = bash("sprite=(\"9/\"$'\\t'x); kaomoji_paint --color sprite", term="xterm")
 
             assert out == "x\x1b(B\x1b[m"
+
+
+class TestPacing:
+    def test_holds_every_frame_for_the_frame_time(self, kaomoji):
+        started = time.monotonic()
+        frames = kaomoji("hero").frames("--no-entrance", "--loops", "1", "--frame-ms", "40")
+        elapsed = time.monotonic() - started
+
+        assert len(frames) == 12
+        assert elapsed >= 11 * 0.040
+
+    def test_absorbs_the_render_time_of_a_frame(self):
+        started = time.monotonic()
+        out = bash(
+            "SLOW_MOODS=(only); slow_timeline() { local -n out=$3; out=(0 10 0); }; "
+            "slow_frame() { sleep 0.03; printf x; }; "
+            "kaomoji_animate slow --no-entrance --loops 1 --frame-ms 40 | tr -cd x | wc -c"
+        )
+        elapsed = time.monotonic() - started
+
+        assert out.strip() == "10"
+        assert 9 * 0.040 <= elapsed < 10 * 0.070 - 0.05
 
 
 class TestMain:
@@ -142,6 +165,10 @@ class TestMain:
 def columns(text: str) -> int:
     """Display width, counting East Asian wide and fullwidth characters twice like the engine does."""
     return sum(2 if unicodedata.east_asian_width(c) in "FW" else 1 for c in text)
+
+
+def tput(capability: str, term: str = "xterm-256color") -> str:
+    return subprocess.run(["tput", capability], capture_output=True, text=True, env={**os.environ, "TERM": term}).stdout
 
 
 def bash(snippet: str, term: str = "xterm-256color") -> str:

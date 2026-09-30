@@ -5,7 +5,7 @@
 #          hero --preview [--mood <mood>] [--no-entrance] [--loops <n>] [--exit] [--frame-ms <ms>]
 #
 # Prints one kaomoji, static unless animated. --preview shows all variants instead: a grid with one
-# row per mood and one column per style. Colors need a 256-color terminal. Needs bash 4.4+.
+# row per mood and one column per style. Colors need a 256-color terminal. Needs bash 5.0+.
 #
 # The hero flies in from the left and hovers, tail flickering and hand flexing; on exit it flies
 # out to the right.

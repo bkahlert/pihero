@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -13,9 +14,10 @@ CUU1 = "\x1b[A"
 class Kaomoji:
     """Runs a kaomoji script on a 256-color terminal and takes its output apart."""
 
-    def __init__(self, script: str, term: str = "xterm-256color"):
+    def __init__(self, script: str, term: str = "xterm-256color", path: Path | None = None):
         self.script = PACKAGE / script
         self.term = term
+        self.path = path  # prepended to PATH, for a fake tput
 
     def run(self, *args: str) -> subprocess.CompletedProcess:
         result = subprocess.run([str(self.script), *args], capture_output=True, env=self.env())
@@ -71,9 +73,30 @@ class Kaomoji:
     def env(self) -> dict[str, str]:
         env = {**os.environ, "TERM": self.term}
         env.pop("NO_COLOR", None)
+        if self.path:
+            env["PATH"] = f"{self.path}:{env['PATH']}"
         return env
+
+
+class TputLog:
+    """A tput on PATH that logs every call before running the real one."""
+
+    def __init__(self, directory: Path):
+        self.directory = directory
+        self.log = directory / "calls"
+        fake = directory / "tput"
+        fake.write_text(f'#!/bin/sh\nprintf \'%s\\n\' "$*" >> "{self.log}"\nexec {shutil.which("tput")} "$@"\n')
+        fake.chmod(0o755)
+
+    def calls(self) -> list[str]:
+        return self.log.read_text().splitlines() if self.log.exists() else []
 
 
 @pytest.fixture
 def kaomoji():
     return Kaomoji
+
+
+@pytest.fixture
+def tput_log(tmp_path):
+    return TputLog(tmp_path)
