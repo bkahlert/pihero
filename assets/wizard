@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# Purpose: Render the Netmon wizard kaomoji (つ◕౪◕)つ─｡ﾟ․☆･*ﾟ in all moods, plain or colored, static or animated.
+# Usage:   wizard [--no-entrance] [--loops <n> [--exit]] [--frame-ms <ms>]
+#          wizard --mood <mood> [--animate [--no-entrance]] [--color|--no-color] [--loops <n> [--exit]] [--frame-ms <ms>]
+#
+# Without --mood, all variants are shown in a grid: one row per mood, one column per style.
+# With --mood, a single variant is rendered. Colors need a 16-color terminal. Needs bash 4.4+.
+#
+# The wizard slides in from the left and conjures the magic particle by particle; while hovering,
+# the colors run along the particles. On exit the particles vanish from the right and the wizard
+# slides out to the left.
+#
+# Options:
+#   --mood <mood>     One of neutral, happy, sad, unknown.
+#   --animate         Slide the wizard in from the left and let it hover (default: static).
+#   --no-entrance     Skip the entrance and start hovering right away.
+#   --color           Colored output (default: if stdout is a terminal and NO_COLOR is unset).
+#   --no-color        Plain output.
+#   --loops <n>       Stop after <n> hover cycles (default: endless, until Ctrl-C).
+#   --exit            Let the wizard leave after the last hover cycle (needs --loops).
+#   --frame-ms <ms>   Delay between animation frames (default: 50).
+#   -h, --help        Show this help.
+#
+# Examples:
+#   wizard                                  # grid of all variants, animated until Ctrl-C
+#   wizard --loops 2 --exit                 # grid, hovering twice, then leaving
+#   wizard --mood happy
+#   (＾∀＾)つ─｡ﾟ․☆･*ﾟ
+#   wizard --mood sad --animate --loops 3 --exit
+#   wizard --mood neutral --no-color > motd  # plain text for a file
+
+set -euo pipefail
+
+# shellcheck source=kaomoji.bash
+. "$(dirname "${BASH_SOURCE[0]}")/kaomoji.bash"
+
+# 16-color palette
+readonly WIZARD_GRAY=7
+readonly WIZARD_WHITE=15
+readonly WIZARD_PINK=9
+readonly WIZARD_GREEN=10
+readonly WIZARD_YELLOW=11
+readonly WIZARD_BLUE=12
+readonly WIZARD_CYAN=14
+
+readonly -a WIZARD_MOODS=(neutral happy sad unknown)
+
+# The magic streams out of the wand: while hovering, its colors move outwards by one particle
+# every WIZARD_SHIFT steps and are back where they started after one cycle.
+readonly -a WIZARD_MAGIC=('｡' 'ﾟ' '․' '☆' '･' '*' 'ﾟ')
+readonly -a WIZARD_MAGIC_COLORS=("$WIZARD_PINK" "$WIZARD_CYAN" "$WIZARD_YELLOW" "$WIZARD_PINK" "$WIZARD_YELLOW" "$WIZARD_GREEN" "$WIZARD_BLUE")
+readonly WIZARD_SHIFT=3
+readonly WIZARD_CYCLE=$((WIZARD_SHIFT * ${#WIZARD_MAGIC_COLORS[@]}))
+
+# Fills an array with the wizard's graphemes, each as "<style><TAB><text>", see kaomoji_paint.
+#   --mood <mood>   neutral (default), happy, sad or unknown
+#   --step <n>      step of the animation, selects the colors of the magic (default: 0)
+#   --magic <n>     number of magic particles, counted from the wand (default: all)
+#   <array>         name of the array to fill
+wizard_sprite() {
+    local mood=neutral
+    local -i step=0 magic=${#WIZARD_MAGIC[@]}
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --mood) mood=${2?$1: missing value}; shift 2 ;;
+        --mood=*) mood=${1#*=}; shift ;;
+        --step) step=${2?$1: missing value}; shift 2 ;;
+        --step=*) step=${1#*=}; shift ;;
+        --magic) magic=${2?$1: missing value}; shift 2 ;;
+        --magic=*) magic=${1#*=}; shift ;;
+        --) shift; break ;;
+        -?*) die "${FUNCNAME[0]}: unknown option: $1" ;;
+        *) break ;;
+        esac
+    done
+    local -n target=${1?${FUNCNAME[0]}: array name missing}
+
+    local -a face
+    case $mood in
+    neutral) face=('つ' '◕' '౪' '◕') ;;
+    happy) face=('＾' '∀' '＾') ;;
+    sad) face=(' ' '◕' '︿' '◕') ;;
+    unknown) face=(' ' '⊙' '﹏' '⊙') ;;
+    *) die "unknown mood: $mood" ;;
+    esac
+
+    local text
+    target=("$WIZARD_GRAY/"$'\t''(')
+    for text in "${face[@]}"; do
+        target+=("$WIZARD_GRAY/"$'\t'"$text")
+    done
+    target+=(
+        "$WIZARD_GRAY/"$'\t'')'
+        "$WIZARD_WHITE/"$'\t''つ'
+        "$WIZARD_GRAY/"$'\t''─'
+    )
+    local -i i n=${#WIZARD_MAGIC_COLORS[@]} shift=$((step / WIZARD_SHIFT))
+    for ((i = 0; i < magic; i++)); do
+        target+=("${WIZARD_MAGIC_COLORS[((i - shift) % n + n) % n]}/"$'\t'"${WIZARD_MAGIC[i]}")
+    done
+}
+
+# Prints one frame of the wizard (no trailing newline).
+#   --mood <mood>   neutral (default), happy, sad or unknown
+#   --step <n>      step of the animation: the wizard slides in from the left, one grapheme per
+#                   step, then conjures the magic one particle per step, and hovers afterwards
+#                   (default: at rest)
+#   --no-entrance   accepted for symmetry with the other kaomoji; the wizard hovers where it lands
+#   --exit <n>      step after which the magic vanishes, one particle per step from the right, and
+#                   the wizard slides out to the left, one grapheme per step (default: never)
+#   --width <n>     pad the right with spaces up to this display width (default: 0)
+#   --color         colored output
+wizard_frame() {
+    local mood=neutral step='' exit_step=''
+    local -i width=0
+    local -a color=()
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --mood) mood=${2?$1: missing value}; shift 2 ;;
+        --mood=*) mood=${1#*=}; shift ;;
+        --step) step=${2?$1: missing value}; shift 2 ;;
+        --step=*) step=${1#*=}; shift ;;
+        --no-entrance) shift ;;
+        --exit) exit_step=${2?$1: missing value}; shift 2 ;;
+        --exit=*) exit_step=${1#*=}; shift ;;
+        --width) width=${2?$1: missing value}; shift 2 ;;
+        --width=*) width=${1#*=}; shift ;;
+        --color) color=(--color); shift ;;
+        -?*) die "${FUNCNAME[0]}: unknown option: $1" ;;
+        *) die "${FUNCNAME[0]}: unexpected argument: $1" ;;
+        esac
+    done
+
+    local -a sprite
+    if [ -z "$step" ]; then
+        wizard_sprite --mood "$mood" sprite
+        kaomoji_paint "${color[@]}" --width "$width" sprite
+        return 0
+    fi
+
+    wizard_sprite --mood "$mood" --magic 0 sprite # only to count the graphemes of the body
+    local -i body=${#sprite[@]} magic=${#WIZARD_MAGIC[@]} offset=0 gone
+    local -i shown=$magic
+    if ((step <= body)); then
+        offset=$((body - step))
+        shown=0
+    elif ((step < body + magic)); then
+        shown=$((step - body))
+    fi
+    if [ -n "$exit_step" ] && ((step > exit_step)); then
+        gone=$((step - exit_step))
+        if ((gone <= magic)); then
+            shown=$((magic - gone))
+        else
+            shown=0
+            offset=$((gone - magic))
+        fi
+    fi
+    wizard_sprite --mood "$mood" --step "$step" --magic "$shown" sprite
+    kaomoji_paint "${color[@]}" --offset "$offset" --width "$width" sprite
+}
+
+# Fills an array with the steps of the wizard's entrance (one per grapheme), of one hover cycle,
+# and of its exit (one per grapheme), see kaomoji.bash.
+#   --mood <mood>   neutral (default), happy, sad or unknown
+#   <array>         name of the array to fill
+wizard_timeline() {
+    local mood=neutral
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --mood) mood=${2?$1: missing value}; shift 2 ;;
+        --mood=*) mood=${1#*=}; shift ;;
+        --) shift; break ;;
+        -?*) die "${FUNCNAME[0]}: unknown option: $1" ;;
+        *) break ;;
+        esac
+    done
+    local -n out=${1?${FUNCNAME[0]}: array name missing}
+    local -a sprite
+    wizard_sprite --mood "$mood" sprite
+    out=("${#sprite[@]}" "$WIZARD_CYCLE" "${#sprite[@]}")
+}
+
+# Run only when executed; kaomoji-gif sources this file to reuse its functions.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    kaomoji_main wizard "$@"
+fi
