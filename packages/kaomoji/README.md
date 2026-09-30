@@ -42,3 +42,7 @@ make                                                        # every GIF whose ch
 ```
 
 An endless animation never finishes recording, so give the command `--loops`.
+
+The badge in the title of the repository's README, [assets/hero-badge.gif](../../assets/hero-badge.gif), is a one-off: a
+recording of the hovering hero cut to 40 px with ffmpeg, grey and rounded like the badges next to it. It is kept as a file
+with the logo, not rendered here, so that this renderer needs nothing but asciinema and agg.

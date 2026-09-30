@@ -91,7 +91,7 @@ packages/
     kaomoji.bash                                            # bash, the engine: painting, pacing, grid, command line
     hero  wizard  visitor                                   # bash, one character each, sourcing the engine
     kaomoji-gif                                             # bash, records a command with asciinema and renders it with agg, Mac-side
-    Makefile  assets/*.gif                                  # the READMEs' GIFs and how they are rendered
+    Makefile  assets/*.gif                                  # the README's GIFs and how they are rendered
     tests/test_<character>.py                               # tier 0
 testkit/                                                    # the harness, a Python package
 devices/                                                    # device files, gitignored except sample/
@@ -211,7 +211,8 @@ the last frame held for the frames it repeats plus one more, since agg merges id
 instead of becoming an export option of the scripts, which would make asciinema and agg soft dependencies of scripts that run
 on a Pi, on a path no tier could test; and the pictures are GIFs, not animated SVG, because SVG text renders with the viewer's
 fonts and the faces depend on glyphs few machines share. [packages/kaomoji/README.md](../packages/kaomoji/README.md) shows
-them, and `make -C packages/kaomoji` re-renders those whose character, engine, or renderer changed (2026-09-30).
+them, and `make -C packages/kaomoji` re-renders those whose character, engine, or renderer changed; the badge in the
+repository's README is a one-off cut with ffmpeg, kept with the logo (2026-09-30).
 
 **Performance.** The target is a Raspberry Pi 1 at 50 ms per frame, where bash does a simple operation in 0.3 ms and a fork
 costs 40 ms. The engine therefore never forks while animating: it paces frames with `read -t` on a FIFO it holds open, and
