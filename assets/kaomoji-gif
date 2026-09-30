@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Purpose: Render the Pi Hero kaomoji as an animated GIF.
-# Usage:   hero-gif [--output <file>] [--cast <file>] [--font-family <list>] [--font-size <px>] [--line-height <n>]
-#                   [--padding <n>|<cols>x<rows>] [--margin <px>|<x>x<y>] [--radius <px>] [--hold <secs>] [--theme <theme>]
-#                   [--] [<hero option>...]
+# Purpose: Render a Pi Hero kaomoji as an animated GIF.
+# Usage:   kaomoji-gif <character> [--output <file>] [--cast <file>] [--font-family <list>] [--font-size <px>] [--line-height <n>]
+#                      [--padding <n>|<cols>x<rows>] [--margin <px>|<x>x<y>] [--radius <px>] [--hold <secs>] [--theme <theme>]
+#                      [--] [<character option>...]
 #
-# Runs hero with the given options, records every frame and turns the recording into a GIF with agg
-# (https://github.com/asciinema/agg). The hero is rendered in color and hovers once, so the GIF loops
-# seamlessly; pass --no-color or --loops <n> to change that.
+# Runs the character's script with the given options, records every frame and turns the recording into a
+# GIF with agg (https://github.com/asciinema/agg). The kaomoji is rendered in color and hovers once, so the
+# GIF loops seamlessly; pass --no-color or --loops <n> to change that.
 #
 # Options:
-#   --output <file>     GIF to write (default: hero.gif).
+#   --output <file>     GIF to write (default: <character>.gif).
 #   --cast <file>       Also keep the recording as an asciicast v2 file.
 #   --font-family <list>
 #                       Comma-separated font families to try in turn for each glyph (default: agg's list, which
@@ -18,7 +18,7 @@
 #                       times the font size high.
 #   --line-height <n>   Line height relative to the font size (default: 1.4).
 #   --padding <n>|<cols>x<rows>
-#                       Empty columns and rows around the hero (default: 1). agg adds another column on
+#                       Empty columns and rows around the kaomoji (default: 1). agg adds another column on
 #                       either side and half a row above and below.
 #   --margin <px>|<x>x<y>
 #                       Crop agg's margins down to this many pixels; needs ffmpeg (default: keep them).
@@ -28,13 +28,17 @@
 #   -h, --help          Show this help.
 #
 # Arguments:
-#   <hero option>...    Passed on to hero, see 'hero --help'. Endless animations (--loops -1) can't be rendered.
+#   <character>         hero, wizard or colleague: a script next to this one, or the path to one.
+#   <character option>...
+#                       Passed on to the character's script, see '<character> --help'. Endless animations
+#                       (--loops -1) can't be rendered.
 #
 # Examples:
-#   hero-gif --output hero.gif --font-family "Menlo,Apple Symbols" --mood neutral --animate --no-entrance   # hovering hero, seamless loop
-#   hero-gif --output hero-grid.gif --font-family "Menlo,Apple Symbols" --font-size 24 --hold 1 --loops 4 --exit   # the whole grid: flies in, hovers four times, flies out, restarts after 1 s
-#   hero-gif --mood happy                                                                                    # a single frame
-#   hero-gif --output hero-badge.gif --font-family "Menlo,Apple Symbols" --font-size 21 --line-height 1.428571 \
+#   kaomoji-gif hero --font-family "Menlo,Apple Symbols" --mood neutral --animate --no-entrance   # hovering hero, seamless loop
+#   kaomoji-gif hero --output hero-grid.gif --font-family "Menlo,Apple Symbols" --font-size 24 --hold 1 --loops 4 --exit   # the whole grid: flies in, hovers four times, flies out, restarts after 1 s
+#   kaomoji-gif wizard --output wizard.gif --hold 1 --mood neutral --animate --loops 2 --exit    # the wizard's entrance, two hover cycles and exit
+#   kaomoji-gif hero --mood happy                                                                # a single frame
+#   kaomoji-gif hero --output hero-badge.gif --font-family "Menlo,Apple Symbols" --font-size 21 --line-height 1.428571 \
 #            --padding 0 --margin 10x5 --radius 6 \
 #            --theme 555555,ffffff,000000,dd3c69,4ebf22,ddaf3c,26b0d7,b954e1,54e1b9,d9d9d9,4d4d4d,dd3c69,4ebf22,ddaf3c,26b0d7,b954e1,54e1b9,ffffff \
 #            --mood neutral --animate --no-entrance                     # 40 px tall badge for the README, shown at 20 px
@@ -44,17 +48,30 @@ set -euo pipefail
 # The recording is made on a virtual 256-color terminal, whatever the real one is.
 export TERM=xterm-256color
 
-# shellcheck source=hero
-. "$(dirname "${BASH_SOURCE[0]}")/hero"
+# shellcheck source=kaomoji.bash
+. "$(dirname "${BASH_SOURCE[0]}")/kaomoji.bash"
 
-usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
-die() { printf '%s: %s\nSee '\''%s --help'\''\n' "${0##*/}" "$1" "${0##*/}" >&2; exit 2; }
+# The character comes first; its script is sourced to reuse its functions.
+[ $# -gt 0 ] || { usage >&2; exit 2; }
+case $1 in
+-h | --help) usage; exit 0 ;;
+-?*) die "the character comes first: $1" ;;
+esac
+case $1 in
+*/*) KAOMOJI_SCRIPT=$1 ;;
+*) KAOMOJI_SCRIPT=$(dirname "${BASH_SOURCE[0]}")/$1 ;;
+esac
+[ -f "$KAOMOJI_SCRIPT" ] || die "no such character: $1"
+readonly KAOMOJI_SCRIPT KAOMOJI=${KAOMOJI_SCRIPT##*/}
+shift
+# shellcheck source=/dev/null
+. "$KAOMOJI_SCRIPT"
 
 readonly FRAME_END=$'\1' # marks the end of a frame in the recording, followed by
 readonly DELAY_END=$'\2' # the delay until the next one in milliseconds and this mark
 
-# Replaces hero's pacing: instead of sleeping, marks the end of the frame and its delay.
-hero_sleep_ms() { printf '%s%s%s' "$FRAME_END" "$1" "$DELAY_END"; }
+# Replaces the engine's pacing: instead of sleeping, marks the end of the frame and its delay.
+kaomoji_sleep_ms() { printf '%s%s%s' "$FRAME_END" "$1" "$DELAY_END"; }
 
 # Prints the given text as a JSON string.
 json_string() {
@@ -75,13 +92,13 @@ count() {
     printf '%d' "$(((${#haystack} - ${#stripped}) / ${#needle}))"
 }
 
-# Records hero's output for the given options, returning the frames and their delays in the
-# given arrays. The last frame has no delay of its own.
+# Records the character's output for the given options, returning the frames and their delays in
+# the given arrays. The last frame has no delay of its own.
 record() {
     local -n out_frames=$1 out_delays=$2
     shift 2
     local raw rest
-    raw=$(main --color --loops 1 "$@"; printf x) # x keeps trailing newlines
+    raw=$(kaomoji_main "$KAOMOJI" --color --loops 1 "$@"; printf x) # x keeps trailing newlines
     rest=${raw%x}
     out_frames=()
     out_delays=()
@@ -91,23 +108,23 @@ record() {
         out_delays+=("${rest%%"$DELAY_END"*}")
         rest=${rest#*"$DELAY_END"}
     done
-    rest=${rest//"$HERO_CNORM"/} # neither the cursor coming back
+    rest=${rest//"$KAOMOJI_CNORM"/} # neither the cursor coming back
     out_frames+=("${rest%$'\n'}")  # nor the final newline are part of the picture
 }
 
 # Sets REPLY to "<columns> <rows>" the recorded frames need. Rows are simulated from the
-# newlines and cursor movements hero makes, columns are the widest line's display width.
+# newlines and cursor movements the script makes, columns are the widest line's display width.
 measure() {
     local -n recorded=$1
     local frame line text
     local -i row=1 rows=1 cols=0
     for frame in "${recorded[@]}"; do
-        row=$((row - $(count "$frame" "$HERO_CUU1") + $(count "$frame" $'\n')))
+        row=$((row - $(count "$frame" "$KAOMOJI_CUU1") + $(count "$frame" $'\n')))
         if ((row > rows)); then rows=$row; fi
     done
     text=$(printf '%s' "${recorded[@]}" | sed $'s/\x1b\\[[0-9;?]*[A-Za-z]//g; s/\x1b(B//g' | tr '\r' '\n')
     while IFS= read -r line; do
-        hero_text_width "$line"
+        kaomoji_text_width "$line"
         if ((REPLY > cols)); then cols=$REPLY; fi
     done <<<"$text"
     REPLY="$cols $rows"
@@ -143,7 +160,7 @@ write_cast() {
             frame=${frame//$'\r'/$'\r'$indent}   # indent every redraw of the current line ...
             frame=${frame//$'\n'/$'\r\n'$indent} # ... and every new one; a tty would add the \r, too
             if ((i == 0)); then frame="$lead$indent$frame"; fi
-            if ((i == ${#cast_frames[@]} - 1)); then frame+=$HERO_CIVIS; fi # no cursor in the last frame
+            if ((i == ${#cast_frames[@]} - 1)); then frame+=$KAOMOJI_CIVIS; fi # no cursor in the last frame
             json=$(json_string "$frame")
             printf '[%d.%03d, "o", %s]\n' "$((time / 1000))" "$((time % 1000))" "$json"
             if ((i < ${#cast_delays[@]})); then time+=${cast_delays[i]}; fi
@@ -154,7 +171,7 @@ write_cast() {
 # Runs a GIF through the given ffmpeg filters, keeping its timing and loop.
 reencode() { # <filters> <file>
     local filters=$1 file=$2 result
-    result=$(mktemp -t hero-gif.XXXXXX)
+    result=$(mktemp -t kaomoji-gif.XXXXXX)
     ffmpeg -v error -y -i "$file" -fps_mode passthrough -loop 0 -f gif -filter_complex \
         "[0:v]${filters}split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=alpha_threshold=128:dither=none" "$result"
     mv "$result" "$file"
@@ -174,10 +191,10 @@ radius_filter() { # <radius>
     printf "format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(gt(hypot(max(abs(X-W/2+0.5)-(W/2-%d),0),max(abs(Y-H/2+0.5)-(H/2-%d),0)),%d),0,255)'," "$r" "$r" "$r"
 }
 
-hero_gif() {
-    local output=hero.gif cast='' hold='' theme=asciinema font_family='' line_height=1.4 padding=1 margin=''
+kaomoji_gif() {
+    local output=$KAOMOJI.gif cast='' hold='' theme=asciinema font_family='' line_height=1.4 padding=1 margin=''
     local -i font_size=32 radius=0
-    local -a hero_args=()
+    local -a args=()
     while [ $# -gt 0 ]; do
         case $1 in
         -h | --help) usage; exit 0 ;;
@@ -202,9 +219,9 @@ hero_gif() {
         --theme) theme=${2?--theme: missing value}; shift 2 ;;
         --theme=*) theme=${1#*=}; shift ;;
         --loops=-1) die "endless animations can't be rendered" ;;
-        --loops) [ "${2:-}" != -1 ] || die "endless animations can't be rendered"; hero_args+=("$1" "${2?--loops: missing value}"); shift 2 ;;
-        --) shift; hero_args+=("$@"); break ;;
-        *) hero_args+=("$1"); shift ;; # everything else is hero's business
+        --loops) [ "${2:-}" != -1 ] || die "endless animations can't be rendered"; args+=("$1" "${2?--loops: missing value}"); shift 2 ;;
+        --) shift; args+=("$@"); break ;;
+        *) args+=("$1"); shift ;; # everything else is the character's business
         esac
     done
     command -v agg >/dev/null || die "agg not found, install it from https://github.com/asciinema/agg"
@@ -226,7 +243,7 @@ hero_gif() {
     fi
 
     local -a frames delays
-    record frames delays "${hero_args[@]}"
+    record frames delays "${args[@]}"
     measure frames
     local -i width=$((${REPLY% *} + 2 * pad_x)) height=$((${REPLY#* } + 2 * pad_y))
 
@@ -246,7 +263,7 @@ hero_gif() {
     fi
 
     if [ -z "$cast" ]; then
-        cast=$(mktemp -t hero-gif.XXXXXX)
+        cast=$(mktemp -t kaomoji-gif.XXXXXX)
         # shellcheck disable=SC2064 # the temp file's name is known right now
         trap "rm -f '$cast'" EXIT
     fi
@@ -258,4 +275,4 @@ hero_gif() {
     printf '%s: %d frames on %dx%d cells\n' "$output" "${#frames[@]}" "$width" "$height"
 }
 
-hero_gif "$@"
+kaomoji_gif "$@"
