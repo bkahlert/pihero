@@ -5,6 +5,10 @@ The Pi Hero cast: three animated faces for the terminal, one bash script each on
 script lists its moods and options. How the engine paints, paces, and caches, and what was measured on a Raspberry Pi 1, is
 in [docs/design.md](../../docs/design.md#kaomoji). The tests in [tests](tests) run in tier 0.
 
+`apt install kaomoji` from the Pi Hero repository puts the three scripts on `PATH` and the engine in
+`/usr/lib/kaomoji/`; `pihero` depends on it for its MOTD. In this directory they run as `./hero`, with the engine next to
+them.
+
 | Script             | Character                                                                                                  | Animation                              |
 | ------------------ | ---------------------------------------------------------------------------------------------------------- | -------------------------------------- |
 | [hero](hero)       | The Pi Hero, `─=≡▰▩▩[ 蓬•ｏ•]⊐`: flies in from the left, hovers with a flickering tail, flies out to the right | ![hero](assets/hero.gif)               |

@@ -39,6 +39,7 @@ platform quirks the device files work around, [devices/README.md](../devices/REA
 | Package build | `nfpm` | One YAML manifest plus a file tree, builds in under a second, no Debian toolchain |
 | Tests | pytest with pytest-testinfra | One assertion API over a podman container, a VM, and a real Pi |
 | Core package name | `pihero` | Core plus suffix, as in `tailscale` or `git` |
+| Cast package | `kaomoji`, a flat directory; faces in `/usr/bin/`, the engine in `/usr/lib/kaomoji/` | `pihero` depends on it for its MOTD, so it cannot be a `pihero-*` feature package; the directory stays a runnable checkout for the README's `./hero`, the GIF Makefile, `kaomoji-gif`, and the tests, so `nfpm.yaml` maps the four files instead of a `root/` tree |
 | Device files that share content | Standalone copies | Simpler than a merge step |
 | Card backup | `make backup` and `make restore`: a full raw xz image taken on the Mac through `authopen`, restored onto a card of the same size or larger | Brings back state no device file holds; the format is that of Raspberry Pi OS images, so `flash`'s writer and verifier restore it; shrinking so a nominally equal card fits is the planned follow-up |
 
@@ -49,7 +50,7 @@ platform quirks the device files work around, [devices/README.md](../devices/REA
 │ Apps            pihole-chronometer, epaper-display, netmon   │  own repos, own packages, own tests
 ├─────────────────────────────────────────────────────────────┤
 │ Pi Hero         pihero, pihero-avahi, pihero-usb-gadget,     │  this repo, packages/*
-│                 pihero-kiosk, later pihero-bt-pan           │
+│                 pihero-kiosk, kaomoji, later pihero-bt-pan  │
 ├─────────────────────────────────────────────────────────────┤
 │ Raspberry Pi OS Lite (Trixie), cloud-init, rpi-usb-gadget,   │  written by make flash or Imager
 │ NetworkManager, avahi-daemon, raspi-config                   │
@@ -86,22 +87,26 @@ packages/
     root/usr/lib/pihero/usb-gadget                          # Python, loads g_cdc named after the board
     root/usr/lib/systemd/system/pihero-usb-gadget.service
     root/usr/lib/modprobe.d/pihero-usb-gadget.conf          # blacklist g_ether
-  kaomoji/                                                  # no nfpm.yaml: not built, not shipped yet
+  kaomoji/                                                  # flat, no root/: nfpm.yaml maps the files, see Decisions
+    nfpm.yaml                                               # depends: bash; four contents entries, no maintainer scripts
     README.md                                               # the cast, shown as GIFs
-    kaomoji.bash                                            # bash, the engine: painting, pacing, grid, command line
-    hero  wizard  visitor                                   # bash, one character each, sourcing the engine
-    kaomoji-gif                                             # bash, records a command with asciinema and renders it with agg, Mac-side
-    Makefile  assets/*.gif                                  # the README's GIFs and how they are rendered
+    kaomoji.bash                                            # bash, the engine: painting, pacing, grid, command line; -> /usr/lib/kaomoji/
+    hero  wizard  visitor                                   # bash, one character each, sourcing the engine; -> /usr/bin/
+    kaomoji-gif                                             # bash, records a command with asciinema and renders it with agg, Mac-side, not shipped
+    Makefile  assets/*.gif                                  # the README's GIFs and how they are rendered, not shipped
     tests/test_<character>.py                               # tier 0
+    tests/test_installed.py                                 # tiers 1, 2, and ssh
 testkit/                                                    # the harness, a Python package
 devices/                                                    # device files, gitignored except sample/
 backups/                                                    # card images and their sidecars, gitignored
 ```
 
-- **Names.** `pihero` is the core, everything else is `pihero-<feature>`. Units are `pihero-<feature>*.service`, rendered files
+- **Names.** `pihero` is the core, everything else is `pihero-<feature>`, except `kaomoji`: the cast is no Pi Hero
+  feature, and `pihero` depends on it. Units are `pihero-<feature>*.service`, rendered files
   carry the `pihero-` prefix.
 - **Paths.** Executables in `/usr/lib/pihero/`, data and templates in `/usr/share/pihero/<feature>/`, units in
-  `/usr/lib/systemd/system/`, device overrides in `/etc/pihero/<feature>.conf`, state in `/var/lib/pihero/`.
+  `/usr/lib/systemd/system/`, device overrides in `/etc/pihero/<feature>.conf`, state in `/var/lib/pihero/`. `kaomoji` puts
+  its faces in `/usr/bin/` and its engine in `/usr/lib/kaomoji/`.
 - **Manifest.** `nfpm.yaml` declares `Architecture: all`, `Section: admin`, the dependencies, the tree under `root/`, and the
   maintainer scripts. Every package carries the one version derived from `git describe`: `2.1.0` at the tag,
   `2.1.0+3.abc1234` three commits past it, `.dirty` appended for an uncommitted tree, `2.1.0~rc.1` for the pre-release tag
@@ -194,8 +199,10 @@ comes up seconds after the kiosk would otherwise have loaded an error page for t
 
 ## `kaomoji`
 
-The Pi Hero cast, not shipped yet: [packages/kaomoji](../packages/kaomoji) has no `nfpm.yaml`, so `make build` skips it,
-while its tests run in tier 0 and its scripts pass the static checks like every package's. The engine,
+The Pi Hero cast, shipped as the package `kaomoji` from [packages/kaomoji](../packages/kaomoji): `hero`, `wizard`, and
+`visitor` in `/usr/bin/`, the engine in `/usr/lib/kaomoji/kaomoji.bash`, which a face sources next to itself in the
+checkout and from there once installed, without a fork. It depends on bash alone; `pihero` depends on it for its MOTD.
+Its tests run in tier 0, its scripts pass the static checks like every package's, and tier 1 runs the faces from `PATH`. The engine,
 [kaomoji.bash](../packages/kaomoji/kaomoji.bash), paints sprites of styled graphemes with tput, paces an animation on one
 line, draws the grid of all variants, and provides the command line; a character script adds its moods, a frame function,
 and a timeline (entrance steps, hover cycle, exit steps). Every call prints one kaomoji: the first mood, static, colored on a
@@ -226,8 +233,7 @@ every pose before the first frame, so no frame pays for one. Measured on `busy-s
 browser taking half the CPU): a cached frame costs 9 ms and plays at 52–56 ms intervals, a fresh one 25–70 ms; the warm-up
 takes 0.4–0.5 s plain and 1.1–1.9 s colored, most of the latter the styles' `tput` call, so the first frame shows after
 0.8–1.2 s plain and 1.6–2 s colored, and the longest frame of an animation dropped from 240 ms to 115 ms. Before, a grid frame took 2.3 s and its startup 8–16 s; now 125–160 ms and 3.5–8 s, which keeps
-the preview a Mac-side tool. Where the faces end up is open: the engine in `pihero` with each app owning its face, or the
-whole cast in one package. Tests, performance, and the function API come first.
+the preview a Mac-side tool. The cast stays one package until an app needs to change a face of its own.
 
 ## Planned packages
 
