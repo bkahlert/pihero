@@ -13,39 +13,6 @@ pytestmark = pytest.mark.tier0
 
 CARD = {"DeviceIdentifier": "disk9", "WholeDisk": True, "Internal": False, "RemovableMedia": True, "MediaName": "USB3.0 CRW   -SD", "TotalSize": 31914983424}
 DAY = date(2026, 9, 28)
-SAMPLE = Path("devices/sample/user-data")
-
-
-class TestHostname:
-    def test_reads_an_unquoted_hostname(self):
-        host = backup.hostname("#cloud-config\nhostname: mypi\nmanage_etc_hosts: true\n")
-
-        assert host == "mypi"
-
-    def test_reads_a_quoted_hostname(self):
-        host = backup.hostname('hostname: "my-pi"\n')
-
-        assert host == "my-pi"
-
-    def test_ignores_an_indented_key(self):
-        host = backup.hostname("users:\n  - name: pi\n    hostname: nope\n")
-
-        assert host is None
-
-    def test_ignores_a_commented_key(self):
-        host = backup.hostname("# hostname: nope\ntimezone: Europe/Berlin\n")
-
-        assert host is None
-
-    def test_is_none_without_a_hostname(self):
-        host = backup.hostname("#cloud-config\ntimezone: Europe/Berlin\n")
-
-        assert host is None
-
-    def test_reads_the_sample_device_file(self):
-        host = backup.hostname(SAMPLE.read_text())
-
-        assert host == "sample"
 
 
 class TestImageName:

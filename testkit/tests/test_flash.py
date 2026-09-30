@@ -1,12 +1,16 @@
 import hashlib
 import lzma
 import os
+from pathlib import Path
 
 import pytest
 
 from pihero_testkit import flash, prepare
 
 pytestmark = pytest.mark.tier0
+
+CARD = {"DeviceIdentifier": "disk9", "WholeDisk": True, "Internal": False, "RemovableMedia": True, "MediaName": "USB3.0 CRW   -SD", "TotalSize": 31914983424}
+SAMPLE = Path("devices/sample/user-data")
 
 
 class TestWriteImage:
@@ -103,6 +107,38 @@ class TestDeviceDir:
             flash.device_dir(str(tmp_path))
 
 
+class TestHostname:
+    def test_reads_an_unquoted_hostname(self):
+        host = flash.hostname("#cloud-config\nhostname: mypi\nmanage_etc_hosts: true\n")
+
+        assert host == "mypi"
+
+    def test_reads_a_quoted_hostname(self):
+        host = flash.hostname('hostname: "my-pi"\n')
+
+        assert host == "my-pi"
+
+    def test_ignores_an_indented_key(self):
+        host = flash.hostname("users:\n  - name: pi\n    hostname: nope\n")
+
+        assert host is None
+
+    def test_ignores_a_commented_key(self):
+        host = flash.hostname("# hostname: nope\ntimezone: Europe/Berlin\n")
+
+        assert host is None
+
+    def test_is_none_without_a_hostname(self):
+        host = flash.hostname("#cloud-config\ntimezone: Europe/Berlin\n")
+
+        assert host is None
+
+    def test_reads_the_sample_device_file(self):
+        host = flash.hostname(SAMPLE.read_text())
+
+        assert host == "sample"
+
+
 class TestImageName:
     def test_reads_the_name_from_a_leading_comment(self):
         name = flash.image_name("#cloud-config\n# board: Raspberry Pi Zero W\n# image: raspios_lite_armhf\nhostname: pi\n")
@@ -184,8 +220,50 @@ class TestCopyDeviceFiles:
         assert sorted(p.name for p in bootfs.iterdir()) == ["network-config", "user-data"]
 
 
+class TestFlash:
+    def test_forgets_the_devices_host_in_ghosttys_ssh_cache_once_the_card_is_done(self, tmp_path, monkeypatch):
+        device = tmp_path / "device"
+        device.mkdir()
+        (device / "user-data").write_text("#cloud-config\nhostname: mypi\n")
+        payload = os.urandom(2 * flash.SECTOR)
+        card = fake_flash(tmp_path, payload, monkeypatch)
+        forgotten = []
+        monkeypatch.setattr(flash.ghostty, "forget", lambda host, report: forgotten.append((host, card.read_bytes() == payload)) or [])
+
+        flash.flash(device, "disk9")
+
+        assert forgotten == [("mypi", True)]
+
+    def test_leaves_the_cache_alone_for_a_device_without_a_hostname(self, tmp_path, monkeypatch):
+        device = tmp_path / "device"
+        device.mkdir()
+        (device / "user-data").write_text("#cloud-config\ntimezone: Europe/Berlin\n")
+        fake_flash(tmp_path, os.urandom(2 * flash.SECTOR), monkeypatch)
+        forgotten = []
+        monkeypatch.setattr(flash.ghostty, "forget", lambda host, report: forgotten.append(host) or [])
+
+        flash.flash(device, "disk9")
+
+        assert forgotten == []
+
+
 def xz_image(tmp_path, payload: bytes):
     image = tmp_path / "os.img.xz"
     with lzma.open(image, "wb") as out:
         out.write(payload)
     return image
+
+
+def fake_flash(tmp_path, payload: bytes, monkeypatch) -> Path:
+    """Points flash at a file standing in for the card and a downloaded image holding payload; returns the card."""
+    image = xz_image(tmp_path, payload)
+    card = tmp_path / "card"
+    card.write_bytes(bytes(len(payload)))
+    (tmp_path / "bootfs").mkdir()
+    monkeypatch.setattr(flash, "disk_info", lambda disk: CARD)
+    monkeypatch.setattr(flash.prepare, "download", lambda url, sha256: image)
+    monkeypatch.setattr(flash, "unmount", lambda disk: None)
+    monkeypatch.setattr(flash, "open_raw", lambda disk, flags: os.open(card, flags))
+    monkeypatch.setattr(flash, "mount_bootfs", lambda disk: tmp_path / "bootfs")
+    monkeypatch.setattr(flash, "eject", lambda disk: None)
+    return card

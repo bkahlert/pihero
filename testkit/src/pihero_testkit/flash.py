@@ -12,13 +12,14 @@ import sys
 import time
 from pathlib import Path
 
-from . import prepare
+from . import ghostty, prepare
 from .disk import check_removable, disk_info, eject, mount_partition, open_raw, unmount
 
 CHUNK = 4 << 20
 SECTOR = 512
 BOOT_LABEL = "bootfs"
 DEVICE_FILES = ("user-data", "network-config", "meta-data")
+HOSTNAME = re.compile(r"""^hostname:\s*["']?(?P<name>[A-Za-z0-9][A-Za-z0-9.-]*)["']?\s*$""", re.MULTILINE)
 REGULATORY_DOMAIN = re.compile(r"""^\s*regulatory-domain:\s*["']?(?P<code>[A-Z]{2})["']?\s*$""", re.MULTILINE)
 CMDLINE_REGDOM = re.compile(r"\s*cfg80211\.ieee80211_regdom=\S*")
 DEFAULT_IMAGE = prepare.TIER2_IMAGE
@@ -30,6 +31,11 @@ def device_dir(name: str) -> Path:
     if not (path / "user-data").is_file():
         raise SystemExit(f"{path} has no user-data")
     return path
+
+
+def hostname(user_data: str) -> str | None:
+    match = HOSTNAME.search(user_data)
+    return match["name"] if match else None
 
 
 def image_name(user_data: str) -> str:
@@ -143,6 +149,8 @@ def flash(device: Path, disk: str) -> None:
         say(f"set the Wi-Fi regulatory domain {code} in cmdline.txt")
     eject(disk)
     say(f"ejected {disk}; insert the card into the Raspberry Pi and power it on")
+    if host := hostname((device / "user-data").read_text()):
+        ghostty.forget(host, say)
 
 
 def say(message: str) -> None:

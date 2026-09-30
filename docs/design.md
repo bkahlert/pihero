@@ -237,6 +237,10 @@ file another daemon reads, defaults in code, overrides from `/etc/pihero/<featur
 - **Backup is a card image.** `make backup` reads the whole card into `backups/<host>-<date>.img.xz` with a sidecar naming
   size and sha256; `make restore` refuses a smaller card before writing, verifies by reading back, and points at
   `raspi-config --expand-rootfs` on a larger one. Shrinking the image so a nominally equal card fits is the planned follow-up.
+- **A new card forgets Ghostty's cache.** Ghostty's `ssh-terminfo` integration installs its terminfo once per `user@host`,
+  caches that forever, and on a cache hit sends `TERM=xterm-ghostty`; a card flashed or restored under a known name would
+  get the `TERM` without the terminfo and lose colours. `make flash` and `make restore` therefore drop the host from
+  `ghostty +ssh-cache`, finding the CLI in the app bundle since it is on `PATH` only inside a Ghostty shell.
 - **Release is a tag.** `make release VERSION=X.Y.Z` runs tiers 0 to 2 locally and tags only on green; pushing the tag makes
   CI build every package at that version, regenerate the flat repository with `apt-ftparchive`, sign it with the key in the
   `APT_SIGNING_KEY` secret, push to `gh-pages`, and create the GitHub release with the `.deb` files. Pre-release tags such as
