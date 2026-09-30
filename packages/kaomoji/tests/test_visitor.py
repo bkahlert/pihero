@@ -14,20 +14,20 @@ SWING, BLINK_AT = 6, 30
 
 
 @pytest.fixture
-def colleague(kaomoji):
-    return kaomoji("colleague")
+def visitor(kaomoji):
+    return kaomoji("visitor")
 
 
 class TestStatic:
     @pytest.mark.parametrize("mood", STATIC)
-    def test_renders_the_mood_at_rest(self, colleague, mood):
-        assert colleague.static(mood) == STATIC[mood]
+    def test_renders_the_mood_at_rest(self, visitor, mood):
+        assert visitor.static(mood) == STATIC[mood]
 
 
 class TestAnimation:
     @pytest.fixture
-    def frames(self, colleague):
-        return colleague.frames("--mood", "neutral", "--loops", "1", "--exit")
+    def frames(self, visitor):
+        return visitor.frames("--mood", "neutral", "--loops", "1", "--exit")
 
     def test_runs_entrance_one_cycle_and_exit(self, frames):
         assert len(frames) == 1 + ENTRANCE + CYCLE + EXIT
@@ -64,8 +64,8 @@ class TestAnimation:
 
 
 class TestGrid:
-    def test_shows_every_mood_in_four_columns(self, colleague):
-        header, *rows = colleague.grid("--loops", "1")[-1]
+    def test_shows_every_mood_in_four_columns(self, visitor):
+        header, *rows = visitor.grid("--loops", "1")[-1]
 
         assert header.split()[0] == "mood"
         assert [row.split()[0] for row in rows] == list(STATIC)

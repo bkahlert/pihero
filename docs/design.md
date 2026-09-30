@@ -88,7 +88,7 @@ packages/
     root/usr/lib/modprobe.d/pihero-usb-gadget.conf          # blacklist g_ether
   kaomoji/                                                  # no nfpm.yaml: not built, not shipped yet
     kaomoji.bash                                            # bash, the engine: painting, pacing, grid, command line
-    hero  wizard  colleague                                 # bash, one character each, sourcing the engine
+    hero  wizard  visitor                                 # bash, one character each, sourcing the engine
     kaomoji-gif                                             # bash, renders a character as a GIF with agg, Mac-side
     tests/test_<character>.py                               # tier 0
 testkit/                                                    # the harness, a Python package
@@ -201,7 +201,7 @@ terminal; `--animate` or any animation option animates it, and `--exit` on an en
 is stopped, so an app can show a face until it is done and let it leave. Only `--help` and `--preview`, the grid, print
 anything else. `hero` flies in from the left, hovers, and flies out to the right;
 `wizard` slides in, conjures its magic particle by particle, runs the colors along it, and slides out to the left;
-`colleague` peeks out from behind a wall that slides in, waves and blinks, and ducks back before the wall slides out.
+`visitor` peeks out from behind a wall that slides in, waves and blinks, and ducks back before the wall slides out.
 [kaomoji-gif](../packages/kaomoji/kaomoji-gif) replaces the engine's pacing hook to record every frame and renders the GIFs
 in [assets](../assets) with agg; it is to become a generic renderer that records the command given after `--` instead of
 mirroring the characters' options. Where the faces end up is open: the engine in `pihero` with each app owning its face, or the

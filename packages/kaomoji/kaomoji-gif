@@ -28,7 +28,7 @@
 #   -h, --help          Show this help.
 #
 # Arguments:
-#   <character>         hero, wizard or colleague: a script next to this one, or the path to one.
+#   <character>         hero, wizard or visitor: a script next to this one, or the path to one.
 #   <character option>...
 #                       Passed on to the character's script, see '<character> --help'. Endless animations
 #                       (--loops -1) can't be rendered.

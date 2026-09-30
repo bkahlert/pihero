@@ -104,13 +104,13 @@ class TestMain:
     class TestExitWhileEndless:
         @pytest.mark.parametrize("stop", [signal.SIGINT, signal.SIGTERM])
         def test_plays_the_exit_when_stopped(self, kaomoji, stop):
-            result = kaomoji("colleague").stopped("--exit", "--no-entrance", "--frame-ms", "20", signals=[stop])
+            result = kaomoji("visitor").stopped("--exit", "--no-entrance", "--frame-ms", "20", signals=[stop])
 
             assert result.returncode == 0
             assert kaomoji.split_frames(result.stdout)[-4:] == ["┬┴┤", "┴┤", "┤", ""]
 
         def test_quits_at_once_on_a_second_interrupt(self, kaomoji):
-            result = kaomoji("colleague").stopped("--exit", "--no-entrance", "--frame-ms", "50", signals=[signal.SIGINT] * 2)
+            result = kaomoji("visitor").stopped("--exit", "--no-entrance", "--frame-ms", "50", signals=[signal.SIGINT] * 2)
 
             drawn = [frame for frame in kaomoji.split_frames(result.stdout) if frame]
             assert result.returncode == 130
