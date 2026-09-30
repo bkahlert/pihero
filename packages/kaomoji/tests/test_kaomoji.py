@@ -236,6 +236,13 @@ class TestMain:
 
             assert [row.split()[0] for row in rows] == ["happy"]
 
+        def test_leaves_the_cursor_below_the_grid_when_interrupted(self, kaomoji):
+            result = kaomoji("hero").stopped("--preview", "--frame-ms", "20", signals=[signal.SIGINT], frame_mark=tput("cuu1").encode())
+
+            assert result.returncode == 130
+            assert len(kaomoji.split_grid(result.stdout, 4)[-1]) == 1 + 4  # the header and every row, redrawn completely
+            assert result.stdout.endswith("\n\n" + tput("cnorm"))
+
         def test_lines_up_a_face_narrower_than_the_titles_under_them(self, kaomoji):
             header, *rows = kaomoji("visitor").grid("--loops", "1")[-1]
 

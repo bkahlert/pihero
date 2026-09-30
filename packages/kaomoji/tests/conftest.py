@@ -24,15 +24,15 @@ class Kaomoji:
         # decoded by hand: text mode would turn the \r between frames into newlines
         return subprocess.CompletedProcess(result.args, result.returncode, result.stdout.decode(), result.stderr.decode())
 
-    def stopped(self, *args: str, signals: list[int]) -> subprocess.CompletedProcess:
+    def stopped(self, *args: str, signals: list[int], frame_mark: bytes = b"\r") -> subprocess.CompletedProcess:
         """Runs an endless animation and sends each signal once two more frames have shown."""
         proc = subprocess.Popen(
             [str(self.script), "--no-color", *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env(), bufsize=0
         )
         out = b""
         for sig in signals:
-            seen = out.count(b"\r")
-            while out.count(b"\r") < seen + 2:
+            seen = out.count(frame_mark)
+            while out.count(frame_mark) < seen + 2:
                 chunk = proc.stdout.read(4096)
                 if not chunk:
                     break
@@ -59,9 +59,13 @@ class Kaomoji:
     def grid(self, *args: str) -> list[list[str]]:
         """The frames of the preview grid, each as its header line followed by one line per mood."""
         out = self.run("--preview", "--frame-ms", "0", *args).stdout
-        rows = 1 + 2 * (1 if "--mood" in args else len(self.moods()))
+        return self.split_grid(out, 1 if "--mood" in args else len(self.moods()))
+
+    @staticmethod
+    def split_grid(out: str, moods: int) -> list[list[str]]:
+        """Splits a preview's output at the cursor moving back up, into the non-empty lines of each redraw."""
         frames = []
-        for chunk in out.split(CUU1 * rows):
+        for chunk in out.split(CUU1 * (1 + 2 * moods)):
             lines = [line for line in ESCAPES.sub("", chunk).split("\n") if line.strip()]
             frames.append(lines)
         return frames

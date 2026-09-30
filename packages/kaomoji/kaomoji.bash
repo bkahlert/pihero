@@ -333,7 +333,7 @@ kaomoji_animation_begin() {
 
 kaomoji_animation_end() {
     printf '%s' "${KAOMOJI_CAP[cnorm]}"
-    trap - EXIT INT
+    trap - EXIT INT TERM
     if [ -n "${KAOMOJI_TICK:-}" ]; then
         exec {KAOMOJI_TICK}>&-
         unset KAOMOJI_TICK
@@ -483,10 +483,17 @@ kaomoji_grid() {
     done
 
     # The header and the rows are separated by empty lines; all of them are redrawn per step.
-    local -i rows=$((1 + 2 * ${#moods[@]})) step shown
+    # A signal quits between redraws, when the cursor is below the grid, not in the middle of one.
+    local -i rows=$((1 + 2 * ${#moods[@]})) step shown quit=0
     printf '\n'
     kaomoji_animation_begin
+    trap 'quit=1' INT TERM
     for ((step = 0; ; step++)); do
+        if ((quit)); then
+            printf '\n'
+            kaomoji_animation_end
+            exit 130
+        fi
         shown=${EPOCHREALTIME/./}
         if ((step > 0)); then
             for ((i = 0; i < rows; i++)); do printf '%s' "${KAOMOJI_CAP[cuu1]}"; done
