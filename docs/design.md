@@ -108,7 +108,7 @@ backups/                                                    # card images and th
   `/usr/lib/systemd/system/`, device overrides in `/etc/pihero/<feature>.conf`, state in `/var/lib/pihero/`. `kaomoji` puts
   its faces in `/usr/bin/` and its engine in `/usr/lib/kaomoji/`.
 - **Manifest.** `nfpm.yaml` declares `Architecture: all`, `Section: admin`, the dependencies, the tree under `root/`, and the
-  maintainer scripts. Every package carries the one version derived from `git describe`: `2.1.0` at the tag,
+  maintainer scripts; `kaomoji` names its four files instead of a tree and has no maintainer scripts. Every package carries the one version derived from `git describe`: `2.1.0` at the tag,
   `2.1.0+3.abc1234` three commits past it, `.dirty` appended for an uncommitted tree, `2.1.0~rc.1` for the pre-release tag
   `v2.1.0-rc.1`; `VERSION=` overrides it.
 - **Maintainer scripts.** Minimal POSIX shell that calls `deb-systemd-helper` and `deb-systemd-invoke`, as debhelper would emit,
