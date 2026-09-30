@@ -61,6 +61,14 @@ def test_shell_file_passes_shellcheck(script):
 
 
 @pytest.mark.parametrize("package", sorted(package_dirs()), ids=lambda p: p.name)
+def test_manifest_is_architecture_all_in_section_admin(package):
+    manifest = (package / "nfpm.yaml").read_text()
+
+    assert "\narch: all\n" in manifest
+    assert "\nsection: admin\n" in manifest
+
+
+@pytest.mark.parametrize("package", sorted(package_dirs()), ids=lambda p: p.name)
 def test_maintainer_scripts_that_manage_users_depend_on_adduser(package):
     """Trixie's minimal images carry no adduser: a postinst that calls it without the dependency fails the install with 127."""
     fragments = " ".join(f.read_text() for f in (package / "scripts").glob("*.sh"))

@@ -26,6 +26,12 @@ class TestMotd:
         assert f"pihero {version}" in output
         assert "failed units:" in output
 
+    def test_shows_the_hero_in_the_mood_of_the_board(self, host):
+        output = host.check_output("/usr/lib/pihero/motd")
+
+        banner, details = output.lstrip("\n").split("\n", 1)
+        assert banner == face_for(details)
+
 
 class TestBootconfig:
     @pytest.mark.mutating
@@ -35,7 +41,10 @@ class TestBootconfig:
         assert "pihero.probe=1" in host.file("/boot/firmware/cmdline.txt").content_string
         assert host.file("/run/reboot-required").exists
         assert host.file("/run/reboot-required.pkgs").contains("pihero-probe")
-        assert "reboot required: yes (pihero-probe)" in host.check_output("/usr/lib/pihero/motd")
+        output = host.check_output("/usr/lib/pihero/motd")
+        assert "reboot required: yes (pihero-probe)" in output
+        if "  failed units:    none\n" in output:
+            assert output.lstrip("\n").startswith(FACES["unknown"] + "\n")
 
         host.check_output("sudo /usr/lib/pihero/bootconfig remove cmdline pihero.probe --package pihero-probe")
 
@@ -51,5 +60,18 @@ class TestRemoval:
 
         assert not host.file("/usr/lib/pihero/bootconfig").exists
         assert not host.file("/etc/update-motd.d/50-pihero").exists
+        assert not host.file("/usr/share/pihero/hero.txt").exists
 
         target.reinstall()
+
+
+FACES = {"sad": "─=≡▰▩▩[ ༶◕︿◕ ]⊐", "unknown": "─=≡▰▩▩[༶´⊙﹏⊙`]⊐", "happy": "─=≡▰▩▩[✿＾ｖ＾]⊐"}
+
+
+def face_for(details: str) -> str:
+    # The container is accepted degraded, so the expected face follows the lines the MOTD printed.
+    if "  failed units:    none\n" not in details:
+        return FACES["sad"]
+    if "  reboot required: no\n" not in details:
+        return FACES["unknown"]
+    return FACES["happy"]

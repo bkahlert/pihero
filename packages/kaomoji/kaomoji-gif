@@ -1,0 +1,257 @@
+#!/usr/bin/env bash
+# Purpose: Render what a command draws on the terminal as an animated GIF, a kaomoji script in particular.
+# Usage:   kaomoji-gif [--output <file>] [--cast <file>] [--font-family <list>] [--font-size <px>] [--line-height <n>]
+#                      [--padding <n>|<cols>x<rows>] [--hold <secs>] [--theme <theme>] [--] <command> [<argument>...]
+#
+# Records the command with asciinema (https://asciinema.org) on a virtual 256-color terminal, so a kaomoji
+# script colors its output unless told otherwise, and renders the recording with agg
+# (https://github.com/asciinema/agg). The terminal is as large as what the command drew plus the padding;
+# the final newline and the cursor are not part of the picture. An animation that hovers once loops
+# seamlessly. An endless animation, the scripts' default, never finishes recording: give it --loops, or
+# stop it with Ctrl-C.
+#
+# Options:
+#   --output <file>     GIF to write (default: <command>.gif, named after the command's file).
+#   --cast <file>       Also keep the recording as an asciicast v2 file.
+#   --font-family <list>
+#                       Comma-separated font families to try in turn for each glyph (default: agg's list, which
+#                       ends up with Menlo on macOS). Add "Apple Symbols" there for a hand glyph that fits its cell.
+#   --font-size <px>    Font size (default: 32). A column is 0.6 font sizes wide, a row is the line height
+#                       times the font size high.
+#   --line-height <n>   Line height relative to the font size (default: 1.4).
+#   --padding <n>|<cols>x<rows>
+#                       Empty columns and rows around the picture (default: 1). agg adds another column on
+#                       either side and half a row above and below.
+#   --hold <secs>       How long the last frame stays before the GIF loops (default: one frame, a still a second).
+#   --theme <theme>     Color theme of agg: a name or "<bg>,<fg>,<16 colors>" in hex (default: asciinema).
+#   -h, --help          Show this help.
+#
+# Examples:
+#   kaomoji-gif -- ./hero --animate --no-entrance --loops 1                             # hero.gif: hovering once, a seamless loop
+#   kaomoji-gif --hold 1 -- ./wizard --animate --loops 2 --exit                          # entrance, two hover cycles, exit, a second's pause
+#   kaomoji-gif --output grid.gif --font-size 24 --hold 1 -- ./hero --preview --loops 4 --exit   # the whole grid
+#   kaomoji-gif --font-family "Menlo,Apple Symbols" -- ./hero --mood happy               # a single frame
+#   kaomoji-gif --cast hero.cast -- ./hero --no-color --animate --no-entrance --loops 1   # plain, and the recording kept
+
+set -euo pipefail
+
+# The recording is made on a virtual 256-color terminal, whatever the real one is and however NO_COLOR is set.
+export TERM=xterm-256color
+unset NO_COLOR
+
+# shellcheck source=kaomoji.bash
+. "$(dirname "${BASH_SOURCE[0]}")/kaomoji.bash" # usage, die and kaomoji_text_width
+
+# Prints the given text escaped as asciinema writes it into a JSON string.
+json_escape() {
+    local s=$1
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\e'/\\u001b}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '%s' "$s"
+}
+
+# Sets REPLY to the number of times the needle occurs in the haystack.
+count() {
+    local haystack=$1 needle=$2 stripped
+    stripped=${haystack//"$needle"/}
+    REPLY=$(((${#haystack} - ${#stripped}) / ${#needle}))
+}
+
+# Reads the output events of an asciicast v2 file into two arrays: when each was written, in
+# microseconds, and what, escaped as recorded. Every write of the command is one event.
+#   <file> <times> <events>
+read_cast() {
+    local -n out_times=$2 out_events=$3
+    local line time whole frac rest
+    out_times=()
+    out_events=()
+    {
+        read -r # the header
+        while IFS= read -r line; do
+            line=${line#\[}
+            time=${line%%,*}
+            rest=${line#*,}
+            rest=${rest# }
+            [[ $rest == '"o"'* ]] || continue # input, resize, marker and exit events are not output
+            rest=${rest#*,}
+            rest=${rest# }
+            rest=${rest#\"}
+            out_events+=("${rest%\"\]}")
+            case $time in
+            *.*) whole=${time%%.*} frac=${time#*.}000000 ;;
+            *) whole=$time frac=000000 ;;
+            esac
+            out_times+=("$((whole * 1000000 + 10#${frac:0:6}))")
+        done
+    } <"$1"
+}
+
+# Drops the final newline and the cursor coming back from the end of the recording: they end the
+# command, not the picture. Events left empty go with them.
+#   <times> <events>
+trim() {
+    local -n t=$1 e=$2
+    local cnorm
+    kaomoji_tput cnorm
+    cnorm=$(json_escape "${KAOMOJI_CAP[cnorm]}")
+    local -i i changed
+    for ((i = ${#e[@]} - 1; i >= 0; i--)); do
+        changed=1
+        while ((changed)); do
+            changed=0
+            if [[ ${e[i]} == *"$cnorm" ]]; then e[i]=${e[i]%"$cnorm"} changed=1; fi
+            if [[ ${e[i]} == *'\r\n' ]]; then e[i]=${e[i]%'\r\n'} changed=1; fi
+            if [[ ${e[i]} == *'\n' ]]; then e[i]=${e[i]%'\n'} changed=1; fi
+        done
+        [ -z "${e[i]}" ] || break
+        unset 'e[i]' 't[i]'
+    done
+}
+
+# Sets REPLY to "<columns> <rows>" the recording needs. Rows follow the newlines and the cursor
+# moving up, columns are the widest line's display width once the escape sequences are gone.
+#   <events>
+measure() {
+    local -n e=$1
+    local cuu1 event text line
+    local -i row=1 rows=1 cols=0
+    kaomoji_tput cuu1
+    cuu1=$(json_escape "${KAOMOJI_CAP[cuu1]}")
+    for event in "${e[@]}"; do
+        count "$event" "$cuu1"
+        row=$((row - REPLY))
+        count "$event" '\n'
+        row=$((row + REPLY))
+        if ((row > rows)); then rows=$row; fi
+    done
+    text=$(printf '%s' "${e[@]}" | sed -e 's/\\u001b\[[0-9;?]*[A-Za-z]//g' -e 's/\\u001b(B//g' -e 's/\\u001b[78]//g')
+    text=${text//'\r\n'/$'\n'}
+    text=${text//'\r'/$'\n'}
+    text=${text//'\n'/$'\n'}
+    text=${text//'\"'/'"'}
+    text=${text//\\\\/\\}
+    text=$(sort -u <<<"$text") # the grid repeats its lines
+    while IFS= read -r line; do
+        kaomoji_text_width "$line"
+        if ((REPLY > cols)); then cols=$REPLY; fi
+    done <<<"$text"
+    REPLY="$cols $rows"
+}
+
+# Writes the events as an asciicast v2 file of the given size, the picture behind the padding and
+# the cursor hidden in the last frame.
+#   <width> <height> <left> <top> <times> <events> <file>
+write_cast() {
+    local -i width=$1 height=$2 left=$3 top=$4
+    local -n t=$5 e=$6
+    local file=$7 indent lead='' civis event
+    local -i i
+    printf -v indent '%*s' "$left" ''
+    for ((i = 0; i < top; i++)); do lead+='\r\n'; done
+    kaomoji_tput civis
+    civis=$(json_escape "${KAOMOJI_CAP[civis]}")
+    {
+        printf '{"version": 2, "width": %d, "height": %d, "env": {"TERM": "%s"}}\n' "$width" "$height" "$TERM"
+        for i in "${!e[@]}"; do
+            event=${e[i]}
+            event=${event//'\r\n'/'\n'}          # the pty's line endings, then
+            event=${event//'\r'/'\r'"$indent"}   # every redraw of the current line ...
+            event=${event//'\n'/'\r\n'"$indent"} # ... and every new one start behind the padding
+            if ((i == 0)); then event="$lead$indent$event"; fi
+            if ((i == ${#e[@]} - 1)); then event+=$civis; fi
+            printf '[%d.%06d, "o", "%s"]\n' "$((t[i] / 1000000))" "$((t[i] % 1000000))" "$event"
+        done
+    } >"$file"
+}
+
+kaomoji_gif() {
+    local output='' cast='' hold='' theme=asciinema font_family='' line_height=1.4 padding=1
+    local -i font_size=32
+    local -a command=()
+    while [ $# -gt 0 ]; do
+        case $1 in
+        -h | --help) usage; exit 0 ;;
+        --output) output=${2?--output: missing value}; shift 2 ;;
+        --output=*) output=${1#*=}; shift ;;
+        --cast) cast=${2?--cast: missing value}; shift 2 ;;
+        --cast=*) cast=${1#*=}; shift ;;
+        --font-family) font_family=${2?--font-family: missing value}; shift 2 ;;
+        --font-family=*) font_family=${1#*=}; shift ;;
+        --font-size) font_size=${2?--font-size: missing value}; shift 2 ;;
+        --font-size=*) font_size=${1#*=}; shift ;;
+        --line-height) line_height=${2?--line-height: missing value}; shift 2 ;;
+        --line-height=*) line_height=${1#*=}; shift ;;
+        --padding) padding=${2?--padding: missing value}; shift 2 ;;
+        --padding=*) padding=${1#*=}; shift ;;
+        --hold) hold=${2?--hold: missing value}; shift 2 ;;
+        --hold=*) hold=${1#*=}; shift ;;
+        --theme) theme=${2?--theme: missing value}; shift 2 ;;
+        --theme=*) theme=${1#*=}; shift ;;
+        --) shift; command=("$@"); break ;;
+        -?*) die "unknown option: $1" ;;
+        *) command=("$@"); break ;; # everything from the first positional on is the command
+        esac
+    done
+    ((${#command[@]})) || { usage >&2; exit 2; }
+    command -v asciinema >/dev/null || die "asciinema not found, install it with 'brew install asciinema'"
+    command -v agg >/dev/null || die "agg not found, install it with 'brew install agg'"
+    [ -n "$output" ] || output=${command[0]##*/}.gif
+    local -i pad_x pad_y
+    case $padding in
+    *x*) pad_x=${padding%x*} pad_y=${padding#*x} ;;
+    *) pad_x=$padding pad_y=$padding ;;
+    esac
+    local -a font=()
+    if [ -n "$font_family" ]; then font=(--font-family "$font_family"); fi
+
+    local tmp
+    tmp=$(mktemp -d -t kaomoji-gif)
+    # shellcheck disable=SC2064 # the directory's name is known right now
+    trap "rm -rf '$tmp'" EXIT
+    [ -n "$cast" ] || cast=$tmp/picture.cast
+
+    # asciinema hands the command to a shell, this one, so bash's quoting gets every argument across.
+    local quoted
+    printf -v quoted '%q ' "${command[@]}"
+    local -i status=0
+    SHELL=$BASH asciinema rec --headless --quiet --overwrite --return --output-format asciicast-v2 \
+        --command "$quoted" "$tmp/recording.cast" || status=$?
+    local -a times events
+    read_cast "$tmp/recording.cast" times events
+    if ((status)); then
+        local said
+        printf -v said '%s' "${events[@]}"
+        said=${said//'\r\n'/$'\n'}
+        die "'${command[*]}' failed with status $status:"$'\n'"${said%$'\n'}"
+    fi
+    trim times events
+    ((${#events[@]})) || die "'${command[*]}' drew nothing"
+    measure events
+    local -i width=$((${REPLY% *} + 2 * pad_x)) height=$((${REPLY#* } + 2 * pad_y))
+
+    if [ -z "$hold" ]; then
+        # agg merges identical consecutive frames into one and shows the last one for exactly the
+        # hold time, so the hold has to cover the merged frames' delays plus one more frame.
+        local -i n=${#events[@]} i us=1000000
+        if ((n > 1)); then
+            us=$((times[n - 1] - times[n - 2]))
+            for ((i = n - 2; i >= 0; i--)); do
+                [ "${events[i]}" = "${events[n - 1]}" ] || break
+                us+=$((times[i + 1] - times[i]))
+            done
+        fi
+        printf -v hold '%d.%03d' "$((us / 1000000))" "$((us % 1000000 / 1000))"
+    fi
+
+    write_cast "$width" "$height" "$pad_x" "$pad_y" times events "$cast"
+    agg "${font[@]}" --font-size "$font_size" --line-height "$line_height" --theme "$theme" --last-frame-duration "$hold" "$cast" "$output" >&2 # progress bar
+    local plural=s
+    if ((${#events[@]} == 1)); then plural=''; fi
+    printf '%s: %d event%s on %dx%d cells\n' "$output" "${#events[@]}" "$plural" "$width" "$height"
+}
+
+kaomoji_gif "$@"

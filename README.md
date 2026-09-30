@@ -16,6 +16,7 @@ No control machine, no playbook.
 | `pihero-avahi`        | The Pi appears in Finder's network browser with an icon and its device information, announced as an SMB server because that is what Finder lists; SSH is advertised too |
 | `pihero-usb-gadget`   | Ethernet over USB on top of Raspberry Pi's `rpi-usb-gadget`: a Mac on the cable gets an address from the Pi and lists the interface under the board's name              |
 | `pihero-kiosk`        | One web page full screen on the display: cog (WPE WebKit) straight on the DRM device, no X server and no compositor; the page is `URL` in `/etc/pihero/kiosk.conf`      |
+| `kaomoji`             | The Pi Hero cast: `hero`, `wizard`, and `visitor` print one animated kaomoji each on the terminal; `pihero` depends on it and shows the hero in its MOTD               |
 
 | [![network browser](docs/network-browser.png) Pis in the network browser](./docs/network-browser.png)     | [![network info foo](docs/network-info-foo.png) device information](./docs/network-info-foo.png)     | [![device info bar](docs/device-info-bar.png) device information with a custom model](./docs/device-info-bar.png)     |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -76,7 +77,7 @@ make doctor                                  # lists what is missing
 
 | Directory              | Contents                                                                                                                                                        |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [packages/](packages)  | One directory per Debian package: what it installs under `root/`, its `nfpm.yaml` manifest, its tests                                                           |
+| [packages/](packages)  | One directory per Debian package: what it installs under `root/`, its `nfpm.yaml` manifest, its tests; [kaomoji/](packages/kaomoji/README.md) holds the kaomoji cast, not a package yet |
 | [testkit/](testkit)    | The test harness: the pytest plugin and the commands behind `make`; builds the packages and tests them in podman containers, a QEMU VM, or on a Pi over SSH     |
 | [devices/](devices)    | Device files, one directory per device, documented in [devices/README.md](devices/README.md); only `sample/` is committed                                       |
 | [docs/](docs)          | Design, testing, and platform notes                                                                                                                             |

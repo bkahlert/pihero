@@ -1,11 +1,10 @@
 #!/usr/bin/python3
-"""Prints the Pi Hero MOTD: banner, installed pihero packages, failed units, pending reboot, usb0 address."""
+"""Prints the Pi Hero MOTD: the hero in the mood of the board, installed pihero packages, failed units, pending reboot, usb0 address."""
 
 import subprocess
 import sys
 from pathlib import Path
 
-BANNER = Path("/usr/share/pihero/hero.txt")
 RUN = Path("/run")
 
 
@@ -35,11 +34,19 @@ def reboot_state(run_dir: Path) -> tuple[bool, list[str]]:
     return (run_dir / "reboot-required").exists(), (pkgs.read_text().split() if pkgs.exists() else [])
 
 
+def mood(failed: list[str], reboot_required: bool) -> str:
+    if failed:
+        return "sad"
+    if reboot_required:
+        return "unknown"
+    return "happy"
+
+
 def render(banner: str, packages: list[tuple[str, str]], failed: list[str], reboot: tuple[bool, list[str]], usb0: str | None) -> str:
     required, reboot_pkgs = reboot
     reboot_text = "no" if not required else f"yes ({', '.join(reboot_pkgs)})" if reboot_pkgs else "yes"
     return (
-        f"{banner.rstrip()}\n\n"
+        f"\n{banner.rstrip()}\n\n"
         f"  packages:        {', '.join(f'{name} {version}' for name, version in packages) or 'none'}\n"
         f"  failed units:    {', '.join(failed) or 'none'}\n"
         f"  reboot required: {reboot_text}\n"
@@ -58,8 +65,9 @@ def main() -> int:
     packages = parse_dpkg(_output(["dpkg-query", "-W", "-f=${Package} ${Version} ${db:Status-Abbrev}\n", "pihero*"]))
     failed = parse_failed(_output(["systemctl", "--failed", "--no-legend", "--plain"]))
     usb0 = parse_usb0(_output(["ip", "-o", "-4", "addr", "show", "dev", "usb0"]))
-    banner = BANNER.read_text() if BANNER.exists() else ""
-    sys.stdout.write(render(banner, packages, failed, reboot_state(RUN), usb0))
+    reboot = reboot_state(RUN)
+    banner = _output(["hero", "--mood", mood(failed, reboot[0]), "--no-color"])
+    sys.stdout.write(render(banner, packages, failed, reboot, usb0))
     return 0
 
 
