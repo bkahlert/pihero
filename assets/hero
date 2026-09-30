@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Purpose: Render the Pi Hero kaomoji ─=≡▰▩▩[ 蓬•ｏ•]⊐ in all moods, plain or colored, static or animated.
-# Usage:   hero [--no-entrance] [--loops <n>] [--frame-ms <ms>]
-#          hero --mood <mood> [--animate [--no-entrance]] [--color|--no-color] [--loops <n>] [--frame-ms <ms>]
+# Usage:   hero [--no-entrance] [--loops <n> [--exit]] [--frame-ms <ms>]
+#          hero --mood <mood> [--animate [--no-entrance]] [--color|--no-color] [--loops <n> [--exit]] [--frame-ms <ms>]
 #
 # Without --mood, all variants are shown in a grid: one row per mood, one column per style.
 # With --mood, a single variant is rendered. Colors need a 256-color terminal. Needs bash 4.4+.
@@ -13,15 +13,17 @@
 #   --color           Colored output (default: if stdout is a terminal and NO_COLOR is unset).
 #   --no-color        Plain output.
 #   --loops <n>       Stop after <n> hover cycles (default: endless, until Ctrl-C).
+#   --exit            Fly the hero out to the right after the last hover cycle (needs --loops).
 #   --frame-ms <ms>   Delay between animation frames (default: 50).
 #   -h, --help        Show this help.
 #
 # Examples:
 #   hero                                    # grid of all variants, animated until Ctrl-C
 #   hero --loops 1                          # grid, hovering once, then exits
+#   hero --loops 4 --exit                   # grid, hovering four times, then flying out
 #   hero --mood happy
 #   ─=≡▰▩▩[✿＾ｖ＾]⊐
-#   hero --mood sad --animate --loops 3
+#   hero --mood sad --animate --loops 3 --exit
 #   hero --mood neutral --animate --no-entrance
 #   hero --mood neutral --no-color > motd   # plain text for a file
 
@@ -154,16 +156,19 @@ hero_sgr_cache() {
 # Prints the graphemes of a sprite (no trailing newline).
 #   --offset <n>   drop <n> graphemes from the left, or pad the left with -<n> spaces if negative (default: 0)
 #   --width <n>    pad the right with spaces up to a display width of <n> (default: 0)
+#   --clip <n>     drop the graphemes that don't fit into a display width of <n> (default: 0, keep all)
 #   --color        apply the styles
 #   <array>        name of an array filled by hero_sprite
 hero_paint() {
-    local -i offset=0 width=0 color=0
+    local -i offset=0 width=0 clip=0 color=0
     while [ $# -gt 0 ]; do
         case $1 in
         --offset) offset=${2?$1: missing value}; shift 2 ;;
         --offset=*) offset=${1#*=}; shift ;;
         --width) width=${2?$1: missing value}; shift 2 ;;
         --width=*) width=${1#*=}; shift ;;
+        --clip) clip=${2?$1: missing value}; shift 2 ;;
+        --clip=*) clip=${1#*=}; shift ;;
         --color) color=1; shift ;;
         --) shift; break ;;
         -?*) die "${FUNCNAME[0]}: unknown option: $1" ;;
@@ -182,14 +187,15 @@ hero_paint() {
     for ((i = offset; i < ${#graphemes[@]}; i++)); do
         style=${graphemes[i]%%$'\t'*}
         text=${graphemes[i]#*$'\t'}
+        hero_text_width "$text"
+        if ((clip > 0 && shown + REPLY > clip)); then break; fi
+        shown+=REPLY
         if ((color)); then
             hero_sgr_cache "$style"
             out+="${HERO_SGR[$style]}$text$HERO_SGR0"
         else
             out+=$text
         fi
-        hero_text_width "$text"
-        shown+=REPLY
     done
     if ((shown < width)); then
         printf -v pad '%*s' "$((width - shown))" ''
@@ -203,10 +209,12 @@ hero_paint() {
 #   --step <n>      step of the animation: the hero flies in from the left during the first
 #                   steps, one grapheme per step, and hovers afterwards (default: at rest)
 #   --no-entrance   hover where the hero lands instead of hopping one cell to the right
+#   --exit <n>      step after which the hero flies out to the right, one cell per step; it is
+#                   gone as many steps later as it is cells wide (default: never)
 #   --width <n>     pad the right with spaces up to this display width (default: 0)
 #   --color         colored output
 hero_frame() {
-    local mood=neutral step=''
+    local mood=neutral step='' exit_step=''
     local -i width=0 entrance=1
     local -a color=()
     while [ $# -gt 0 ]; do
@@ -216,6 +224,8 @@ hero_frame() {
         --step) step=${2?$1: missing value}; shift 2 ;;
         --step=*) step=${1#*=}; shift ;;
         --no-entrance) entrance=0; shift ;;
+        --exit) exit_step=${2?$1: missing value}; shift 2 ;;
+        --exit=*) exit_step=${1#*=}; shift ;;
         --width) width=${2?$1: missing value}; shift 2 ;;
         --width=*) width=${1#*=}; shift ;;
         --color) color=(--color); shift ;;
@@ -231,15 +241,22 @@ hero_frame() {
         return 0
     fi
 
-    hero_sprite --mood "$mood" sprite # only to count the graphemes
-    local -i size=${#sprite[@]} phase pose offset
+    hero_sprite --mood "$mood" sprite # only to count the graphemes and measure the width
+    local -i size=${#sprite[@]} phase pose offset clip=0
     # The poses are phased so that the hero is at rest once it has fully arrived (step == size)
     # and again after every hover cycle.
     phase=$(((HERO_REST - size % HERO_CYCLE + HERO_CYCLE) % HERO_CYCLE))
     pose=$(((step + phase) % HERO_CYCLE))
     if ((step <= size)); then offset=$((size - step)); else offset=$((entrance ? -1 : 0)); fi
+    if [ -n "$exit_step" ] && ((step > exit_step)); then
+        # The hero leaves the cells it hovered in and is clipped at their right edge.
+        hero_text_width "$(hero_paint sprite)"
+        clip=$((REPLY - offset))
+        offset=$((offset - (step - exit_step)))
+        if ((-offset > clip)); then offset=$((-clip)); fi
+    fi
     hero_sprite --mood "$mood" --step "$pose" sprite
-    hero_paint "${color[@]}" --offset "$offset" --width "$width" sprite
+    hero_paint "${color[@]}" --offset "$offset" --clip "$clip" --width "$width" sprite
 }
 
 # Paces an animation: sleeps for the given number of milliseconds. Every frame but the last
@@ -267,17 +284,19 @@ hero_animation_end() {
 #   --color           colored output
 #   --no-entrance     skip the fly-in and start hovering right away
 #   --loops <n>       stop after <n> hover cycles (default: -1, endless)
+#   --exit            fly out to the right after the last hover cycle
 #   --frame-ms <ms>   delay between frames (default: 50)
 hero_animate() {
     local mood=neutral
     local -a color=() flags=() # flags are passed on to hero_frame
-    local -i entrance=1 loops=-1 frame_ms=50
+    local -i entrance=1 exit=0 loops=-1 frame_ms=50
     while [ $# -gt 0 ]; do
         case $1 in
         --mood) mood=${2?$1: missing value}; shift 2 ;;
         --mood=*) mood=${1#*=}; shift ;;
         --color) color=(--color); shift ;;
-        --no-entrance) entrance=0; flags=(--no-entrance); shift ;;
+        --no-entrance) entrance=0; flags+=(--no-entrance); shift ;;
+        --exit) exit=1; shift ;;
         --loops) loops=${2?$1: missing value}; shift 2 ;;
         --loops=*) loops=${1#*=}; shift ;;
         --frame-ms) frame_ms=${2?$1: missing value}; shift 2 ;;
@@ -292,6 +311,11 @@ hero_animate() {
     local -i size=${#sprite[@]} first=0 last step
     if ((!entrance)); then first=$((size + 1)); fi # the first hover step
     last=$((size + loops * HERO_CYCLE))            # meaningless while endless
+    if ((exit)); then
+        flags+=(--exit "$last")
+        hero_text_width "$(hero_frame --mood "$mood")"
+        last+=REPLY # gone once it has moved its own width to the right
+    fi
     hero_animation_begin
     for ((step = first; ; step++)); do
         printf '\r'
@@ -308,13 +332,15 @@ hero_animate() {
 # (static and animated, each plain and colored). The animated columns play in place.
 #   --no-entrance     skip the fly-in and start hovering right away
 #   --loops <n>       stop after <n> hover cycles (default: -1, endless)
+#   --exit            fly out to the right after the last hover cycle
 #   --frame-ms <ms>   delay between frames (default: 50)
 hero_grid() {
-    local -i entrance=1 loops=-1 frame_ms=50
+    local -i entrance=1 exit=0 loops=-1 frame_ms=50
     local -a flags=() # passed on to hero_frame
     while [ $# -gt 0 ]; do
         case $1 in
         --no-entrance) entrance=0; flags=(--no-entrance); shift ;;
+        --exit) exit=1; shift ;;
         --loops) loops=${2?$1: missing value}; shift 2 ;;
         --loops=*) loops=${1#*=}; shift ;;
         --frame-ms) frame_ms=${2?$1: missing value}; shift 2 ;;
@@ -331,19 +357,21 @@ hero_grid() {
 
     # The label column fits every mood, a cell fits the widest hero plus the space it hovers in,
     # and each mood's animation runs from its own first to its own last step.
-    local -i label=4 cell=0 i size last=0
-    local -a first_step=() last_step=() sprite
+    local -i label=4 cell=0 i size width last=0
+    local -a first_step=() exit_step=() last_step=() sprite exit_flags=()
     local mood plain
     for i in "${!HERO_MOODS[@]}"; do
         mood=${HERO_MOODS[i]}
         if ((${#mood} > label)); then label=${#mood}; fi
         plain=$(hero_frame --mood "$mood")
         hero_text_width "$plain"
-        if ((REPLY + 1 > cell)); then cell=$((REPLY + 1)); fi
+        width=$REPLY
+        if ((width + 1 > cell)); then cell=$((width + 1)); fi
         hero_sprite --mood "$mood" sprite
         size=${#sprite[@]}
         first_step[i]=$((entrance ? 0 : size + 1))
-        last_step[i]=$((size + loops * HERO_CYCLE)) # meaningless while endless
+        exit_step[i]=$((size + loops * HERO_CYCLE))          # meaningless while endless
+        last_step[i]=$((exit_step[i] + (exit ? width : 0))) # gone once it has moved its own width
         if ((last_step[i] - first_step[i] > last)); then last=$((last_step[i] - first_step[i])); fi
     done
 
@@ -364,15 +392,16 @@ hero_grid() {
             mood=${HERO_MOODS[i]}
             s=$((first_step[i] + step))
             if ((loops >= 0 && s > last_step[i])); then s=${last_step[i]}; fi
+            if ((exit)); then exit_flags=(--exit "${exit_step[i]}"); fi
             printf '%s%-*s%s' "$dim" "$label" "$mood" "$HERO_SGR0"
             printf ' '
             hero_frame --mood "$mood" --width "$cell"
             printf ' '
             hero_frame --mood "$mood" --width "$cell" --color
             printf ' '
-            hero_frame --mood "$mood" --width "$cell" --step "$s" "${flags[@]}"
+            hero_frame --mood "$mood" --width "$cell" --step "$s" "${flags[@]}" "${exit_flags[@]}"
             printf ' '
-            hero_frame --mood "$mood" --width "$cell" --step "$s" --color "${flags[@]}"
+            hero_frame --mood "$mood" --width "$cell" --step "$s" --color "${flags[@]}" "${exit_flags[@]}"
             printf '%s\n' "$HERO_EL"
         done
         if ((loops >= 0 && step >= last)); then break; fi
@@ -385,7 +414,7 @@ hero_grid() {
 main() {
     local mood='' use_color=''
     local -a flags=() # passed on to the animation
-    local -i animate=0 loops=-1 frame_ms=50
+    local -i animate=0 exit=0 loops=-1 frame_ms=50
     while [ $# -gt 0 ]; do
         case $1 in
         -h | --help) usage; exit 0 ;;
@@ -393,6 +422,7 @@ main() {
         --mood=*) mood=${1#*=}; shift ;;
         --animate) animate=1; shift ;;
         --no-entrance) flags+=(--no-entrance); shift ;;
+        --exit) exit=1; flags+=(--exit); shift ;;
         --color) use_color=1; shift ;;
         --no-color) use_color=0; shift ;;
         --loops) loops=${2?--loops: missing value}; shift 2 ;;
@@ -403,6 +433,7 @@ main() {
         *) die "unexpected argument: $1" ;;
         esac
     done
+    if ((exit && loops < 0)); then die "--exit needs --loops"; fi
 
     if [ -z "$mood" ]; then
         hero_grid "${flags[@]}" --loops "$loops" --frame-ms "$frame_ms"

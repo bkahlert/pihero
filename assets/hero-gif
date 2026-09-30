@@ -32,7 +32,7 @@
 #
 # Examples:
 #   hero-gif --output hero.gif --font-family "Menlo,Apple Symbols" --mood neutral --animate --no-entrance   # hovering hero, seamless loop
-#   hero-gif --output hero-grid.gif --font-family "Menlo,Apple Symbols" --font-size 24 --hold 2             # the whole grid, restarts after 2 s
+#   hero-gif --output hero-grid.gif --font-family "Menlo,Apple Symbols" --font-size 24 --hold 1 --loops 4 --exit   # the whole grid: flies in, hovers four times, flies out, restarts after 1 s
 #   hero-gif --mood happy                                                                                    # a single frame
 #   hero-gif --output hero-badge.gif --font-family "Menlo,Apple Symbols" --font-size 21 --line-height 1.428571 \
 #            --padding 0 --margin 10x5 --radius 6 \
