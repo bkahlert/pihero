@@ -2,12 +2,13 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
 
 PACKAGE = Path(__file__).resolve().parents[1]
-ESCAPES = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\(B")
+ESCAPES = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\(B|\x1b[78]")  # CSI sequences, charset, save and restore cursor
 CUU1 = "\x1b[A"
 
 
@@ -40,6 +41,22 @@ class Kaomoji:
             proc.send_signal(sig)
         rest, err = proc.communicate(timeout=10)
         return subprocess.CompletedProcess(proc.args, proc.returncode, (out + rest).decode(), err.decode())
+
+    def blocked(self, *args: str, signals: list[int]) -> subprocess.CompletedProcess:
+        """Runs an animation into a pipe nobody reads, so that it blocks in a write, and sends each signal there."""
+        proc = subprocess.Popen(
+            [str(self.script), "--no-color", "--frame-ms", "0", *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env(), bufsize=0
+        )
+        for sig in signals:
+            time.sleep(0.5)  # the pipe is full and the script blocked long before that
+            proc.send_signal(sig)
+        out, err = proc.communicate(timeout=10)
+        return subprocess.CompletedProcess(proc.args, proc.returncode, out.decode(), err.decode())
+
+    @staticmethod
+    def plain(out: str) -> str:
+        """The output without escape sequences."""
+        return ESCAPES.sub("", out)
 
     def static(self, mood: str) -> str:
         return self.run("--mood", mood, "--no-color").stdout.rstrip("\n")

@@ -258,6 +258,31 @@ class TestMain:
             assert result.returncode == 130
             assert drawn[-1].startswith("┴┬┴┤")
 
+    class TestSlowTerminal:
+        """A signal interrupts a write the terminal has not taken yet; the frame is completed and the signal handled."""
+
+        def test_the_preview_finishes_the_redraw_and_quits(self, kaomoji):
+            result = kaomoji("hero").blocked("--preview", signals=[signal.SIGINT])
+
+            assert result.stderr == ""
+            assert result.returncode == 130
+            assert len(kaomoji.split_grid(result.stdout, 4)[-1]) == 1 + 4
+            assert kaomoji.plain(result.stdout).endswith("\n\n") and result.stdout.endswith(tput("cnorm"))
+
+        def test_an_endless_animation_plays_the_exit(self, kaomoji):
+            result = kaomoji("visitor").blocked("--exit", "--no-entrance", signals=[signal.SIGTERM])
+
+            assert result.stderr == ""
+            assert result.returncode == 0
+            assert kaomoji.split_frames(result.stdout)[-4:] == ["┬┴┤", "┴┤", "┤", ""]
+
+        def test_an_animation_quits_at_once(self, kaomoji):
+            result = kaomoji("hero").blocked("--no-entrance", signals=[signal.SIGINT])
+
+            assert result.stderr == ""
+            assert result.returncode == 130
+            assert result.stdout.endswith("\n" + tput("cnorm"))
+
     class TestPreview:
         def test_shows_a_grid_of_every_mood(self, kaomoji):
             header, *rows = kaomoji("hero").grid("--loops", "1")[-1]
@@ -275,7 +300,7 @@ class TestMain:
 
             assert result.returncode == 130
             assert len(kaomoji.split_grid(result.stdout, 4)[-1]) == 1 + 4  # the header and every row, redrawn completely
-            assert result.stdout.endswith("\n\n" + tput("cnorm"))
+            assert kaomoji.plain(result.stdout).endswith("\n\n") and result.stdout.endswith(tput("cnorm"))
 
         def test_lines_up_a_face_narrower_than_the_titles_under_them(self, kaomoji):
             header, *rows = kaomoji("visitor").grid("--loops", "1")[-1]

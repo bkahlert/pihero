@@ -336,12 +336,26 @@ kaomoji_sleep_ms() {
     if [ -n "${KAOMOJI_TICK:-}" ]; then read -rt "$pause" -u "$KAOMOJI_TICK" || :; else sleep "$pause" || :; fi
 }
 
+# Writes to the terminal, again if a signal interrupted the write before the terminal had taken
+# it all (a trapped signal cuts a blocked write short). The text must therefore draw the same
+# whether or not a part of it was written already: it starts with a carriage return or by
+# restoring the cursor, and a newline can only end it.
+#   <text>
+kaomoji_write() {
+    local -i try
+    for ((try = 0; try < 10; try++)); do
+        if printf '%s' "$1" 2>/dev/null; then return 0; fi
+    done
+    printf '%s: write error\n' "${0##*/}" >&2
+    exit 1
+}
+
 # What a signal does during an animation: quit at once, leaving the cursor on a fresh line.
 readonly KAOMOJI_QUIT='printf "\n"; exit 130'
 
 # Hides the cursor for an animation and brings it back when the script ends, also on Ctrl-C.
 kaomoji_animation_begin() {
-    kaomoji_tput civis cnorm el cuu1 colors
+    kaomoji_tput civis cnorm el cuu1 sc rc colors
     trap 'printf "%s" "${KAOMOJI_CAP[cnorm]}"' EXIT
     trap "$KAOMOJI_QUIT" INT
     printf '%s' "${KAOMOJI_CAP[civis]}"
@@ -415,7 +429,7 @@ kaomoji_animate() {
     ahead=$((first + 1))
     for ((step = first; ; step++)); do
         shown=${EPOCHREALTIME/./}
-        printf '\r%s%s' "$text" "${KAOMOJI_CAP[el]}"
+        kaomoji_write $'\r'"$text${KAOMOJI_CAP[el]}"
         if ((last >= 0 && step >= last)); then break; fi
         # The next frame renders while this one shows, and further ones as long as the time
         # the last render took suggests there is room before the frame is due.
@@ -441,7 +455,7 @@ kaomoji_animate() {
             ahead=$((step + 2))
         fi
     done
-    printf '\n'
+    kaomoji_write $'\n'
     kaomoji_animation_end
 }
 
@@ -507,45 +521,48 @@ kaomoji_grid() {
         if ((last_steps[i] - first_steps[i] > last)); then last=$((last_steps[i] - first_steps[i])); fi
     done
 
-    # The header and the rows are separated by empty lines; all of them are redrawn per step.
-    # A signal quits between redraws, when the cursor is below the grid, not in the middle of one.
+    # The header and the rows are separated by empty lines; all of them are redrawn per step, each
+    # line in one write. The cursor is saved below the grid once it exists: a redraw returns there
+    # first, and so does a signal, which quits between redraws, not in the middle of one.
     local -i rows=$((1 + 2 * ${#moods[@]})) step shown quit=0
+    local row up=''
     printf '\n'
     kaomoji_animation_begin
+    for ((i = 0; i < rows; i++)); do up+=${KAOMOJI_CAP[cuu1]}; done
     trap 'quit=1' INT TERM
     for ((step = 0; ; step++)); do
         if ((quit)); then
-            printf '\n'
+            if ((step > 0)); then kaomoji_write "${KAOMOJI_CAP[rc]}"; fi
+            kaomoji_write $'\n'
             kaomoji_animation_end
             exit 130
         fi
         shown=${EPOCHREALTIME/./}
-        if ((step > 0)); then
-            for ((i = 0; i < rows; i++)); do printf '%s' "${KAOMOJI_CAP[cuu1]}"; done
-        fi
-        printf '%s%-*s' "$dim" "$label" mood
-        for title in "${titles[@]}"; do printf ' %-*s' "$cell" "$title"; done
-        printf '%s%s\n' "$sgr0" "${KAOMOJI_CAP[el]}"
+        if ((step > 0)); then kaomoji_write "${KAOMOJI_CAP[rc]}$up"; fi
+        printf -v row '%s%-*s' "$dim" "$label" mood
+        for title in "${titles[@]}"; do printf -v row '%s %-*s' "$row" "$cell" "$title"; done
+        kaomoji_write $'\r'"$row$sgr0${KAOMOJI_CAP[el]}"$'\n'
         for i in "${!moods[@]}"; do
-            printf '%s\n' "${KAOMOJI_CAP[el]}"
+            kaomoji_write $'\r'"${KAOMOJI_CAP[el]}"$'\n'
             mood=${moods[i]}
             s=$((first_steps[i] + step))
             if ((loops >= 0 && s > last_steps[i])); then s=${last_steps[i]}; fi
-            printf '%s%-*s%s' "$dim" "$label" "$mood" "$sgr0"
+            printf -v row '%s%-*s%s' "$dim" "$label" "$mood" "$sgr0"
             kaomoji_frame "$name" --mood "$mood"
-            printf ' %s%*s' "$KAOMOJI_TEXT" "$((cell - KAOMOJI_WIDTH))" ''
+            printf -v row '%s %s%*s' "$row" "$KAOMOJI_TEXT" "$((cell - KAOMOJI_WIDTH))" ''
             kaomoji_frame "$name" --mood "$mood" --color
-            printf ' %s%*s' "$KAOMOJI_TEXT" "$((cell - KAOMOJI_WIDTH))" ''
+            printf -v row '%s %s%*s' "$row" "$KAOMOJI_TEXT" "$((cell - KAOMOJI_WIDTH))" ''
             kaomoji_step_frame "$name" "$mood" "$s" "${entrances[i]}" "${cycles[i]}" "${exit_steps[i]}" "${flags[@]}"
-            printf ' %s%*s' "$KAOMOJI_TEXT" "$((cell - KAOMOJI_WIDTH))" ''
+            printf -v row '%s %s%*s' "$row" "$KAOMOJI_TEXT" "$((cell - KAOMOJI_WIDTH))" ''
             kaomoji_step_frame "$name" "$mood" "$s" "${entrances[i]}" "${cycles[i]}" "${exit_steps[i]}" "${flags[@]}" --color
-            printf ' %s%*s' "$KAOMOJI_TEXT" "$((cell - KAOMOJI_WIDTH))" ''
-            printf '%s\n' "${KAOMOJI_CAP[el]}"
+            printf -v row '%s %s%*s' "$row" "$KAOMOJI_TEXT" "$((cell - KAOMOJI_WIDTH))" ''
+            kaomoji_write $'\r'"$row${KAOMOJI_CAP[el]}"$'\n'
         done
+        if ((step == 0)); then kaomoji_write "${KAOMOJI_CAP[sc]}"; fi
         if ((loops >= 0 && step >= last)); then break; fi
         kaomoji_sleep_ms "$frame_ms" "$shown"
     done
-    printf '\n'
+    kaomoji_write $'\n'
     kaomoji_animation_end
 }
 
