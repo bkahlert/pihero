@@ -127,9 +127,13 @@ than one line is refused untouched. On change it touches `/run/reboot-required` 
 `--package`, to `/run/reboot-required.pkgs`; it never reboots. `PIHERO_BOOTFS` redirects it for tests. It is used only where
 cloud-init's `rpi:` module and `raspi-config nonint` have no option.
 
-**MOTD.** `/etc/update-motd.d/50-pihero` runs `/usr/lib/pihero/motd`: the hero banner rendered once at build time, then the
-installed `pihero-*` packages with versions, failed units, whether a reboot is pending and for which packages, and the address
-of `usb0` if present. No colours, no animation, nothing beyond Python.
+**MOTD.** `/etc/update-motd.d/50-pihero` runs `/usr/lib/pihero/motd`: a blank line to set it apart from Debian's kernel
+line, the hero in the mood of the board, then the installed `pihero-*` packages with versions, failed units, whether a
+reboot is pending and for which packages, and the address of `usb0` if present. The mood follows the lines below it: sad
+when a unit has failed, puzzled (`unknown`) when a reboot is pending, happy otherwise; neutral, the hero at rest, is left
+to the panels. The banner is `hero --mood <mood> --no-color` from `kaomoji`, found on `PATH` and run at every login: plain,
+static, and 0.3–0.5 s on a Pi 1 next to the 2.4 s the probes take (busy-screen.local, 2026-09-30). No colours, no
+animation, nothing beyond Python and that one call.
 
 **Watchdog.** Raspberry Pi OS arms the BCM2835 hardware watchdog itself, `RuntimeWatchdogSec=1m` in its
 `40-rpi-enable-watchdog.conf`, and `pihero` leaves it there. 2.1.0 shipped a drop-in tightening it to 15 s, the hardware

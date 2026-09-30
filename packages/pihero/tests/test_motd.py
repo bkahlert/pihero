@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,20 @@ class TestRebootState:
         assert motd.reboot_state(tmp_path) == (False, [])
 
 
+class TestMood:
+    def test_is_sad_on_a_failed_unit(self):
+        assert motd.mood(["x.service"], False) == "sad"
+
+    def test_is_unknown_on_a_pending_reboot(self):
+        assert motd.mood([], True) == "unknown"
+
+    def test_is_happy_otherwise(self):
+        assert motd.mood([], False) == "happy"
+
+    def test_a_failed_unit_wins_over_a_pending_reboot(self):
+        assert motd.mood(["x.service"], True) == "sad"
+
+
 class TestRender:
     def test_shows_every_line_with_defaults(self):
         text = motd.render("HERO\n", [("pihero", "2.0.0")], [], (False, []), None)
@@ -69,3 +84,48 @@ class TestRender:
         text = motd.render("", [], [], (True, []), None)
 
         assert "  reboot required: yes\n" in text
+
+
+class TestMain:
+    def test_renders_the_banner_through_hero_in_the_mood_of_the_state(self, tmp_path, monkeypatch, capsys):
+        stub(tmp_path, "systemctl", 'printf "x.service loaded failed failed X\\n"')
+        stub(tmp_path, "hero", 'printf "%s\\n" "$*" >> "$0.log"; printf "HERO %s\\n" "$2"')
+        monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
+        monkeypatch.setattr(motd, "RUN", tmp_path)
+
+        motd.main()
+
+        out = capsys.readouterr().out
+        assert out.startswith("\nHERO sad\n\n")
+        assert (tmp_path / "hero.log").read_text() == "--mood sad --no-color\n"
+
+    def test_asks_for_the_puzzled_hero_on_a_pending_reboot(self, tmp_path, monkeypatch, capsys):
+        stub(tmp_path, "systemctl", "")
+        stub(tmp_path, "hero", 'printf "HERO %s\\n" "$2"')
+        (tmp_path / "reboot-required").write_text("*** System restart required ***\n")
+        monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
+        monkeypatch.setattr(motd, "RUN", tmp_path)
+
+        motd.main()
+
+        out = capsys.readouterr().out
+        assert out.startswith("\nHERO unknown\n\n")
+
+    def test_prints_the_lines_without_a_hero(self, tmp_path, monkeypatch, capsys):
+        stub(tmp_path, "systemctl", "")
+        monkeypatch.setenv("PATH", str(tmp_path))
+        monkeypatch.setattr(motd, "RUN", tmp_path)
+
+        motd.main()
+
+        out = capsys.readouterr().out
+        assert out.startswith("\n\n\n  packages:")
+        assert "  failed units:    none\n" in out
+        assert "  reboot required: no\n" in out
+
+
+def stub(directory: Path, name: str, body: str) -> Path:
+    path = directory / name
+    path.write_text(f"#!/bin/sh\n{body}\n")
+    path.chmod(0o755)
+    return path

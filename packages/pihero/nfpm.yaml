@@ -13,6 +13,7 @@ license: MIT
 depends:
   - python3
   - systemd
+  - kaomoji
 contents:
   - src: root/
     dst: /
