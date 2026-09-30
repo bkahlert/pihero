@@ -13,6 +13,23 @@ pytestmark = pytest.mark.tier0
 CARD = {"DeviceIdentifier": "disk9", "WholeDisk": True, "Internal": False, "RemovableMedia": True, "MediaName": "USB3.0 CRW   -SD", "TotalSize": 31914983424}
 
 
+class TestImageHost:
+    def test_is_the_name_before_the_date(self):
+        host = restore.image_host(Path("backups/busy-screen-2026-09-30.img.xz"))
+
+        assert host == "busy-screen"
+
+    def test_keeps_a_date_that_is_part_of_the_name(self):
+        host = restore.image_host(Path("pi-2026-01-01-2026-09-30.img.xz"))
+
+        assert host == "pi-2026-01-01"
+
+    def test_is_none_for_an_image_named_otherwise(self):
+        host = restore.image_host(Path("raspios-lite.img.xz"))
+
+        assert host is None
+
+
 class TestCheckFits:
     def test_refuses_a_smaller_card_naming_both_sizes(self):
         with pytest.raises(SystemExit, match=r"disk9 holds 31\.9 GB, the image needs 32\.0 GB"):
@@ -224,6 +241,28 @@ class TestRestore:
         restore.restore(image, {**CARD, "TotalSize": len(payload)}, None)
 
         assert card.read_bytes() == payload
+
+    def test_forgets_the_image_host_in_ghosttys_ssh_cache_once_the_card_is_done(self, tmp_path, monkeypatch):
+        payload = os.urandom(2 * flash.SECTOR)
+        image = backup_image(tmp_path, payload)
+        card = fake_card(tmp_path, bytes(len(payload)), monkeypatch)
+        forgotten = []
+        monkeypatch.setattr(restore.ghostty, "forget", lambda host, report: forgotten.append((host, card.read_bytes() == payload)) or [])
+
+        restore.restore(image, {**CARD, "TotalSize": len(payload)}, restore.sidecar(image))
+
+        assert forgotten == [("mypi", True)]
+
+    def test_leaves_the_cache_alone_for_an_image_named_otherwise(self, tmp_path, monkeypatch):
+        payload = os.urandom(2 * flash.SECTOR)
+        image = backup_image(tmp_path, payload).rename(tmp_path / "raspios-lite.img.xz")
+        fake_card(tmp_path, bytes(len(payload)), monkeypatch)
+        forgotten = []
+        monkeypatch.setattr(restore.ghostty, "forget", lambda host, report: forgotten.append(host) or [])
+
+        restore.restore(image, {**CARD, "TotalSize": len(payload)}, None)
+
+        assert forgotten == []
 
 
 class TestMain:

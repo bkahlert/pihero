@@ -75,7 +75,9 @@ This
 2. reads it back to verify,
 3. copies the device files onto the boot partition,
 4. puts the Wi-Fi regulatory domain on the kernel command line,
-5. ejects the card.
+5. ejects the card,
+6. forgets the host in Ghostty's ssh-terminfo cache, so the next `ssh` from Ghostty installs its terminfo on the new card
+   instead of sending a `TERM` the card does not know.
 
 macOS asks once for authorization; the card takes about two minutes. Raspberry Pi Imager works too: set the Wi-Fi country
 in its customisation and nothing else, then copy `user-data` and `network-config` to `/Volumes/bootfs/` before ejecting.
@@ -125,7 +127,8 @@ make restore                      # asks which image and which card, confirms, w
 
 Images land in `backups/<hostname>-<date>.img.xz`, gitignored, next to a `.toml` with the size and checksum a restore checks
 first. The hostname comes from the card's `user-data`; `NAME=` overrides it, and `DISK=` and `IMAGE=` skip the questions; a
-restore given both writes without asking.
+restore given both writes without asking. Like a flash, a restore forgets the host the image is named after in Ghostty's
+ssh-terminfo cache.
 A 16 GB card took six minutes to back up and nineteen to restore, the card's own write speed setting the latter; a 32 GB card
 takes about twice that. Restore needs a card at least as large as the one imaged, and a nominally equal card from another
 maker can be a few megabytes short, so when replacing a card buy the next size up. On a larger card the root filesystem keeps

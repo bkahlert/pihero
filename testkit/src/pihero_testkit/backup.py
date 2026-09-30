@@ -14,18 +14,12 @@ from datetime import date
 from pathlib import Path
 
 from . import disk, prompt
-from .flash import CHUNK, say
+from .flash import CHUNK, hostname, say
 
 BACKUPS = Path("backups")
-HOSTNAME = re.compile(r"""^hostname:\s*["']?(?P<name>[A-Za-z0-9][A-Za-z0-9.-]*)["']?\s*$""", re.MULTILINE)
 NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 PRESET = 0
 REPORT_EVERY = 256 << 20
-
-
-def hostname(user_data: str) -> str | None:
-    match = HOSTNAME.search(user_data)
-    return match["name"] if match else None
 
 
 def card_hostname(ident: str) -> str | None:

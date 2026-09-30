@@ -7,13 +7,22 @@ read-back.
 import argparse
 import lzma
 import os
+import re
 import sys
 import tomllib
 from pathlib import Path
 
-from . import disk, prompt
+from . import disk, ghostty, prompt
 from .backup import BACKUPS, sidecar_for
 from .flash import read_back, say, write_image
+
+IMAGE_HOST = re.compile(r"^(?P<host>.+)-\d{4}-\d{2}-\d{2}\.img\.xz$")
+
+
+def image_host(image: Path) -> str | None:
+    """Returns the host a backup image is named after, or None for a file not named `<host>-<date>.img.xz`."""
+    match = IMAGE_HOST.match(image.name)
+    return match["host"] if match else None
 
 
 def sidecar(image: Path) -> dict | None:
@@ -95,6 +104,8 @@ def restore(image: Path, info: dict, meta: dict | None) -> None:
     say(f"ejected {ident}; insert the card into the Raspberry Pi and power it on")
     if total > size:
         say("the card is larger than the image, so the root filesystem keeps its old size; on the Pi run: sudo raspi-config --expand-rootfs && sudo reboot")
+    if host := image_host(image):
+        ghostty.forget(host, say)
 
 
 def main(argv: list[str]) -> int:
