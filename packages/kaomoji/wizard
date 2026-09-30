@@ -109,7 +109,7 @@ wizard_sprite() {
     done
 }
 
-# Prints one frame of the wizard (no trailing newline).
+# Renders one frame of the wizard into KAOMOJI_TEXT, its width in cells into KAOMOJI_WIDTH.
 #   --mood <mood>   neutral (default), happy, sad or unknown
 #   --step <n>      step of the animation: the wizard slides in from the left, one grapheme per
 #                   step, then conjures the magic one particle per step, and hovers afterwards
@@ -117,11 +117,9 @@ wizard_sprite() {
 #   --no-entrance   accepted for symmetry with the other kaomoji; the wizard hovers where it lands
 #   --exit <n>      step after which the magic vanishes, one particle per step from the right, and
 #                   the wizard slides out to the left, one grapheme per step (default: never)
-#   --width <n>     pad the right with spaces up to this display width (default: 0)
 #   --color         colored output
 wizard_frame() {
     local mood=neutral step='' exit_step=''
-    local -i width=0
     local -a color=()
     while [ $# -gt 0 ]; do
         case $1 in
@@ -132,8 +130,6 @@ wizard_frame() {
         --no-entrance) shift ;;
         --exit) exit_step=${2?$1: missing value}; shift 2 ;;
         --exit=*) exit_step=${1#*=}; shift ;;
-        --width) width=${2?$1: missing value}; shift 2 ;;
-        --width=*) width=${1#*=}; shift ;;
         --color) color=(--color); shift ;;
         -?*) die "${FUNCNAME[0]}: unknown option: $1" ;;
         *) die "${FUNCNAME[0]}: unexpected argument: $1" ;;
@@ -143,7 +139,7 @@ wizard_frame() {
     local -a sprite
     if [ -z "$step" ]; then
         wizard_sprite --mood "$mood" sprite
-        kaomoji_paint "${color[@]}" --width "$width" sprite
+        kaomoji_paint "${color[@]}" sprite
         return 0
     fi
 
@@ -166,7 +162,7 @@ wizard_frame() {
         fi
     fi
     wizard_sprite --mood "$mood" --step "$step" --magic "$shown" sprite
-    kaomoji_paint "${color[@]}" --offset "$offset" --width "$width" sprite
+    kaomoji_paint "${color[@]}" --offset "$offset" sprite
 }
 
 # Fills an array with the steps of the wizard's entrance (one per grapheme), of one hover cycle,

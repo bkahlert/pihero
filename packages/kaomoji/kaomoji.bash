@@ -4,11 +4,13 @@
 #
 # A kaomoji script defines a character <name> and ends with 'kaomoji_main <name> "$@"'. It provides:
 #   <NAME>_MOODS       array of its moods, the first one is the default
-#   <name>_frame       prints one frame; options: --mood <mood>, --step <n> (static without it),
-#                      --no-entrance, --exit <step>, --width <n>, --color (see hero_frame)
+#   <name>_frame       renders one frame into KAOMOJI_TEXT and its width in cells into KAOMOJI_WIDTH;
+#                      options: --mood <mood>, --step <n> (static without it), --no-entrance,
+#                      --exit <step>, --color (see hero_frame)
 #   <name>_timeline    fills an array with the number of entrance steps, the steps of one hover
 #                      cycle and the number of exit steps: <name>_timeline --mood <mood> <array>
-# A frame paints exactly once with kaomoji_paint, which leaves its display width in REPLY.
+# A frame paints exactly once with kaomoji_paint. Frames are deterministic and the hover frames
+# repeat every cycle, so the engine renders each of them once and plays them from a cache.
 # Needs bash 5.0+.
 
 [ -z "${KAOMOJI_BASH:-}" ] || return 0
@@ -78,9 +80,10 @@ kaomoji_text_width() {
     done
 }
 
-# Makes sure KAOMOJI_SGR[<style>] holds the escape sequence that starts the style.
-# A style is "<fg>/<bg>" with color indices (either may be empty) or "dim". Colors are applied
-# only if the terminal has all of the style's colors.
+# Appends the tput capabilities behind a style to an array. A style is "<fg>/<bg>" with color
+# indices (either may be empty) or "dim". Colors are applied only if the terminal has all of
+# the style's colors.
+#   <style> <array>
 kaomoji_style_caps() {
     local style=$1 fg bg
     local -n into=$2
@@ -115,19 +118,19 @@ kaomoji_sgr_fetch() {
 
 # Prints the graphemes of a sprite (no trailing newline) and sets REPLY to the display width printed.
 # A sprite is an array of graphemes, each as "<style><TAB><text>", see kaomoji_style_caps for styles.
-#   --offset <n>   drop <n> graphemes from the left, or pad the left with -<n> spaces if negative (default: 0)
-#   --width <n>    pad the right with spaces up to a display width of <n> (default: 0)
-#   --clip <n>     drop the graphemes that don't fit into a display width of <n> (default: 0, keep all)
+# Painting one leaves the text in KAOMOJI_TEXT and its display width in cells in KAOMOJI_WIDTH.
+#   --offset <n>   skip the first <n> graphemes; a negative <n> pads the left with spaces instead
+#   --clip <n>     stop before the display width would exceed <n> (default: 0, no clipping)
 #   --color        apply the styles
-#   <array>        name of the sprite array
+#   <array>        name of the sprite
+KAOMOJI_TEXT=''
+KAOMOJI_WIDTH=0
 kaomoji_paint() {
-    local -i offset=0 width=0 clip=0 color=0
+    local -i offset=0 clip=0 color=0
     while [ $# -gt 0 ]; do
         case $1 in
         --offset) offset=${2?$1: missing value}; shift 2 ;;
         --offset=*) offset=${1#*=}; shift ;;
-        --width) width=${2?$1: missing value}; shift 2 ;;
-        --width=*) width=${1#*=}; shift ;;
         --clip) clip=${2?$1: missing value}; shift 2 ;;
         --clip=*) clip=${1#*=}; shift ;;
         --color) color=1; shift ;;
@@ -138,7 +141,7 @@ kaomoji_paint() {
     done
     local -n graphemes=${1?${FUNCNAME[0]}: array name missing}
 
-    local out='' pad style text sgr0=''
+    local out='' style text sgr0=''
     local -i i shown=0
     if ((color)); then # every style of the sprite in one go, before painting
         local -a missing=()
@@ -166,13 +169,41 @@ kaomoji_paint() {
             out+=$text
         fi
     done
-    if ((shown < width)); then
-        printf -v pad '%*s' "$((width - shown))" ''
-        out+=$pad
-        shown=$width
+    KAOMOJI_TEXT=$out
+    KAOMOJI_WIDTH=$shown
+}
+
+# Renders a frame through <name>_frame once: the same arguments give the same frame, so later
+# calls come from the cache. Leaves KAOMOJI_TEXT and KAOMOJI_WIDTH like the frame does.
+#   <name>   the character, followed by the arguments of <name>_frame
+declare -A KAOMOJI_FRAME_TEXT=() KAOMOJI_FRAME_WIDTH=()
+kaomoji_frame() {
+    local key=$*
+    if [ -n "${KAOMOJI_FRAME_TEXT[$key]+set}" ]; then
+        KAOMOJI_TEXT=${KAOMOJI_FRAME_TEXT[$key]}
+        KAOMOJI_WIDTH=${KAOMOJI_FRAME_WIDTH[$key]}
+        return 0
     fi
-    printf '%s' "$out"
-    REPLY=$shown
+    "${1}_frame" "${@:2}"
+    KAOMOJI_FRAME_TEXT[$key]=$KAOMOJI_TEXT
+    KAOMOJI_FRAME_WIDTH[$key]=$KAOMOJI_WIDTH
+}
+
+# Renders the frame of a step of an animation, from the cache where possible: hover steps map
+# onto the first cycle, and the exit is passed on only once it has begun.
+#   <name> <mood> <step> <entrance> <cycle> <exit>   entrance and cycle in steps, exit the step
+#                                                    after which the exit begins, -1 for none
+#   <flag>...                                        --color, --no-entrance
+kaomoji_step_frame() {
+    local name=$1 mood=$2
+    local -i step=$3 entrance=$4 cycle=$5 exit_step=$6
+    shift 6
+    if ((exit_step >= 0 && step > exit_step)); then
+        kaomoji_frame "$name" --mood "$mood" --step "$step" --exit "$exit_step" "$@"
+    else
+        if ((step > entrance)); then step=$((entrance + 1 + (step - entrance - 1) % cycle)); fi
+        kaomoji_frame "$name" --mood "$mood" --step "$step" "$@"
+    fi
 }
 
 # Paces an animation: sleeps until the current frame has been shown for <ms> milliseconds.
@@ -230,13 +261,13 @@ kaomoji_animate() {
     shift
     local -n moods=${name^^}_MOODS
     local mood=${moods[0]}
-    local -a color=() flags=() # flags are passed on to the frame
+    local -a flags=() # passed on to the frame
     local -i entrance=1 exit=0 loops=-1 frame_ms=50
     while [ $# -gt 0 ]; do
         case $1 in
         --mood) mood=${2?$1: missing value}; shift 2 ;;
         --mood=*) mood=${1#*=}; shift ;;
-        --color) color=(--color); shift ;;
+        --color) flags+=(--color); shift ;;
         --no-entrance) entrance=0; flags+=(--no-entrance); shift ;;
         --exit) exit=1; shift ;;
         --loops) loops=${2?$1: missing value}; shift 2 ;;
@@ -250,30 +281,33 @@ kaomoji_animate() {
 
     local -a timeline
     "${name}_timeline" --mood "$mood" timeline
-    local -i first=0 last=-1 step stop=0 shown
-    if ((!entrance)); then first=$((timeline[0] + 1)); fi # the first hover step
+    local -i entrance_steps=${timeline[0]} cycle=${timeline[1]} exit_steps=${timeline[2]}
+    local -i first=0 last=-1 exit_step=-1 step stop=0 shown
+    if ((!entrance)); then first=$((entrance_steps + 1)); fi # the first hover step
     if ((loops >= 0)); then
-        last=$((timeline[0] + loops * timeline[1]))
+        last=$((entrance_steps + loops * cycle))
         if ((exit)); then
-            flags+=(--exit "$last")
-            last=$((last + timeline[2]))
+            exit_step=$last
+            last=$((last + exit_steps))
         fi
     fi
     kaomoji_animation_begin
     if ((exit && loops < 0)); then trap 'stop=1' INT TERM; fi # endless: leave when stopped
+    kaomoji_step_frame "$name" "$mood" "$first" "$entrance_steps" "$cycle" "$exit_step" "${flags[@]}"
     for ((step = first; ; step++)); do
         shown=${EPOCHREALTIME/./}
-        printf '\r'
-        "${name}_frame" --mood "$mood" --step "$step" "${color[@]}" "${flags[@]}"
-        printf '%s' "${KAOMOJI_CAP[el]}"
+        printf '\r%s%s' "$KAOMOJI_TEXT" "${KAOMOJI_CAP[el]}"
         if ((last >= 0 && step >= last)); then break; fi
+        # the next frame renders while this one shows
+        kaomoji_step_frame "$name" "$mood" "$((step + 1))" "$entrance_steps" "$cycle" "$exit_step" "${flags[@]}"
         kaomoji_sleep_ms "$frame_ms" "$shown"
         if ((stop)); then # leave from the current step
             stop=0
             trap "$KAOMOJI_QUIT" INT
             trap - TERM
-            flags+=(--exit "$step")
-            last=$((step + timeline[2]))
+            exit_step=$step
+            last=$((step + exit_steps))
+            kaomoji_step_frame "$name" "$mood" "$((step + 1))" "$entrance_steps" "$cycle" "$exit_step" "${flags[@]}"
         fi
     done
     printf '\n'
@@ -319,7 +353,7 @@ kaomoji_grid() {
     # The label column fits every mood, a cell fits its title and every frame of a hover cycle,
     # and each mood's animation runs from its own first to its own last step.
     local -i label=4 cell=0 i s last=0
-    local -a timeline first_steps=() exit_steps=() last_steps=() exit_flags=()
+    local -a timeline entrances=() cycles=() first_steps=() exit_steps=() last_steps=()
     local mood title
     for title in "${titles[@]}"; do
         if ((${#title} > cell)); then cell=${#title}; fi
@@ -328,13 +362,15 @@ kaomoji_grid() {
         mood=${moods[i]}
         if ((${#mood} > label)); then label=${#mood}; fi
         "${name}_timeline" --mood "$mood" timeline
+        entrances[i]=${timeline[0]}
+        cycles[i]=${timeline[1]}
         for ((s = timeline[0]; s <= timeline[0] + timeline[1]; s++)); do
-            "${name}_frame" --mood "$mood" --step "$s" "${flags[@]}" >/dev/null
-            if ((REPLY > cell)); then cell=$REPLY; fi
+            kaomoji_step_frame "$name" "$mood" "$s" "${entrances[i]}" "${cycles[i]}" -1 "${flags[@]}"
+            if ((KAOMOJI_WIDTH > cell)); then cell=$KAOMOJI_WIDTH; fi
         done
         first_steps[i]=$((entrance ? 0 : timeline[0] + 1))
-        exit_steps[i]=$((timeline[0] + loops * timeline[1]))              # meaningless while endless
-        last_steps[i]=$((exit_steps[i] + (exit ? timeline[2] : 0)))
+        exit_steps[i]=$((exit && loops >= 0 ? timeline[0] + loops * timeline[1] : -1))
+        last_steps[i]=$((timeline[0] + loops * timeline[1] + (exit ? timeline[2] : 0))) # meaningless while endless
         if ((last_steps[i] - first_steps[i] > last)); then last=$((last_steps[i] - first_steps[i])); fi
     done
 
@@ -355,16 +391,15 @@ kaomoji_grid() {
             mood=${moods[i]}
             s=$((first_steps[i] + step))
             if ((loops >= 0 && s > last_steps[i])); then s=${last_steps[i]}; fi
-            if ((exit)); then exit_flags=(--exit "${exit_steps[i]}"); fi
             printf '%s%-*s%s' "$dim" "$label" "$mood" "$sgr0"
-            printf ' '
-            "${name}_frame" --mood "$mood" --width "$cell"
-            printf ' '
-            "${name}_frame" --mood "$mood" --width "$cell" --color
-            printf ' '
-            "${name}_frame" --mood "$mood" --width "$cell" --step "$s" "${flags[@]}" "${exit_flags[@]}"
-            printf ' '
-            "${name}_frame" --mood "$mood" --width "$cell" --step "$s" --color "${flags[@]}" "${exit_flags[@]}"
+            kaomoji_frame "$name" --mood "$mood"
+            printf ' %s%*s' "$KAOMOJI_TEXT" "$((cell - KAOMOJI_WIDTH))" ''
+            kaomoji_frame "$name" --mood "$mood" --color
+            printf ' %s%*s' "$KAOMOJI_TEXT" "$((cell - KAOMOJI_WIDTH))" ''
+            kaomoji_step_frame "$name" "$mood" "$s" "${entrances[i]}" "${cycles[i]}" "${exit_steps[i]}" "${flags[@]}"
+            printf ' %s%*s' "$KAOMOJI_TEXT" "$((cell - KAOMOJI_WIDTH))" ''
+            kaomoji_step_frame "$name" "$mood" "$s" "${entrances[i]}" "${cycles[i]}" "${exit_steps[i]}" "${flags[@]}" --color
+            printf ' %s%*s' "$KAOMOJI_TEXT" "$((cell - KAOMOJI_WIDTH))" ''
             printf '%s\n' "${KAOMOJI_CAP[el]}"
         done
         if ((loops >= 0 && step >= last)); then break; fi
@@ -425,7 +460,7 @@ kaomoji_main() {
     if ((animate)); then
         kaomoji_animate "$name" "${mood_flag[@]}" "${color_flag[@]}" "${flags[@]}" --loops "$loops" --frame-ms "$frame_ms"
     else
-        "${name}_frame" "${mood_flag[@]}" "${color_flag[@]}"
-        printf '\n'
+        kaomoji_frame "$name" "${mood_flag[@]}" "${color_flag[@]}"
+        printf '%s\n' "$KAOMOJI_TEXT"
     fi
 }

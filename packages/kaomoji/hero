@@ -112,18 +112,17 @@ hero_sprite() {
     )
 }
 
-# Prints one frame of the hero (no trailing newline).
+# Renders one frame of the hero into KAOMOJI_TEXT, its width in cells into KAOMOJI_WIDTH.
 #   --mood <mood>   neutral (default), happy, sad or unknown
 #   --step <n>      step of the animation: the hero flies in from the left during the first
 #                   steps, one grapheme per step, and hovers afterwards (default: at rest)
 #   --no-entrance   hover where the hero lands instead of hopping one cell to the right
 #   --exit <n>      step after which the hero flies out to the right, one cell per step; it is
 #                   gone as many steps later as it is cells wide (default: never)
-#   --width <n>     pad the right with spaces up to this display width (default: 0)
 #   --color         colored output
 hero_frame() {
     local mood=neutral step='' exit_step=''
-    local -i width=0 entrance=1
+    local -i entrance=1
     local -a color=()
     while [ $# -gt 0 ]; do
         case $1 in
@@ -134,8 +133,6 @@ hero_frame() {
         --no-entrance) entrance=0; shift ;;
         --exit) exit_step=${2?$1: missing value}; shift 2 ;;
         --exit=*) exit_step=${1#*=}; shift ;;
-        --width) width=${2?$1: missing value}; shift 2 ;;
-        --width=*) width=${1#*=}; shift ;;
         --color) color=(--color); shift ;;
         -?*) die "${FUNCNAME[0]}: unknown option: $1" ;;
         *) die "${FUNCNAME[0]}: unexpected argument: $1" ;;
@@ -145,7 +142,7 @@ hero_frame() {
     local -a sprite
     if [ -z "$step" ]; then
         hero_sprite --mood "$mood" sprite
-        kaomoji_paint "${color[@]}" --width "$width" sprite
+        kaomoji_paint "${color[@]}" sprite
         return 0
     fi
 
@@ -158,13 +155,13 @@ hero_frame() {
     if ((step <= size)); then offset=$((size - step)); else offset=$((entrance ? -1 : 0)); fi
     if [ -n "$exit_step" ] && ((step > exit_step)); then
         # The hero leaves the cells it hovered in and is clipped at their right edge.
-        kaomoji_paint sprite >/dev/null
-        clip=$((REPLY - offset))
+        kaomoji_paint sprite
+        clip=$((KAOMOJI_WIDTH - offset))
         offset=$((offset - (step - exit_step)))
         if ((-offset > clip)); then offset=$((-clip)); fi
     fi
     hero_sprite --mood "$mood" --step "$pose" sprite
-    kaomoji_paint "${color[@]}" --offset "$offset" --clip "$clip" --width "$width" sprite
+    kaomoji_paint "${color[@]}" --offset "$offset" --clip "$clip" sprite
 }
 
 # Fills an array with the steps of the hero's entrance (one per grapheme), of one hover cycle,
@@ -185,8 +182,8 @@ hero_timeline() {
     local -n out=${1?${FUNCNAME[0]}: array name missing}
     local -a sprite
     hero_sprite --mood "$mood" sprite
-    kaomoji_paint sprite >/dev/null
-    out=("${#sprite[@]}" "$HERO_CYCLE" "$REPLY")
+    kaomoji_paint sprite
+    out=("${#sprite[@]}" "$HERO_CYCLE" "$KAOMOJI_WIDTH")
 }
 
 # Run only when executed; kaomoji-gif sources this file to reuse its functions.

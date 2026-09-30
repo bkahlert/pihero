@@ -10,7 +10,8 @@ import pytest
 
 pytestmark = pytest.mark.tier0
 
-ENGINE = Path(__file__).resolve().parents[1] / "kaomoji.bash"
+PACKAGE = Path(__file__).resolve().parents[1]
+ENGINE = PACKAGE / "kaomoji.bash"
 
 
 class TestTextWidth:
@@ -24,32 +25,49 @@ class TestTextWidth:
 
 class TestPaint:
     SPRITE = "sprite=(\"/\"$'\\t'a \"1/\"$'\\t'蓬 dim$'\\t'b)"
+    RESULT = '; printf "%s %s" "$KAOMOJI_TEXT" "$KAOMOJI_WIDTH"'
 
-    def test_prints_the_graphemes_and_reports_their_width(self):
-        assert bash(f'{self.SPRITE}; kaomoji_paint sprite; printf " %s" "$REPLY"') == "a蓬b 4"
+    def test_leaves_the_text_and_its_width_in_cells(self):
+        assert bash(f"{self.SPRITE}; kaomoji_paint sprite{self.RESULT}") == "a蓬b 4"
 
     def test_offset_drops_graphemes_from_the_left(self):
-        assert bash(f"{self.SPRITE}; kaomoji_paint --offset 1 sprite") == "蓬b"
+        assert bash(f"{self.SPRITE}; kaomoji_paint --offset 1 sprite{self.RESULT}") == "蓬b 3"
 
     def test_negative_offset_pads_the_left(self):
-        assert bash(f"{self.SPRITE}; kaomoji_paint --offset -2 sprite") == "  a蓬b"
-
-    def test_width_pads_the_right_and_is_reported(self):
-        assert bash(f'{self.SPRITE}; kaomoji_paint --width 6 sprite; printf " %s" "$REPLY"') == "a蓬b   6"
+        assert bash(f"{self.SPRITE}; kaomoji_paint --offset -2 sprite{self.RESULT}") == "  a蓬b 6"
 
     def test_clip_drops_what_does_not_fit(self):
-        assert bash(f"{self.SPRITE}; kaomoji_paint --clip 3 sprite") == "a蓬"
+        assert bash(f"{self.SPRITE}; kaomoji_paint --clip 3 sprite{self.RESULT}") == "a蓬 3"
 
     class TestColor:
         def test_applies_the_styles(self):
-            out = bash(f"{TestPaint.SPRITE}; kaomoji_paint --color sprite")
+            out = bash(f"{TestPaint.SPRITE}; kaomoji_paint --color sprite{TestPaint.RESULT}")
 
             assert out.startswith("a\x1b(B\x1b[m\x1b[31m蓬\x1b(B\x1b[m\x1b[2mb")
+            assert out.endswith(" 4")
 
         def test_skips_colors_the_terminal_lacks(self):
-            out = bash("sprite=(\"9/\"$'\\t'x); kaomoji_paint --color sprite", term="xterm")
+            out = bash("sprite=(\"9/\"$'\\t'x); kaomoji_paint --color sprite" + TestPaint.RESULT, term="xterm")
 
-            assert out == "x\x1b(B\x1b[m"
+            assert out == "x\x1b(B\x1b[m 1"
+
+
+class TestFrameCache:
+    COUNTING_HERO = (
+        f". '{PACKAGE}/hero'; "
+        'eval "original_$(declare -f hero_frame)"; renders=0; '
+        'hero_frame() { renders=$((renders + 1)); original_hero_frame "$@"; }; '
+    )
+
+    def test_renders_each_hover_frame_once_however_many_loops(self):
+        out = bash(self.COUNTING_HERO + 'kaomoji_animate hero --no-entrance --loops 3 --frame-ms 0 >/dev/null; printf %s "$renders"')
+
+        assert out == "12"
+
+    def test_renders_the_preview_frames_once_however_many_loops(self):
+        out = bash(self.COUNTING_HERO + 'kaomoji_grid hero --mood happy --no-entrance --loops 2 --frame-ms 0 >/dev/null; printf %s "$renders"')
+
+        assert out == str(1 + 1 + 12 + 12 + 1)  # static plain and color, a hover cycle plain and color, the landing frame measured
 
 
 class TestCapabilities:
