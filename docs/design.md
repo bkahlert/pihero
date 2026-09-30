@@ -87,9 +87,11 @@ packages/
     root/usr/lib/systemd/system/pihero-usb-gadget.service
     root/usr/lib/modprobe.d/pihero-usb-gadget.conf          # blacklist g_ether
   kaomoji/                                                  # no nfpm.yaml: not built, not shipped yet
+    README.md                                               # the cast, shown as GIFs
     kaomoji.bash                                            # bash, the engine: painting, pacing, grid, command line
-    hero  wizard  visitor                                 # bash, one character each, sourcing the engine
-    kaomoji-gif                                             # bash, renders a character as a GIF with agg, Mac-side
+    hero  wizard  visitor                                   # bash, one character each, sourcing the engine
+    kaomoji-gif                                             # bash, records a command with asciinema and renders it with agg, Mac-side
+    Makefile  assets/*.gif                                  # the READMEs' GIFs and how they are rendered
     tests/test_<character>.py                               # tier 0
 testkit/                                                    # the harness, a Python package
 devices/                                                    # device files, gitignored except sample/
@@ -203,9 +205,13 @@ short does not corrupt the frame: every line is one write, restartable from a ca
 position, and repeated when interrupted. Only `--help` and `--preview`, the grid, print anything else. `hero` flies in from the left, hovers, and flies out to the right;
 `wizard` slides in, conjures its magic particle by particle, runs the colors along it, and slides out to the left;
 `visitor` peeks out from behind a wall that slides in, waves and blinks, and ducks back before the wall slides out.
-[kaomoji-gif](../packages/kaomoji/kaomoji-gif) replaces the engine's pacing hook to record every frame and renders the GIFs
-in [assets](../assets) with agg; it is to become a generic renderer that records the command given after `--` instead of
-mirroring the characters' options.
+[kaomoji-gif](../packages/kaomoji/kaomoji-gif) records the command given after `--` with asciinema on a virtual 256-color
+terminal and renders the recording with agg: the terminal sized to the picture, the final newline and the cursor trimmed, and
+the last frame held for the frames it repeats plus one more, since agg merges identical frames. The tool stays beside the cast
+instead of becoming an export option of the scripts, which would make asciinema and agg soft dependencies of scripts that run
+on a Pi, on a path no tier could test; and the pictures are GIFs, not animated SVG, because SVG text renders with the viewer's
+fonts and the faces depend on glyphs few machines share. [packages/kaomoji/README.md](../packages/kaomoji/README.md) shows
+them, and `make -C packages/kaomoji` re-renders those whose character, engine, or renderer changed (2026-09-30).
 
 **Performance.** The target is a Raspberry Pi 1 at 50 ms per frame, where bash does a simple operation in 0.3 ms and a fork
 costs 40 ms. The engine therefore never forks while animating: it paces frames with `read -t` on a FIFO it holds open, and

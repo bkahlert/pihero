@@ -322,8 +322,6 @@ kaomoji_step_frame() {
 }
 
 # Paces an animation: sleeps until the current frame has been shown for <ms> milliseconds.
-# Every frame but the last is followed by a call to this function, which is what kaomoji-gif
-# hooks into.
 #   <ms>      how long a frame stays
 #   <since>   when it was shown, as ${EPOCHREALTIME/./} (microseconds)
 kaomoji_sleep_ms() {
