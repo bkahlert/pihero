@@ -43,6 +43,7 @@ readonly WIZARD_YELLOW=11
 readonly WIZARD_BLUE=12
 readonly WIZARD_CYAN=14
 
+# shellcheck disable=SC2034 # read by kaomoji.bash through a nameref
 readonly -a WIZARD_MOODS=(neutral happy sad unknown)
 
 # The magic streams out of the wand: while hovering, its colors move outwards by one particle

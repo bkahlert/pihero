@@ -44,6 +44,7 @@ readonly HERO_BLUE=62    # #3b4bef
 readonly HERO_RED=125    # #b1133b
 readonly HERO_BROWN=94   # #974219
 
+# shellcheck disable=SC2034 # read by kaomoji.bash through a nameref
 readonly -a HERO_MOODS=(neutral happy sad unknown)
 
 # While hovering, the tail cycles through four poses held for three steps each,

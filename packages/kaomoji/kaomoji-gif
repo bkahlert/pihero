@@ -56,6 +56,7 @@ export TERM=xterm-256color
 case $1 in
 -h | --help) usage; exit 0 ;;
 -?*) die "the character comes first: $1" ;;
+*) ;;
 esac
 case $1 in
 */*) KAOMOJI_SCRIPT=$1 ;;

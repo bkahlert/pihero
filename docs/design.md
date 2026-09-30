@@ -86,6 +86,11 @@ packages/
     root/usr/lib/pihero/usb-gadget                          # Python, loads g_cdc named after the board
     root/usr/lib/systemd/system/pihero-usb-gadget.service
     root/usr/lib/modprobe.d/pihero-usb-gadget.conf          # blacklist g_ether
+  kaomoji/                                                  # no nfpm.yaml: not built, not shipped yet
+    kaomoji.bash                                            # bash, the engine: painting, pacing, grid, command line
+    hero  wizard  colleague                                 # bash, one character each, sourcing the engine
+    kaomoji-gif                                             # bash, renders a character as a GIF with agg, Mac-side
+    tests/test_<character>.py                               # tier 0
 testkit/                                                    # the harness, a Python package
 devices/                                                    # device files, gitignored except sample/
 backups/                                                    # card images and their sidecars, gitignored
@@ -184,6 +189,19 @@ SD card, is worth masking on a board that swaps. The documented fallback, not bu
 with `chromium --ozone-platform=wayland --kiosk` and zram swap: a different `ExecStart`, not a different design. The wait
 for the URL replaces an ordering dependency: no Pi Hero unit depends on an application unit, yet the page an app serves
 comes up seconds after the kiosk would otherwise have loaded an error page for the rest of the uptime.
+
+## `kaomoji`
+
+The Pi Hero cast, not shipped yet: [packages/kaomoji](../packages/kaomoji) has no `nfpm.yaml`, so `make build` skips it,
+while its tests run in tier 0 and its scripts pass the static checks like every package's. The engine,
+[kaomoji.bash](../packages/kaomoji/kaomoji.bash), paints sprites of styled graphemes with tput, paces an animation on one
+line, draws the grid of all variants, and provides the command line; a character script adds its moods, a frame function,
+and a timeline (entrance steps, hover cycle, exit steps). `hero` flies in from the left, hovers, and flies out to the right;
+`wizard` slides in, conjures its magic particle by particle, runs the colors along it, and slides out to the left;
+`colleague` peeks out from behind a wall that slides in, waves and blinks, and ducks back before the wall slides out.
+[kaomoji-gif](../packages/kaomoji/kaomoji-gif) replaces the engine's pacing hook to record every frame and renders the GIFs
+in [assets](../assets) with agg. Where the faces end up is open: the engine in `pihero` with each app owning its face, or the
+whole cast in one package. Tests, performance, and the function API come first.
 
 ## Planned packages
 

@@ -76,7 +76,7 @@ make doctor                                  # lists what is missing
 
 | Directory              | Contents                                                                                                                                                        |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [packages/](packages)  | One directory per Debian package: what it installs under `root/`, its `nfpm.yaml` manifest, its tests                                                           |
+| [packages/](packages)  | One directory per Debian package: what it installs under `root/`, its `nfpm.yaml` manifest, its tests; [kaomoji/](packages/kaomoji) holds the kaomoji scripts, not a package yet |
 | [testkit/](testkit)    | The test harness: the pytest plugin and the commands behind `make`; builds the packages and tests them in podman containers, a QEMU VM, or on a Pi over SSH     |
 | [devices/](devices)    | Device files, one directory per device, documented in [devices/README.md](devices/README.md); only `sample/` is committed                                       |
 | [docs/](docs)          | Design, testing, and platform notes                                                                                                                             |

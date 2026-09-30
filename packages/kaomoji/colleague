@@ -35,6 +35,7 @@ set -euo pipefail
 
 readonly COLLEAGUE_WHITE=15 # 16-color palette
 
+# shellcheck disable=SC2034 # read by kaomoji.bash through a nameref
 readonly -a COLLEAGUE_MOODS=(neutral happy sad unknown)
 readonly -a COLLEAGUE_WALL=('┴' '┬' '┴' '┤')
 
@@ -158,6 +159,7 @@ colleague_frame() {
     fi
     # Both the wall and the person show their rightmost graphemes, whether coming or going.
     colleague_sprite --mood "$mood" --step "$hover" sprite
+    # shellcheck disable=SC2034 # painted through a nameref
     local -a frame=("${sprite[@]:wall-wall_shown:wall_shown}" "${sprite[@]:wall+person-person_shown:person_shown}")
     kaomoji_paint "${color[@]}" --width "$width" frame
 }
