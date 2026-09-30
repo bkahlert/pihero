@@ -311,6 +311,18 @@ class TestMain:
                 assert [columns(row[: wall.start()]) for wall in re.finditer("┴┬┴┤", row)] == title_columns
 
 
+class TestEngineLookup:
+    @pytest.mark.parametrize("face", ["hero", "wizard", "visitor"])
+    def test_a_face_started_without_a_directory_looks_for_the_installed_engine(self, face):
+        if Path("/usr/lib/kaomoji/kaomoji.bash").exists():
+            pytest.skip("the installed engine would be found")
+
+        result = subprocess.run(["bash", face, "--no-color"], cwd=PACKAGE, capture_output=True, text=True)
+
+        assert result.returncode == 1
+        assert "/usr/lib/kaomoji/kaomoji.bash" in result.stderr
+
+
 def columns(text: str) -> int:
     """Display width, counting East Asian wide and fullwidth characters twice like the engine does."""
     return sum(2 if unicodedata.east_asian_width(c) in "FW" else 1 for c in text)

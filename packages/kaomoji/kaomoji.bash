@@ -1,6 +1,8 @@
 # Purpose: Engine shared by the Pi Hero kaomoji scripts: painting styled graphemes, pacing an
 #          animation on one line, the grid of all variants, and the command line. Sourced, never run.
-# Usage:   . "$(dirname "${BASH_SOURCE[0]}")/kaomoji.bash"
+# Usage:   KAOMOJI_ENGINE=${BASH_SOURCE[0]%/*}/kaomoji.bash
+#          [ -e "$KAOMOJI_ENGINE" ] || KAOMOJI_ENGINE=/usr/lib/kaomoji/kaomoji.bash
+#          . "$KAOMOJI_ENGINE"
 #
 # A kaomoji script defines a character <name> and ends with 'kaomoji_main <name> "$@"'. It provides:
 #   <NAME>_MOODS       array of its moods, the first one is the default

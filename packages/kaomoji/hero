@@ -38,8 +38,11 @@
 
 set -euo pipefail
 
+# The engine sits next to the face in the checkout, and in /usr/lib/kaomoji once installed.
+KAOMOJI_ENGINE=${BASH_SOURCE[0]%/*}/kaomoji.bash
+[ -e "$KAOMOJI_ENGINE" ] || KAOMOJI_ENGINE=/usr/lib/kaomoji/kaomoji.bash
 # shellcheck source=kaomoji.bash
-. "$(dirname "${BASH_SOURCE[0]}")/kaomoji.bash"
+. "$KAOMOJI_ENGINE"
 
 # 256-color palette of the Pi Hero logo
 readonly HERO_ORANGE=214 # #f6b535
