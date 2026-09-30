@@ -135,12 +135,12 @@ visitor_frame() {
 
     local -a sprite
     if [ -z "$step" ]; then
-        visitor_sprite --mood "$mood" sprite
+        kaomoji_sprite sprite visitor_sprite --mood "$mood"
         kaomoji_paint "${color[@]}" sprite
         return 0
     fi
 
-    visitor_sprite --mood "$mood" sprite # only to count the graphemes
+    kaomoji_sprite sprite visitor_sprite --mood "$mood" # only to count the graphemes
     local -i wall=${#VISITOR_WALL[@]}
     local -i person=$((${#sprite[@]} - wall))
     local -i entrance=$((wall + person))
@@ -163,7 +163,7 @@ visitor_frame() {
         fi
     fi
     # Both the wall and the person show their rightmost graphemes, whether coming or going.
-    visitor_sprite --mood "$mood" --step "$hover" sprite
+    kaomoji_sprite sprite visitor_sprite --mood "$mood" --step "$hover"
     # shellcheck disable=SC2034 # painted through a nameref
     local -a frame=("${sprite[@]:wall-wall_shown:wall_shown}" "${sprite[@]:wall+person-person_shown:person_shown}")
     kaomoji_paint "${color[@]}" frame
@@ -186,7 +186,7 @@ visitor_timeline() {
     done
     local -n out=${1?${FUNCNAME[0]}: array name missing}
     local -a sprite
-    visitor_sprite --mood "$mood" sprite
+    kaomoji_sprite sprite visitor_sprite --mood "$mood"
     out=("${#sprite[@]}" "$VISITOR_CYCLE" "${#sprite[@]}")
 }
 

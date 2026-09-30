@@ -119,6 +119,8 @@ kaomoji_sgr_fetch() {
 # Prints the graphemes of a sprite (no trailing newline) and sets REPLY to the display width printed.
 # A sprite is an array of graphemes, each as "<style><TAB><text>", see kaomoji_style_caps for styles.
 # Painting one leaves the text in KAOMOJI_TEXT and its display width in cells in KAOMOJI_WIDTH.
+# A sprite is laid out once (kaomoji_layout), a painting is a substring of that layout: a frame
+# then costs a handful of bash operations, which is what a Raspberry Pi 1 affords per frame.
 #   --offset <n>   skip the first <n> graphemes; a negative <n> pads the left with spaces instead
 #   --clip <n>     stop before the display width would exceed <n> (default: 0, no clipping)
 #   --color        apply the styles
@@ -141,36 +143,103 @@ kaomoji_paint() {
     done
     local -n graphemes=${1?${FUNCNAME[0]}: array name missing}
 
-    local out='' style text sgr0=''
-    local -i i shown=0
-    if ((color)); then # every style of the sprite in one go, before painting
-        local -a missing=()
-        for ((i = 0; i < ${#graphemes[@]}; i++)); do
-            style=${graphemes[i]%%$'\t'*}
-            [ -n "${KAOMOJI_SGR[$style]+set}" ] || missing+=("$style")
-        done
-        ((${#missing[@]} == 0)) || kaomoji_sgr_fetch "${missing[@]}"
-        sgr0=${KAOMOJI_CAP[sgr0]}
+    local key="${#graphemes[@]}:${graphemes[*]}" # the count keeps an empty sprite's key non-empty
+    if [ -z "${KAOMOJI_LAYOUTS[$key]+set}" ]; then kaomoji_layout "$1" "$key"; fi
+    local id=${KAOMOJI_LAYOUTS[$key]}
+    local -n cells=KAOMOJI_LAYOUT_${id}_CELLS
+    if ((color)); then
+        if [ -z "${KAOMOJI_COLORED[$id]+set}" ]; then kaomoji_layout_color "$1" "$id"; fi
+        local -n text=KAOMOJI_LAYOUT_${id}_COLORED offsets=KAOMOJI_LAYOUT_${id}_COLORED_AT
+    else
+        local -n text=KAOMOJI_LAYOUT_${id}_PLAIN offsets=KAOMOJI_LAYOUT_${id}_PLAIN_AT
     fi
-    if ((offset < 0)); then
-        printf -v out '%*s' "$((-offset))" ''
-        shown=-offset
-        offset=0
+
+    local -i n=${#graphemes[@]} first=0 end pad=0
+    if ((offset < 0)); then pad=-offset; elif ((offset < n)); then first=$offset; else first=$n; fi
+    end=$n
+    if ((clip > 0)); then
+        for ((end = first; end < n && pad + cells[end + 1] - cells[first] <= clip; end++)); do :; done
     fi
-    for ((i = offset; i < ${#graphemes[@]}; i++)); do
-        style=${graphemes[i]%%$'\t'*}
+    KAOMOJI_TEXT=${text:offsets[first]:offsets[end] - offsets[first]}
+    if ((pad)); then printf -v KAOMOJI_TEXT '%*s%s' "$pad" '' "$KAOMOJI_TEXT"; fi
+    KAOMOJI_WIDTH=$((pad + cells[end] - cells[first]))
+}
+
+# Lays out a sprite for kaomoji_paint: KAOMOJI_LAYOUT_<id>_PLAIN holds its text, _PLAIN_AT the
+# offset in characters of every grapheme in it and of the end, _CELLS the display width up to
+# every grapheme and up to the end. KAOMOJI_LAYOUTS maps the sprite's key to its <id>.
+#   <array> <key>   name of the sprite and its key in KAOMOJI_LAYOUTS
+declare -A KAOMOJI_LAYOUTS=()
+kaomoji_layout() {
+    local -n graphemes=$1
+    local -i id=${#KAOMOJI_LAYOUTS[@]}
+    declare -g "KAOMOJI_LAYOUT_${id}_PLAIN="
+    declare -ga "KAOMOJI_LAYOUT_${id}_PLAIN_AT=(0)" "KAOMOJI_LAYOUT_${id}_CELLS=(0)"
+    local -n plain=KAOMOJI_LAYOUT_${id}_PLAIN offsets=KAOMOJI_LAYOUT_${id}_PLAIN_AT cells=KAOMOJI_LAYOUT_${id}_CELLS
+    local text
+    local -i i chars=0 width=0
+    for ((i = 0; i < ${#graphemes[@]}; i++)); do
         text=${graphemes[i]#*$'\t'}
-        kaomoji_text_width "$text"
-        if ((clip > 0 && shown + REPLY > clip)); then break; fi
-        shown+=REPLY
-        if ((color)); then
-            out+="${KAOMOJI_SGR[$style]}$text$sgr0"
-        else
-            out+=$text
+        if [ -z "${KAOMOJI_WIDTHS[$text]+set}" ]; then
+            kaomoji_text_width "$text"
+            KAOMOJI_WIDTHS[$text]=$REPLY
         fi
+        plain+=$text
+        chars+=${#text}
+        width+=${KAOMOJI_WIDTHS[$text]}
+        offsets+=("$chars")
+        cells+=("$width")
     done
-    KAOMOJI_TEXT=$out
-    KAOMOJI_WIDTH=$shown
+    KAOMOJI_LAYOUTS[$2]=$id
+}
+
+# Adds the colored text to a layout: KAOMOJI_LAYOUT_<id>_COLORED and _COLORED_AT, like the plain
+# ones, and notes it in KAOMOJI_COLORED. The styles of the sprite are fetched in one go first.
+#   <array> <id>
+declare -A KAOMOJI_COLORED=()
+kaomoji_layout_color() {
+    local -n graphemes=$1
+    local id=$2
+    local style text sgr0
+    local -a missing=()
+    local -i i chars=0
+    for ((i = 0; i < ${#graphemes[@]}; i++)); do
+        style=${graphemes[i]%%$'\t'*}
+        [ -n "${KAOMOJI_SGR[$style]+set}" ] || missing+=("$style")
+    done
+    ((${#missing[@]} == 0)) || kaomoji_sgr_fetch "${missing[@]}"
+    sgr0=${KAOMOJI_CAP[sgr0]}
+    declare -g "KAOMOJI_LAYOUT_${id}_COLORED="
+    declare -ga "KAOMOJI_LAYOUT_${id}_COLORED_AT=(0)"
+    local -n colored=KAOMOJI_LAYOUT_${id}_COLORED offsets=KAOMOJI_LAYOUT_${id}_COLORED_AT
+    for ((i = 0; i < ${#graphemes[@]}; i++)); do
+        style=${graphemes[i]%%$'\t'*}
+        text="${KAOMOJI_SGR[$style]}${graphemes[i]#*$'\t'}$sgr0"
+        colored+=$text
+        chars+=${#text}
+        offsets+=("$chars")
+    done
+    KAOMOJI_COLORED[$id]=1
+}
+
+# Fills an array with a sprite, building it once: the builder runs with its arguments and the
+# array on the first call, later calls with the same arguments copy the result.
+#   <array> <builder> [<argument>...]
+declare -A KAOMOJI_SPRITES=() # builder with its arguments → the array holding the sprite
+kaomoji_sprite() {
+    local -n result=$1
+    local key=${*:2}
+    if [ -n "${KAOMOJI_SPRITES[$key]+set}" ]; then
+        local -n built=${KAOMOJI_SPRITES[$key]}
+        result=("${built[@]}")
+        return 0
+    fi
+    "${@:2}" "$1"
+    local name=KAOMOJI_SPRITE_${#KAOMOJI_SPRITES[@]}
+    declare -ga "$name"
+    local -n store=$name
+    store=("${result[@]}")
+    KAOMOJI_SPRITES[$key]=$name
 }
 
 # Renders a frame through <name>_frame once: the same arguments give the same frame, so later

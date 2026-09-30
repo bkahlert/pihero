@@ -138,12 +138,12 @@ wizard_frame() {
 
     local -a sprite
     if [ -z "$step" ]; then
-        wizard_sprite --mood "$mood" sprite
+        kaomoji_sprite sprite wizard_sprite --mood "$mood"
         kaomoji_paint "${color[@]}" sprite
         return 0
     fi
 
-    wizard_sprite --mood "$mood" --magic 0 sprite # only to count the graphemes of the body
+    kaomoji_sprite sprite wizard_sprite --mood "$mood" --magic 0 # only to count the graphemes of the body
     local -i body=${#sprite[@]} magic=${#WIZARD_MAGIC[@]} offset=0 gone
     local -i shown=$magic
     if ((step <= body)); then
@@ -161,7 +161,7 @@ wizard_frame() {
             offset=$((gone - magic))
         fi
     fi
-    wizard_sprite --mood "$mood" --step "$step" --magic "$shown" sprite
+    kaomoji_sprite sprite wizard_sprite --mood "$mood" --step "$step" --magic "$shown"
     kaomoji_paint "${color[@]}" --offset "$offset" sprite
 }
 
@@ -182,7 +182,7 @@ wizard_timeline() {
     done
     local -n out=${1?${FUNCNAME[0]}: array name missing}
     local -a sprite
-    wizard_sprite --mood "$mood" sprite
+    kaomoji_sprite sprite wizard_sprite --mood "$mood"
     out=("${#sprite[@]}" "$WIZARD_CYCLE" "${#sprite[@]}")
 }
 

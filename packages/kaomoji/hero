@@ -141,12 +141,12 @@ hero_frame() {
 
     local -a sprite
     if [ -z "$step" ]; then
-        hero_sprite --mood "$mood" sprite
+        kaomoji_sprite sprite hero_sprite --mood "$mood"
         kaomoji_paint "${color[@]}" sprite
         return 0
     fi
 
-    hero_sprite --mood "$mood" sprite # only to count the graphemes and measure the width
+    kaomoji_sprite sprite hero_sprite --mood "$mood" # only to count the graphemes and measure the width
     local -i size=${#sprite[@]} phase pose offset clip=0
     # The poses are phased so that the hero is at rest once it has fully arrived (step == size)
     # and again after every hover cycle.
@@ -160,7 +160,7 @@ hero_frame() {
         offset=$((offset - (step - exit_step)))
         if ((-offset > clip)); then offset=$((-clip)); fi
     fi
-    hero_sprite --mood "$mood" --step "$pose" sprite
+    kaomoji_sprite sprite hero_sprite --mood "$mood" --step "$pose"
     kaomoji_paint "${color[@]}" --offset "$offset" --clip "$clip" sprite
 }
 
@@ -181,7 +181,7 @@ hero_timeline() {
     done
     local -n out=${1?${FUNCNAME[0]}: array name missing}
     local -a sprite
-    hero_sprite --mood "$mood" sprite
+    kaomoji_sprite sprite hero_sprite --mood "$mood"
     kaomoji_paint sprite
     out=("${#sprite[@]}" "$HERO_CYCLE" "$KAOMOJI_WIDTH")
 }

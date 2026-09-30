@@ -39,6 +39,19 @@ class TestPaint:
     def test_clip_drops_what_does_not_fit(self):
         assert bash(f"{self.SPRITE}; kaomoji_paint --clip 3 sprite{self.RESULT}") == "a蓬 3"
 
+    def test_clips_the_padding_of_a_negative_offset_too(self):
+        assert bash(f"{self.SPRITE}; kaomoji_paint --offset -2 --clip 3 sprite{self.RESULT}") == "  a 3"
+
+    def test_measures_each_grapheme_once_for_all_paintings_of_a_sprite(self):
+        out = bash(
+            f'{self.SPRITE}; eval "original_$(declare -f kaomoji_text_width)"; measured=0; '
+            'kaomoji_text_width() { measured=$((measured + 1)); original_kaomoji_text_width "$@"; }; '
+            "kaomoji_paint sprite; kaomoji_paint --offset 1 sprite; kaomoji_paint --clip 3 --color sprite; "
+            'printf "%s %s" "$measured" "$KAOMOJI_TEXT"'
+        )
+
+        assert out == "3 a\x1b(B\x1b[m\x1b[31m蓬\x1b(B\x1b[m"
+
     class TestColor:
         def test_applies_the_styles(self):
             out = bash(f"{TestPaint.SPRITE}; kaomoji_paint --color sprite{TestPaint.RESULT}")
@@ -50,6 +63,17 @@ class TestPaint:
             out = bash("sprite=(\"9/\"$'\\t'x); kaomoji_paint --color sprite" + TestPaint.RESULT, term="xterm")
 
             assert out == "x\x1b(B\x1b[m 1"
+
+
+class TestSprite:
+    def test_builds_a_sprite_once_for_the_same_arguments(self):
+        out = bash(
+            "builds=0; build() { builds=$((builds + 1)); local -n into=$3; into=(\"/\"$'\\t'\"$2\"); }; "
+            "kaomoji_sprite a build --text x; kaomoji_sprite b build --text x; kaomoji_sprite c build --text y; "
+            "printf '%s %s%s%s' \"$builds\" \"${a[0]#*$'\\t'}\" \"${b[0]#*$'\\t'}\" \"${c[0]#*$'\\t'}\""
+        )
+
+        assert out == "2 xxy"
 
 
 class TestFrameCache:
