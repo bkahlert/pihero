@@ -256,11 +256,14 @@ kaomoji_grid() {
     kaomoji_sgr_cache dim
     dim=${KAOMOJI_SGR[dim]}
 
-    # The label column fits every mood, a cell fits every frame of a hover cycle,
+    # The label column fits every mood, a cell fits its title and every frame of a hover cycle,
     # and each mood's animation runs from its own first to its own last step.
     local -i label=4 cell=0 i s last=0
     local -a timeline first_steps=() exit_steps=() last_steps=() exit_flags=()
-    local mood
+    local mood title
+    for title in "${titles[@]}"; do
+        if ((${#title} > cell)); then cell=${#title}; fi
+    done
     for i in "${!moods[@]}"; do
         mood=${moods[i]}
         if ((${#mood} > label)); then label=${#mood}; fi
@@ -277,7 +280,6 @@ kaomoji_grid() {
 
     # The header and the rows are separated by empty lines; all of them are redrawn per step.
     local -i rows=$((1 + 2 * ${#moods[@]})) step
-    local title
     printf '\n'
     kaomoji_animation_begin
     for ((step = 0; ; step++)); do

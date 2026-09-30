@@ -1,6 +1,8 @@
 import os
+import re
 import signal
 import subprocess
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -127,6 +129,19 @@ class TestMain:
             header, *rows = kaomoji("hero").grid("--mood", "happy", "--loops", "1")[-1]
 
             assert [row.split()[0] for row in rows] == ["happy"]
+
+        def test_lines_up_a_face_narrower_than_the_titles_under_them(self, kaomoji):
+            header, *rows = kaomoji("visitor").grid("--loops", "1")[-1]
+
+            titles = ["static plain", "static color", "animated plain", "animated color"]
+            title_columns = [columns(header[: header.index(title)]) for title in titles]
+            for row in rows:
+                assert [columns(row[: wall.start()]) for wall in re.finditer("┴┬┴┤", row)] == title_columns
+
+
+def columns(text: str) -> int:
+    """Display width, counting East Asian wide and fullwidth characters twice like the engine does."""
+    return sum(2 if unicodedata.east_asian_width(c) in "FW" else 1 for c in text)
 
 
 def bash(snippet: str, term: str = "xterm-256color") -> str:
