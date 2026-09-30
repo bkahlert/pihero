@@ -164,6 +164,7 @@ kaomoji_paint() {
     if ((clip > 0)); then
         for ((n = end, end = first; end < n && pad + cells[end + 1] - cells[first] <= clip; end++)); do :; done
     fi
+    if ((first >= end)); then pad=0; fi # nothing left to position: no padding either
     KAOMOJI_TEXT=${text:offsets[first]:offsets[end] - offsets[first]}
     if ((pad)); then printf -v KAOMOJI_TEXT '%*s%s' "$pad" '' "$KAOMOJI_TEXT"; fi
     KAOMOJI_WIDTH=$((pad + cells[end] - cells[first]))

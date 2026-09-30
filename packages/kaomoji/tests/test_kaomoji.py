@@ -45,6 +45,9 @@ class TestPaint:
     def test_clips_the_padding_of_a_negative_offset_too(self):
         assert bash(f"{self.SPRITE}; kaomoji_paint --offset -2 --clip 3 sprite{self.RESULT}") == "  a 3"
 
+    def test_drops_the_padding_once_nothing_is_left_to_position(self):
+        assert bash(f"{self.SPRITE}; kaomoji_paint --offset -3 --clip 3 sprite{self.RESULT}") == " 0"
+
     def test_measures_each_grapheme_once_for_all_paintings_of_a_sprite(self):
         out = bash(
             f'{self.SPRITE}; eval "original_$(declare -f kaomoji_text_width)"; measured=0; '

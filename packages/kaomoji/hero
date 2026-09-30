@@ -116,13 +116,12 @@ hero_sprite() {
 #   --mood <mood>   neutral (default), happy, sad or unknown
 #   --step <n>      step of the animation: the hero flies in from the left during the first
 #                   steps, one grapheme per step, and hovers afterwards (default: at rest)
-#   --no-entrance   hover where the hero lands instead of hopping one cell to the right
+#   --no-entrance   accepted for symmetry with the other kaomoji; the hero hovers where it lands
 #   --exit <n>      step after which the hero flies out to the right, one cell per step; it is
 #                   gone as many steps later as it is cells wide (default: never)
 #   --color         colored output
 hero_frame() {
     local mood=neutral step='' exit_step=''
-    local -i entrance=1
     local -a color=()
     while [ $# -gt 0 ]; do
         case $1 in
@@ -130,7 +129,7 @@ hero_frame() {
         --mood=*) mood=${1#*=}; shift ;;
         --step) step=${2?$1: missing value}; shift 2 ;;
         --step=*) step=${1#*=}; shift ;;
-        --no-entrance) entrance=0; shift ;;
+        --no-entrance) shift ;;
         --exit) exit_step=${2?$1: missing value}; shift 2 ;;
         --exit=*) exit_step=${1#*=}; shift ;;
         --color) color=(--color); shift ;;
@@ -148,12 +147,12 @@ hero_frame() {
 
     local -a timeline
     kaomoji_timeline hero "$mood" timeline # the graphemes and the width of the hero at rest
-    local -i size=${timeline[0]} phase pose offset clip=0
+    local -i size=${timeline[0]} phase pose offset=0 clip=0
     # The poses are phased so that the hero is at rest once it has fully arrived (step == size)
     # and again after every hover cycle.
     phase=$(((HERO_REST - size % HERO_CYCLE + HERO_CYCLE) % HERO_CYCLE))
     pose=$(((step + phase) % HERO_CYCLE))
-    if ((step <= size)); then offset=$((size - step)); else offset=$((entrance ? -1 : 0)); fi
+    if ((step <= size)); then offset=$((size - step)); fi
     if [ -n "$exit_step" ] && ((step > exit_step)); then
         # The hero leaves the cells it hovered in and is clipped at their right edge.
         clip=$((timeline[2] - offset))

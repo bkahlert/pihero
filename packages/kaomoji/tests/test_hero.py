@@ -36,20 +36,21 @@ class TestAnimation:
         assert frames[2] == "]⊐"
         assert frames[ENTRANCE] == STATIC["neutral"]
 
-    def test_hops_one_cell_right_and_rests_after_a_cycle(self, frames):
-        assert frames[ENTRANCE + CYCLE] == " " + STATIC["neutral"]
+    def test_rests_where_it_landed_after_a_cycle(self, frames):
+        assert frames[ENTRANCE + CYCLE] == STATIC["neutral"]
 
     def test_flickers_the_tail_and_flexes_the_hand_while_hovering(self, frames):
         hovering = frames[ENTRANCE + 1 : ENTRANCE + CYCLE]
 
-        assert {f[1:4] for f in hovering} == {"-─=", " -─", "─=≡"}
+        assert {f[:3] for f in hovering} == {"-─=", " -─", "─=≡"}
         assert {f[-1] for f in hovering} == {"⫎", "⊐"}
 
     def test_flies_out_to_the_right_clipped_at_its_hover_cells(self, frames):
         exit_step = ENTRANCE + CYCLE
 
-        assert frames[exit_step + CYCLE] == " " * 13 + "─=≡▰"
-        assert frames[-1].strip() == ""
+        assert frames[exit_step + 1] == " -─=▰▩▩[ 蓬•ｏ•]"
+        assert frames[exit_step + CYCLE] == " " * 12 + "─=≡▰"
+        assert frames[-1] == ""
 
     def test_no_entrance_hovers_where_it_is(self, hero):
         frames = hero.frames("--mood", "neutral", "--loops", "1", "--no-entrance")
