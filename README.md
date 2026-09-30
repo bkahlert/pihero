@@ -91,7 +91,7 @@ make test-tier1                     # install, remove, purge in a systemd contai
 make test-tier2                     # boot a QEMU VM from a device file
 make test                           # tiers 0 and 1, what CI runs on every push
 make test-all                       # tiers 0 to 2, what make release runs
-make deploy TARGET=pi@mypi.local    # the built packages onto a real device
+make deploy TARGET=pi@mypi.local    # the packages a real device has, freshly built
 ```
 
 What each tier proves and how to write a test is in [docs/testing.md](docs/testing.md). The Finder icons of device

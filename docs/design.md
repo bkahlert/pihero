@@ -300,8 +300,10 @@ file another daemon reads, defaults in code, overrides from `/etc/pihero/<featur
   `APT_SIGNING_KEY` secret, push to `gh-pages`, and create the GitHub release with the `.deb` files. Pre-release tags such as
   `v2.1.0-rc.1` publish as `2.1.0~rc.1`. One signing key exists; its public half is embedded in device files, so a device
   trusts nothing else, and rotation is a manual procedure.
-- **Development loop.** `make deploy TARGET=pi@host` builds and installs over SSH with `apt install ./pkg.deb`, skipping the
-  repository.
+- **Development loop.** `make deploy TARGET=pi@host` builds, asks the device which of the packages it has, and
+  reinstalls those over SSH with `apt install ./pkg.deb`, skipping the repository. A package the device never had is not
+  added: its postinst would run for a board it was not meant for, as the gadget's once did on a Model B. A device without
+  any of the packages is flashed, not deployed to.
 
 ## Applications
 

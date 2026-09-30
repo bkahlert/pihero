@@ -115,8 +115,8 @@ testinfra's own plugin registers after the testkit's, and its local-host `host` 
 the git-derived version only matches a device at a tag. The Avahi tests need `avahi-utils` on the device. What only a fresh
 card shows: `pihero-usb-gadget`'s postinst turning `rpi-usb-gadget` on and requesting the reboot, and purge turning it off.
 Neither tier is a Raspberry Pi and mutating tests are skipped over ssh, so a release flashes the sample to a card and runs
-the ssh tier after provisioning. `make deploy
-TARGET=pi@host` installs freshly built packages over SSH for the development loop.
+the ssh tier after provisioning. `make deploy TARGET=pi@host` reinstalls the freshly built packages the device already
+has over SSH for the development loop; it adds none.
 
 ## CI
 
