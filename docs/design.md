@@ -204,7 +204,19 @@ anything else. `hero` flies in from the left, hovers, and flies out to the right
 `visitor` peeks out from behind a wall that slides in, waves and blinks, and ducks back before the wall slides out.
 [kaomoji-gif](../packages/kaomoji/kaomoji-gif) replaces the engine's pacing hook to record every frame and renders the GIFs
 in [assets](../assets) with agg; it is to become a generic renderer that records the command given after `--` instead of
-mirroring the characters' options. Where the faces end up is open: the engine in `pihero` with each app owning its face, or the
+mirroring the characters' options.
+
+**Performance.** The target is a Raspberry Pi 1 at 50 ms per frame, where bash does a simple operation in 0.3 ms and a fork
+costs 40 ms. The engine therefore never forks while animating: it paces frames with `read -t` on a FIFO it holds open, and
+fetches terminal capabilities on demand and several per `tput -S` call, split on `sgr0`, so static plain output runs no `tput`
+and a colored animation three. Frames are deterministic and hover frames repeat every cycle, so each frame is rendered once,
+keyed by its arguments; the next frame renders while the current one shows, and further ones while the last render's
+duration says there is time. A sprite is laid out once, plain and colored on demand, with the character offset and display
+width up to each grapheme, so a painting is a substring; built sprites are cached by their builder's arguments. Measured on
+`busy-screen.local` (Pi 1, bash 5.2, the kiosk browser taking half the CPU): a cached frame costs 9 ms and plays at 52–56 ms
+intervals, a fresh one 60–90 ms, the first frame of a new pose 120–270 ms, and the first frame shows after 0.4–1.2 s, most of
+it bash parsing the scripts. Before, a grid frame took 2.3 s and its startup 8–16 s; now 125–160 ms and 3.5–8 s, which keeps
+the preview a Mac-side tool. Where the faces end up is open: the engine in `pihero` with each app owning its face, or the
 whole cast in one package. Tests, performance, and the function API come first.
 
 ## Planned packages
