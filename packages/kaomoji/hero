@@ -146,8 +146,9 @@ hero_frame() {
         return 0
     fi
 
-    kaomoji_sprite sprite hero_sprite --mood "$mood" # only to count the graphemes and measure the width
-    local -i size=${#sprite[@]} phase pose offset clip=0
+    local -a timeline
+    kaomoji_timeline hero "$mood" timeline # the graphemes and the width of the hero at rest
+    local -i size=${timeline[0]} phase pose offset clip=0
     # The poses are phased so that the hero is at rest once it has fully arrived (step == size)
     # and again after every hover cycle.
     phase=$(((HERO_REST - size % HERO_CYCLE + HERO_CYCLE) % HERO_CYCLE))
@@ -155,8 +156,7 @@ hero_frame() {
     if ((step <= size)); then offset=$((size - step)); else offset=$((entrance ? -1 : 0)); fi
     if [ -n "$exit_step" ] && ((step > exit_step)); then
         # The hero leaves the cells it hovered in and is clipped at their right edge.
-        kaomoji_paint sprite
-        clip=$((KAOMOJI_WIDTH - offset))
+        clip=$((timeline[2] - offset))
         offset=$((offset - (step - exit_step)))
         if ((-offset > clip)); then offset=$((-clip)); fi
     fi

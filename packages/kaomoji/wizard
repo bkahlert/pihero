@@ -143,8 +143,10 @@ wizard_frame() {
         return 0
     fi
 
-    kaomoji_sprite sprite wizard_sprite --mood "$mood" --magic 0 # only to count the graphemes of the body
-    local -i body=${#sprite[@]} magic=${#WIZARD_MAGIC[@]} offset=0 gone
+    local -a timeline
+    kaomoji_timeline wizard "$mood" timeline
+    local -i magic=${#WIZARD_MAGIC[@]} offset=0 gone
+    local -i body=$((timeline[0] - magic))
     local -i shown=$magic
     if ((step <= body)); then
         offset=$((body - step))
@@ -161,8 +163,8 @@ wizard_frame() {
             offset=$((gone - magic))
         fi
     fi
-    kaomoji_sprite sprite wizard_sprite --mood "$mood" --step "$step" --magic "$shown"
-    kaomoji_paint "${color[@]}" --offset "$offset" sprite
+    kaomoji_sprite sprite wizard_sprite --mood "$mood" --step "$step"
+    kaomoji_paint "${color[@]}" --offset "$offset" --count "$((body + shown - offset))" sprite
 }
 
 # Fills an array with the steps of the wizard's entrance (one per grapheme), of one hover cycle,

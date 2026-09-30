@@ -140,9 +140,10 @@ visitor_frame() {
         return 0
     fi
 
-    kaomoji_sprite sprite visitor_sprite --mood "$mood" # only to count the graphemes
+    local -a timeline
+    kaomoji_timeline visitor "$mood" timeline
     local -i wall=${#VISITOR_WALL[@]}
-    local -i person=$((${#sprite[@]} - wall))
+    local -i person=$((timeline[0] - wall))
     local -i entrance=$((wall + person))
     local -i hover=$((step - entrance)) wall_shown=$wall person_shown=$person gone
     if ((hover < 0)); then hover=0; fi
@@ -164,9 +165,16 @@ visitor_frame() {
     fi
     # Both the wall and the person show their rightmost graphemes, whether coming or going.
     kaomoji_sprite sprite visitor_sprite --mood "$mood" --step "$hover"
-    # shellcheck disable=SC2034 # painted through a nameref
-    local -a frame=("${sprite[@]:wall-wall_shown:wall_shown}" "${sprite[@]:wall+person-person_shown:person_shown}")
-    kaomoji_paint "${color[@]}" frame
+    if ((wall_shown == wall && person_shown == person)); then
+        kaomoji_paint "${color[@]}" sprite
+        return 0
+    fi
+    kaomoji_paint "${color[@]}" --offset "$((wall - wall_shown))" --count "$wall_shown" sprite
+    local text=$KAOMOJI_TEXT
+    local -i width=$KAOMOJI_WIDTH
+    kaomoji_paint "${color[@]}" --offset "$((wall + person - person_shown))" sprite
+    KAOMOJI_TEXT=$text$KAOMOJI_TEXT
+    KAOMOJI_WIDTH=$((width + KAOMOJI_WIDTH))
 }
 
 # Fills an array with the steps of the visitor's entrance (one per grapheme), of one hover cycle,

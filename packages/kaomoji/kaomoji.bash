@@ -9,8 +9,8 @@
 #                      --exit <step>, --color (see hero_frame)
 #   <name>_timeline    fills an array with the number of entrance steps, the steps of one hover
 #                      cycle and the number of exit steps: <name>_timeline --mood <mood> <array>
-# A frame paints exactly once with kaomoji_paint. Frames are deterministic and the hover frames
-# repeat every cycle, so the engine renders each of them once and plays them from a cache.
+# A frame paints with kaomoji_paint. Frames are deterministic and the hover frames repeat every
+# cycle, so the engine renders each of them once and plays them from a cache.
 # Needs bash 5.0+.
 
 [ -z "${KAOMOJI_BASH:-}" ] || return 0
@@ -122,17 +122,20 @@ kaomoji_sgr_fetch() {
 # A sprite is laid out once (kaomoji_layout), a painting is a substring of that layout: a frame
 # then costs a handful of bash operations, which is what a Raspberry Pi 1 affords per frame.
 #   --offset <n>   skip the first <n> graphemes; a negative <n> pads the left with spaces instead
+#   --count <n>    paint at most <n> graphemes (default: all that follow)
 #   --clip <n>     stop before the display width would exceed <n> (default: 0, no clipping)
 #   --color        apply the styles
 #   <array>        name of the sprite
 KAOMOJI_TEXT=''
 KAOMOJI_WIDTH=0
 kaomoji_paint() {
-    local -i offset=0 clip=0 color=0
+    local -i offset=0 count=-1 clip=0 color=0
     while [ $# -gt 0 ]; do
         case $1 in
         --offset) offset=${2?$1: missing value}; shift 2 ;;
         --offset=*) offset=${1#*=}; shift ;;
+        --count) count=${2?$1: missing value}; shift 2 ;;
+        --count=*) count=${1#*=}; shift ;;
         --clip) clip=${2?$1: missing value}; shift 2 ;;
         --clip=*) clip=${1#*=}; shift ;;
         --color) color=1; shift ;;
@@ -157,8 +160,9 @@ kaomoji_paint() {
     local -i n=${#graphemes[@]} first=0 end pad=0
     if ((offset < 0)); then pad=-offset; elif ((offset < n)); then first=$offset; else first=$n; fi
     end=$n
+    if ((count >= 0 && first + count < end)); then end=$((first + count)); fi
     if ((clip > 0)); then
-        for ((end = first; end < n && pad + cells[end + 1] - cells[first] <= clip; end++)); do :; done
+        for ((n = end, end = first; end < n && pad + cells[end + 1] - cells[first] <= clip; end++)); do :; done
     fi
     KAOMOJI_TEXT=${text:offsets[first]:offsets[end] - offsets[first]}
     if ((pad)); then printf -v KAOMOJI_TEXT '%*s%s' "$pad" '' "$KAOMOJI_TEXT"; fi
@@ -240,6 +244,21 @@ kaomoji_sprite() {
     local -n store=$name
     store=("${result[@]}")
     KAOMOJI_SPRITES[$key]=$name
+}
+
+# Fills an array with a character's timeline, asking <name>_timeline once per mood.
+#   <name> <mood> <array>
+declare -A KAOMOJI_TIMELINES=()
+kaomoji_timeline() {
+    local -n into=$3
+    local key="$1 $2"
+    if [ -z "${KAOMOJI_TIMELINES[$key]+set}" ]; then
+        "${1}_timeline" --mood "$2" into
+        KAOMOJI_TIMELINES[$key]=${into[*]}
+        return 0
+    fi
+    # shellcheck disable=SC2206 # three numbers, split on purpose
+    into=(${KAOMOJI_TIMELINES[$key]})
 }
 
 # Renders a frame through <name>_frame once: the same arguments give the same frame, so later
@@ -353,7 +372,7 @@ kaomoji_animate() {
     done
 
     local -a timeline
-    "${name}_timeline" --mood "$mood" timeline
+    kaomoji_timeline "$name" "$mood" timeline
     local -i entrance_steps=${timeline[0]} cycle=${timeline[1]} exit_steps=${timeline[2]}
     local -i first=0 last=-1 exit_step=-1 step stop=0 shown ahead estimate=0 started
     local text
@@ -449,7 +468,7 @@ kaomoji_grid() {
     for i in "${!moods[@]}"; do
         mood=${moods[i]}
         if ((${#mood} > label)); then label=${#mood}; fi
-        "${name}_timeline" --mood "$mood" timeline
+        kaomoji_timeline "$name" "$mood" timeline
         entrances[i]=${timeline[0]}
         cycles[i]=${timeline[1]}
         for ((s = timeline[0]; s <= timeline[0] + timeline[1]; s++)); do
