@@ -65,6 +65,9 @@ clean: ## remove build outputs
 repo: build ## regenerate and sign the flat repo under dist/repo (needs ~/.config/pihero-apt-signing-key.asc)
 	@$(UV) python -m pihero_testkit.repo publish --debs 'dist/*.deb' --repo dist/repo --key ~/.config/pihero-apt-signing-key.asc
 
+docs-models: ## regenerate docs/models and the model tables in the READMEs from this Mac's icons (needs pngquant)
+	@$(UV) python -m pihero_testkit.model_icons
+
 release: ## run every tier locally, then tag VERSION (make release VERSION=2.0.0)
 	@test -n "$(VERSION)" || { echo "usage: make release VERSION=X.Y.Z"; exit 2; }
 	@git diff --quiet HEAD || { echo "working tree is dirty"; exit 1; }
