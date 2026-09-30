@@ -51,7 +51,12 @@ class TestRender:
     def test_shows_every_line_with_defaults(self):
         text = motd.render("HERO\n", [("pihero", "2.0.0")], [], (False, []), None)
 
-        assert text == "HERO\n\n  packages:        pihero 2.0.0\n  failed units:    none\n  reboot required: no\n  usb0:            not present\n"
+        assert text == "\nHERO\n\n  packages:        pihero 2.0.0\n  failed units:    none\n  reboot required: no\n  usb0:            not present\n"
+
+    def test_sets_the_banner_apart_from_the_line_above(self):
+        text = motd.render("HERO\n", [], [], (False, []), None)
+
+        assert text.startswith("\nHERO\n")
 
     def test_lists_failed_units_and_reboot_packages(self):
         text = motd.render("", [], ["x.service"], (True, ["pihero-splash", "pihero-display-hdmi"]), "10.10.10.60/29")

@@ -39,7 +39,7 @@ def render(banner: str, packages: list[tuple[str, str]], failed: list[str], rebo
     required, reboot_pkgs = reboot
     reboot_text = "no" if not required else f"yes ({', '.join(reboot_pkgs)})" if reboot_pkgs else "yes"
     return (
-        f"{banner.rstrip()}\n\n"
+        f"\n{banner.rstrip()}\n\n"
         f"  packages:        {', '.join(f'{name} {version}' for name, version in packages) or 'none'}\n"
         f"  failed units:    {', '.join(failed) or 'none'}\n"
         f"  reboot required: {reboot_text}\n"
