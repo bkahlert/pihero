@@ -62,17 +62,20 @@ readonly HERO_REST=$((HERO_CYCLE - 1)) # step of the pose at rest: ─=≡ and �
 
 # Fills an array with the hero's graphemes, each as "<style><TAB><text>", see kaomoji_paint.
 #   --mood <mood>   neutral (default), happy, sad or unknown
-#   --step <n>      step of the hover cycle, selects the tail and hand pose (default: at rest)
+#   --tail <i>      index of the tail pose (default: the last, at rest)
+#   --hand <i>      index of the hand pose (default: the last, at rest)
 #   <array>         name of the array to fill
 hero_sprite() {
     local mood=neutral
-    local -i step=$HERO_REST
+    local -i tail=$((${#HERO_TAIL_POSES[@]} - 1)) hand=$((${#HERO_HAND_POSES[@]} - 1))
     while [ $# -gt 0 ]; do
         case $1 in
         --mood) mood=${2?$1: missing value}; shift 2 ;;
         --mood=*) mood=${1#*=}; shift ;;
-        --step) step=${2?$1: missing value}; shift 2 ;;
-        --step=*) step=${1#*=}; shift ;;
+        --tail) tail=${2?$1: missing value}; shift 2 ;;
+        --tail=*) tail=${1#*=}; shift ;;
+        --hand) hand=${2?$1: missing value}; shift 2 ;;
+        --hand=*) hand=${1#*=}; shift ;;
         --) shift; break ;;
         -?*) die "${FUNCNAME[0]}: unknown option: $1" ;;
         *) break ;;
@@ -90,12 +93,11 @@ hero_sprite() {
     esac
     local -a face_fg=(0 "$HERO_RED" 0 "$HERO_PINK" 0 "$HERO_RED")
 
-    local tail=${HERO_TAIL_POSES[step / 3 % ${#HERO_TAIL_POSES[@]}]}
-    local hand=${HERO_HAND_POSES[step / 6 % ${#HERO_HAND_POSES[@]}]}
+    local text=${HERO_TAIL_POSES[tail]}
     local -i i
     target=()
-    for ((i = 0; i < ${#tail}; i++)); do
-        target+=("dim"$'\t'"${tail:i:1}")
+    for ((i = 0; i < ${#text}; i++)); do
+        target+=("dim"$'\t'"${text:i:1}")
     done
     target+=(
         "$HERO_BROWN/$HERO_PINK"$'\t''▰'
@@ -108,8 +110,17 @@ hero_sprite() {
     done
     target+=(
         "$HERO_ORANGE/$HERO_YELLOW"$'\t'']'
-        "$HERO_YELLOW/"$'\t'"$hand"
+        "$HERO_YELLOW/"$'\t'"${HERO_HAND_POSES[hand]}"
     )
+}
+
+# Fills an array with the hero's sprite at a step of the hover cycle, built once per pose: the
+# tail changes every three steps, the hand every six.
+#   <mood> <step> <array>
+hero_pose() {
+    local -i step=$2
+    kaomoji_sprite "$3" hero_sprite --mood "$1" \
+        --tail "$((step / 3 % ${#HERO_TAIL_POSES[@]}))" --hand "$((step / 6 % ${#HERO_HAND_POSES[@]}))"
 }
 
 # Renders one frame of the hero into KAOMOJI_TEXT, its width in cells into KAOMOJI_WIDTH.
@@ -138,28 +149,24 @@ hero_frame() {
         esac
     done
 
-    local -a sprite
-    if [ -z "$step" ]; then
-        kaomoji_sprite sprite hero_sprite --mood "$mood"
-        kaomoji_paint "${color[@]}" sprite
-        return 0
+    local -a sprite timeline
+    local -i pose=$HERO_REST offset=0 clip=0 size phase
+    if [ -n "$step" ]; then
+        kaomoji_timeline hero "$mood" timeline # the graphemes and the width of the hero at rest
+        size=${timeline[0]}
+        # The poses are phased so that the hero is at rest once it has fully arrived (step == size)
+        # and again after every hover cycle.
+        phase=$(((HERO_REST - size % HERO_CYCLE + HERO_CYCLE) % HERO_CYCLE))
+        pose=$(((step + phase) % HERO_CYCLE))
+        if ((step <= size)); then offset=$((size - step)); fi
+        if [ -n "$exit_step" ] && ((step > exit_step)); then
+            # The hero leaves the cells it hovered in and is clipped at their right edge.
+            clip=$((timeline[2] - offset))
+            offset=$((offset - (step - exit_step)))
+            if ((-offset > clip)); then offset=$((-clip)); fi
+        fi
     fi
-
-    local -a timeline
-    kaomoji_timeline hero "$mood" timeline # the graphemes and the width of the hero at rest
-    local -i size=${timeline[0]} phase pose offset=0 clip=0
-    # The poses are phased so that the hero is at rest once it has fully arrived (step == size)
-    # and again after every hover cycle.
-    phase=$(((HERO_REST - size % HERO_CYCLE + HERO_CYCLE) % HERO_CYCLE))
-    pose=$(((step + phase) % HERO_CYCLE))
-    if ((step <= size)); then offset=$((size - step)); fi
-    if [ -n "$exit_step" ] && ((step > exit_step)); then
-        # The hero leaves the cells it hovered in and is clipped at their right edge.
-        clip=$((timeline[2] - offset))
-        offset=$((offset - (step - exit_step)))
-        if ((-offset > clip)); then offset=$((-clip)); fi
-    fi
-    kaomoji_sprite sprite hero_sprite --mood "$mood" --step "$pose"
+    hero_pose "$mood" "$pose" sprite
     kaomoji_paint "${color[@]}" --offset "$offset" --clip "$clip" sprite
 }
 
@@ -180,7 +187,7 @@ hero_timeline() {
     done
     local -n out=${1?${FUNCNAME[0]}: array name missing}
     local -a sprite
-    kaomoji_sprite sprite hero_sprite --mood "$mood"
+    hero_pose "$mood" "$HERO_REST" sprite
     kaomoji_paint sprite
     out=("${#sprite[@]}" "$HERO_CYCLE" "$KAOMOJI_WIDTH")
 }

@@ -59,17 +59,19 @@ readonly VISITOR_BLINK=2
 # Fills an array with the visitor's graphemes, each as "<style><TAB><text>", see kaomoji_paint.
 # The first ${#VISITOR_WALL[@]} graphemes are the wall, the rest is the person.
 #   --mood <mood>   neutral (default), happy, sad or unknown
-#   --step <n>      step of the hover cycle, selects the hand pose and the blink (default: 0, at rest)
+#   --hand <i>      index of the hand pose (default: 0, at rest)
+#   --blink         eyes closed
 #   <array>         name of the array to fill
 visitor_sprite() {
     local mood=neutral
-    local -i step=0
+    local -i hand=0 blink=0
     while [ $# -gt 0 ]; do
         case $1 in
         --mood) mood=${2?$1: missing value}; shift 2 ;;
         --mood=*) mood=${1#*=}; shift ;;
-        --step) step=${2?$1: missing value}; shift 2 ;;
-        --step=*) step=${1#*=}; shift ;;
+        --hand) hand=${2?$1: missing value}; shift 2 ;;
+        --hand=*) hand=${1#*=}; shift ;;
+        --blink) blink=1; shift ;;
         --) shift; break ;;
         -?*) die "${FUNCNAME[0]}: unknown option: $1" ;;
         *) break ;;
@@ -85,12 +87,10 @@ visitor_sprite() {
     unknown) face=('' '⊙' '﹏' '⊙') ;;
     *) die "unknown mood: $mood" ;;
     esac
-    local -i at=$((step % VISITOR_CYCLE))
-    if ((at >= VISITOR_BLINK_AT && at < VISITOR_BLINK_AT + VISITOR_BLINK)); then
+    if ((blink)); then
         face[1]='-'
         face[3]='-'
     fi
-    local hand=${VISITOR_HAND_POSES[step / VISITOR_SWING % ${#VISITOR_HAND_POSES[@]}]}
 
     local text
     target=()
@@ -102,8 +102,18 @@ visitor_sprite() {
     done
     target+=(
         "$VISITOR_WHITE/"$'\t'')'
-        "$VISITOR_WHITE/"$'\t'"$hand"
+        "$VISITOR_WHITE/"$'\t'"${VISITOR_HAND_POSES[hand]}"
     )
+}
+
+# Fills an array with the visitor's sprite at a step of the hover cycle, built once per pose: the
+# hand changes every VISITOR_SWING steps, the eyes close at VISITOR_BLINK_AT for VISITOR_BLINK steps.
+#   <mood> <step> <array>
+visitor_pose() {
+    local -i at=$(($2 % VISITOR_CYCLE))
+    local -a blink=()
+    if ((at >= VISITOR_BLINK_AT && at < VISITOR_BLINK_AT + VISITOR_BLINK)); then blink=(--blink); fi
+    kaomoji_sprite "$3" visitor_sprite --mood "$1" --hand "$((at / VISITOR_SWING % ${#VISITOR_HAND_POSES[@]}))" "${blink[@]}"
 }
 
 # Renders one frame of the visitor into KAOMOJI_TEXT, its width in cells into KAOMOJI_WIDTH.
@@ -135,7 +145,7 @@ visitor_frame() {
 
     local -a sprite
     if [ -z "$step" ]; then
-        kaomoji_sprite sprite visitor_sprite --mood "$mood"
+        visitor_pose "$mood" 0 sprite
         kaomoji_paint "${color[@]}" sprite
         return 0
     fi
@@ -164,7 +174,7 @@ visitor_frame() {
         fi
     fi
     # Both the wall and the person show their rightmost graphemes, whether coming or going.
-    kaomoji_sprite sprite visitor_sprite --mood "$mood" --step "$hover"
+    visitor_pose "$mood" "$hover" sprite
     if ((wall_shown == wall && person_shown == person)); then
         kaomoji_paint "${color[@]}" sprite
         return 0
@@ -194,7 +204,7 @@ visitor_timeline() {
     done
     local -n out=${1?${FUNCNAME[0]}: array name missing}
     local -a sprite
-    kaomoji_sprite sprite visitor_sprite --mood "$mood"
+    visitor_pose "$mood" 0 sprite
     out=("${#sprite[@]}" "$VISITOR_CYCLE" "${#sprite[@]}")
 }
 

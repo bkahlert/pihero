@@ -81,6 +81,17 @@ class TestSprite:
 
         assert out == "2 xxy"
 
+    @pytest.mark.parametrize("name, poses", [("hero", 4), ("wizard", 7), ("visitor", 3)])
+    def test_a_character_builds_one_sprite_per_pose(self, name, poses):
+        out = bash(
+            f". '{PACKAGE}/{name}'; "
+            f'eval "original_$(declare -f {name}_sprite)"; builds=0; '
+            f'{name}_sprite() {{ builds=$((builds + 1)); original_{name}_sprite "$@"; }}; '
+            f'kaomoji_animate {name} --loops 1 --exit --frame-ms 0 >/dev/null; printf %s "$builds"'
+        )
+
+        assert out == str(poses)
+
 
 class TestFrameCache:
     COUNTING_HERO = (

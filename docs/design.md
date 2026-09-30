@@ -212,9 +212,10 @@ fetches terminal capabilities on demand and several per `tput -S` call, split on
 and a colored animation three. Frames are deterministic and hover frames repeat every cycle, so each frame is rendered once,
 keyed by its arguments; the next frame renders while the current one shows, and further ones while the last render's
 duration says there is time. A sprite is laid out once, plain and colored on demand, with the character offset and display
-width up to each grapheme, so a painting is a substring; built sprites are cached by their builder's arguments. Measured on
+width up to each grapheme, so a painting is a substring; built sprites are cached by their builder's arguments, and a face
+asks for a pose rather than a step, so a cycle builds as many sprites as it has poses. Measured on
 `busy-screen.local` (Pi 1, bash 5.2, the kiosk browser taking half the CPU): a cached frame costs 9 ms and plays at 52–56 ms
-intervals, a fresh one 60–90 ms, the first frame of a new pose 120–270 ms, and the first frame shows after 0.4–1.2 s, most of
+intervals, a fresh one 25–70 ms, the first frame of a new pose 70–240 ms, and the first frame shows after 0.4–1.2 s, most of
 it bash parsing the scripts. Before, a grid frame took 2.3 s and its startup 8–16 s; now 125–160 ms and 3.5–8 s, which keeps
 the preview a Mac-side tool. Where the faces end up is open: the engine in `pihero` with each app owning its face, or the
 whole cast in one package. Tests, performance, and the function API come first.
