@@ -81,7 +81,8 @@ board's only USB controller away from its USB ports and Ethernet. Windows has no
 
 Find the card with `diskutil list external`, then:
 
-    make flash DEVICE=<host> DISK=disk9
+    make flash DEVICE=<host> DISK=disk9          # a directory under devices/
+    make flash DEVICE=<path> DISK=disk9          # or a device directory anywhere, such as a private repository
 
 This
 
