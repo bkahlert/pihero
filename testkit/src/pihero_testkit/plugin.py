@@ -12,6 +12,7 @@ def pytest_addoption(parser):
     group.addoption("--platform", default="linux/arm64", help="for --target=podman: container platform")
     group.addoption("--qemu-accel", default="hvf", help="for --target=vm: hvf or tcg")
     group.addoption("--device", default=None, help="for --target=vm: device directory (default: the testkit's all-features device)")
+    group.addoption("--display", default="800x480", help="for --target=vm: the virtual display's WIDTHxHEIGHT, or none")
     group.addoption("--keep", action="store_true", help="keep the VM or container running after the session")
 
 
@@ -20,6 +21,10 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "installed: runs against any target with the packages installed (podman, vm, ssh)")
     config.addinivalue_line("markers", "boot: cross-cutting checks that need a booted VM or device (vm, ssh)")
     config.addinivalue_line("markers", "mutating: changes the target's state; skipped on --target=ssh")
+    if config.getoption("--target") == "vm":
+        from .vm import parse_display
+
+        parse_display(config.getoption("--display"))
 
 
 def pytest_collection_modifyitems(config, items):
@@ -63,7 +68,7 @@ def target(request, version, packages):
     elif kind == "vm":
         from .vm import provisioned_vm
 
-        with provisioned_vm(packages, request.config.getoption("--device"), request.config.getoption("--qemu-accel"), keep) as vm:
+        with provisioned_vm(packages, request.config.getoption("--device"), request.config.getoption("--qemu-accel"), keep, display=request.config.getoption("--display")) as vm:
             yield vm
     else:
         from .ssh import SshTarget
