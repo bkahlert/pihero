@@ -82,8 +82,9 @@ class Vm:
     def wait_exit(self, timeout: int = 180) -> None:
         self.process.wait(timeout)
 
-    def wait_provisioned(self, timeout: int = 900) -> None:
+    def wait_provisioned(self, timeout: int = 1800) -> None:
         """Follows cloud-init to the end, including the reboot its power_state requests, until no reboot is pending."""
+        # The budget is for TCG, where the kiosk's WebKit install stretches cloud-init; under HVF it is over in minutes.
         deadline = time.time() + timeout
         while time.time() < deadline:
             try:
@@ -94,7 +95,7 @@ class Vm:
                     raise
                 self.start()
                 continue
-            status = self.ssh("cloud-init status --wait --long", timeout=600)
+            status = self.ssh("cloud-init status --wait --long", timeout=1200)
             if self._recovered(status):
                 continue
             if status.returncode != 0:
