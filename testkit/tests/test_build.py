@@ -49,3 +49,54 @@ class TestBuild:
             assert "-rwxr-xr-x" in contents and "./usr/lib/pihero/probe" in contents
         finally:
             subprocess.run(["rm", "-rf", "dist/probe"], check=True)
+
+
+class TestDiscover:
+    def test_finds_manifests_and_build_scripts_but_not_plain_directories(self, tmp_path, monkeypatch):
+        (tmp_path / "a-nfpm").mkdir()
+        (tmp_path / "a-nfpm" / "nfpm.yaml").write_text("name: a\n")
+        (tmp_path / "b-script").mkdir()
+        (tmp_path / "b-script" / "build").write_text("#!/bin/sh\n")
+        (tmp_path / "b-script" / "Containerfile").write_text("FROM scratch\n")
+        (tmp_path / "c-plain").mkdir()
+        (tmp_path / "c-plain" / "README.md").write_text("")
+        monkeypatch.setattr(build, "PACKAGES", tmp_path)
+
+        found = build.discover()
+
+        assert [p.name for p in found] == ["a-nfpm", "b-script"]
+
+
+class TestBuildScript:
+    def test_runs_the_script_in_its_image_and_returns_the_debs_it_prints(self):
+        pkg, dist = probe_script("pihero-zz-probe", 'deb="$1/pihero-zz-probe_9.9.9_arm64.deb"\n: > "$deb"\nprintf "%s\\n" "$deb"\n')
+        try:
+            debs = build.build_script(pkg, dist=dist)
+
+            assert debs == [dist / "pihero-zz-probe_9.9.9_arm64.deb"]
+            assert debs[0].exists()
+        finally:
+            remove_probe(pkg)
+
+    def test_fails_on_a_script_that_prints_no_deb(self):
+        pkg, dist = probe_script("pihero-zz-silent", 'echo building >&2\n')
+        try:
+            with pytest.raises(RuntimeError, match="pihero-zz-silent"):
+                build.build_script(pkg, dist=dist)
+        finally:
+            remove_probe(pkg)
+
+
+def probe_script(name: str, body: str) -> tuple[Path, Path]:
+    pkg = Path("dist") / f"probe-{name}" / "src" / name
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "Containerfile").write_text(f"FROM {tools.ensure_image()}\nHEALTHCHECK NONE\n")
+    script = pkg / "build"
+    script.write_text('#!/bin/sh\nset -e\n[ "$1" = --dist ] && shift\n' + body)
+    script.chmod(0o755)
+    return pkg, Path.cwd() / "dist" / f"probe-{name}"
+
+
+def remove_probe(pkg: Path) -> None:
+    subprocess.run([*tools.PODMAN, "rmi", "-f", tools.image(pkg / "Containerfile")], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["rm", "-rf", str(pkg.parents[1])], check=True)
