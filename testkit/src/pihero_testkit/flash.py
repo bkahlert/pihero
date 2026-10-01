@@ -159,7 +159,7 @@ def say(message: str) -> None:
 
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
-        print("usage: python -m pihero_testkit.flash DEVICE DISK   (e.g. checkpoint disk9; see: diskutil list external)", file=sys.stderr)
+        print("usage: python -m pihero_testkit.flash DEVICE DISK   (DEVICE: a directory under devices/ or a path; e.g. mypi disk9; see: diskutil list external)", file=sys.stderr)
         return 2
     if sys.platform != "darwin":
         print("flash is macOS only", file=sys.stderr)
