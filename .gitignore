@@ -3,6 +3,7 @@
 /.cache
 .gradle
 build
+!packages/*/build
 dist/
 packages/*/.build/
 .venv/

@@ -1,0 +1,74 @@
+Description: drm: keep the renderer out of the SHM buffer resource
+ The modeset renderer stored its own pointer in the wl_buffer resource's
+ user data. For an SHM buffer libwayland keeps the wl_shm_buffer there, so
+ the second attach of the same buffer handed the copy garbage and cog
+ crashed on the third software-rendered frame. The renderer now lives in
+ cog's own buffer record, and the client's SHM buffer is released as soon
+ as its pixels are copied, so a client-side pool resize is never deferred
+ behind cog's reference.
+Origin: backport, https://github.com/Igalia/cog/pull/794
+Bug: https://github.com/Igalia/cog/issues/742
+Last-Update: 2026-10-01
+---
+--- a/platform/drm/cog-drm-modeset-renderer.c
++++ b/platform/drm/cog-drm-modeset-renderer.c
+@@ -74,6 +74,7 @@
+     uint32_t            fb_id;
+     struct gbm_bo      *bo;
+     struct wl_resource *buffer_resource;
++    void               *renderer;
+ 
+     struct {
+         struct wl_resource                 *resource;
+@@ -137,14 +138,13 @@
+ destroy_buffer_notify(struct wl_listener *listener, void *data)
+ {
+     struct buffer_object  *buffer = wl_container_of(listener, buffer, destroy_listener);
+-    CogDrmModesetRenderer *renderer = wl_resource_get_user_data(buffer->buffer_resource);
++    CogDrmModesetRenderer *renderer = buffer->renderer;
+ 
+     if (renderer->committed_buffer == buffer)
+         renderer->committed_buffer = NULL;
+ 
+     wl_list_remove(&buffer->link);
+ 
+-    wl_resource_set_user_data(buffer->buffer_resource, NULL);
+     destroy_buffer(renderer, buffer);
+ }
+ 
+@@ -216,7 +216,7 @@
+     wl_list_insert(&self->buffer_list, &buffer->link);
+     buffer->destroy_listener.notify = destroy_buffer_notify;
+     wl_resource_add_destroy_listener(buffer_resource, &buffer->destroy_listener);
+-    wl_resource_set_user_data(buffer_resource, self);
++    buffer->renderer = self;
+ 
+     buffer->fb_id = fb_id;
+     buffer->bo = bo;
+@@ -271,7 +271,7 @@
+     wl_list_insert(&self->buffer_list, &buffer->link);
+     buffer->destroy_listener.notify = destroy_buffer_notify;
+     wl_resource_add_destroy_listener(buffer_resource, &buffer->destroy_listener);
+-    wl_resource_set_user_data(buffer_resource, self);
++    buffer->renderer = self;
+ 
+     buffer->fb_id = fb_id;
+     buffer->bo = bo;
+@@ -534,7 +534,7 @@
+     if (buffer) {
+         drm_copy_shm_buffer_into_bo(exported_shm_buffer, buffer->bo);
+ 
+-        buffer->export.shm_buffer = exported_buffer;
++        wpe_view_backend_exportable_fdo_dispatch_release_shm_exported_buffer(self->exportable, exported_buffer);
+         drm_commit_buffer(self, buffer);
+         return;
+     }
+@@ -543,7 +543,7 @@
+     if (buffer) {
+         drm_copy_shm_buffer_into_bo(exported_shm_buffer, buffer->bo);
+ 
+-        buffer->export.shm_buffer = exported_buffer;
++        wpe_view_backend_exportable_fdo_dispatch_release_shm_exported_buffer(self->exportable, exported_buffer);
+         drm_commit_buffer(self, buffer);
+     }
+ }
