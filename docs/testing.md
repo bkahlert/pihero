@@ -11,7 +11,7 @@ it as a pinned git dependency.
 |---|---|---|---|
 | 0 | tools container | seconds | Python helpers against fixtures, shellcheck, `systemd-analyze verify`, `cloud-init schema` for the device files, every package builds |
 | 1 | systemd podman container, `linux/arm64` and `linux/arm/v7` | about a minute | install, dependencies resolve on both archives, units enable and start, renderers write the right files, remove and purge leave nothing behind |
-| 2 | QEMU `virt` VM with the real Raspberry Pi OS Lite root filesystem | under ten minutes | a device file boots to a provisioned system: cloud-init done without errors, no failed unit, Avahi records, boot config edits that survive a reboot, watchdog armed, the `power_state` reboot |
+| 2 | QEMU `virt` VM with the real Raspberry Pi OS Lite root filesystem | under ten minutes | a device file boots to a provisioned system: cloud-init done without errors, no failed unit, Avahi records, boot config edits that survive a reboot, watchdog armed, the `power_state` reboot, the kiosk active on a virtual display, a screenshot of it |
 | ssh | a Raspberry Pi | seconds | the `installed` tests against the packages a real device has; mutating tests are skipped |
 
 Tiers 1, 2, and ssh run the same `test_installed.py` files.
@@ -35,9 +35,9 @@ target's state and is skipped over ssh. Fixtures: `host` is the testinfra host; 
 with `install_extra`, `purge`, `reinstall`, and `reboot`; `version` is what the installed packages must report, the built
 version or, over ssh, the one on the device; `packages` are the built `.deb` paths. Options beyond `--target` and
 `--target-uri`: `--platform` for podman, `--qemu-accel` for the VM, `--device` for a device directory other than the testkit's
-`all-features`, and `--keep` to leave the container or VM running. `VERSION=` overrides the git-derived version. A tier-0
-test of a Mac-side command that needs macOS tools is `skipif` not darwin: it runs locally and under `make release`, and
-CI's Linux runners skip it.
+`all-features`, `--display` for the VM's virtual display (`WIDTHxHEIGHT`, default `800x480`, or `none`), and `--keep` to
+leave the container or VM running. `VERSION=` overrides the git-derived version. A tier-0 test of a Mac-side command that
+needs macOS tools is `skipif` not darwin: it runs locally and under `make release`, and CI's Linux runners skip it.
 
 On-device executables are extensionless Python files; tier-0 tests import them with `pihero_testkit.scripts.load_script` and
 call their functions, so a script keeps its logic in functions with injectable dependencies (`environ`, `execvp`, `sleep`,
@@ -104,7 +104,9 @@ The harness plays the firmware.
   partition). Everything else passes verbatim, so a test can edit a parameter, reboot, and assert `/proc/cmdline`.
 - **Disk and QEMU.** A copy-on-write overlay per run over the pristine base; `qemu-system-aarch64 -M virt` with HVF on the Mac
   (`--qemu-accel=tcg` elsewhere), 1 GiB, two cores, user-mode networking with a port forward for SSH, `-no-reboot` so a guest
-  reboot returns to the harness, serial console logged under `dist/vm/<device>/`.
+  reboot returns to the harness, serial console logged under `dist/vm/<device>/`, a `virtio-gpu-pci` display at the
+  configured size whose EDID makes the guest's connector `Virtual-1` prefer it, and a QMP monitor on a localhost TCP port
+  through which `Vm.screenshot(path)` saves a PNG of the display (`DISPLAY=none` for the headless VM).
 - **Repository.** The run builds every package, generates a flat unsigned repository under `dist/vm/<device>/repo`, serves it
   from the Mac, and the all-features device file points its apt source at the QEMU host address with `Trusted: yes`.
 - **Lifecycle.** Boot, wait for SSH (7 s under HVF), `cloud-init status --wait`, follow the `power_state` reboot, run the tests,
