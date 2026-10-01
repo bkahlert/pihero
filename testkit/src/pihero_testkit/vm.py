@@ -18,7 +18,7 @@ from pathlib import Path
 import testinfra
 
 from . import bootfs as bootfs_mod
-from . import build, prepare, repo
+from . import build, prepare, qmp, repo
 
 PACKAGE_DIR = Path(str(files("pihero_testkit")))
 KEY = PACKAGE_DIR / "keys" / "pihero-testkit"
@@ -176,6 +176,13 @@ class Vm:
 
     def ssh_command(self) -> str:
         return f"ssh -i {self.key} -p {self.port} {' '.join(SSH_OPTS)} {self.user}@127.0.0.1"
+
+    def screenshot(self, path: Path) -> Path:
+        """Saves what the virtual display shows as a PNG at path and returns it; fails without a display."""
+        path = path.resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        qmp.execute(self.qmp_port, "screendump", {"filename": str(path), "format": "png"})
+        return path
 
 
 @contextmanager
