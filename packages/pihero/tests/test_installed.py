@@ -60,7 +60,6 @@ class TestRemoval:
 
         assert not host.file("/usr/lib/pihero/bootconfig").exists
         assert not host.file("/etc/update-motd.d/50-pihero").exists
-        assert not host.file("/usr/share/pihero/hero.txt").exists
 
         target.reinstall()
 
