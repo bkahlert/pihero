@@ -86,6 +86,18 @@ class TestBuildScript:
         finally:
             remove_probe(pkg)
 
+    def test_returns_the_packages_debs_already_in_dist_without_building_its_image(self):
+        pkg, dist = probe_script("pihero-zz-built", 'exit 1\n')
+        (pkg / "Containerfile").write_text("FROM localhost/pihero-no-such-image:0\n")
+        deb = dist / "pihero-zz-built_1.0_arm64.deb"
+        deb.write_bytes(b"")
+        try:
+            debs = build.build_script(pkg, dist=dist)
+
+            assert debs == [deb]
+        finally:
+            remove_probe(pkg)
+
 
 def probe_script(name: str, body: str) -> tuple[Path, Path]:
     pkg = Path("dist") / f"probe-{name}" / "src" / name

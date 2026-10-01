@@ -59,6 +59,11 @@ def build_script(pkg_dir: Path, dist: Path = DIST) -> list[Path]:
     pkg_dir = pkg_dir.resolve()
     dist = dist.resolve()
     dist.mkdir(parents=True, exist_ok=True)
+    # A self-built package carries its own version, so a deb of it in dist is the one the script would reuse anyway;
+    # returning it here spares building the image, which a CI runner would otherwise do on every job.
+    existing = sorted(dist.glob(f"{pkg_dir.name}_*.deb"))
+    if existing:
+        return existing
     image = tools.ensure_image(pkg_dir / "Containerfile", TARGET_PLATFORM)
     script = f"/work/{pkg_dir.relative_to(Path.cwd())}/build"
     # Only the deb paths come through stdout; the build's own output stays on the terminal.

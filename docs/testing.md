@@ -59,8 +59,9 @@ testinfra; upstream inputs are pinned in [images.lock](../testkit/src/pihero_tes
 A package directory with a `build` script next to a `Containerfile` builds itself: `make build` builds that image for
 `linux/arm64` whatever the host is, runs the script with the repository mounted at `/work`, and takes the `.deb` paths it
 prints. [packages/cog](../packages/cog) is the one such package; its image carries cog's build dependencies, which would
-double the tools image, and is the slow part, cached by the Containerfile's digest. The package itself builds in seconds
-and is reused while its `.deb` exists, so `make clean` is what rebuilds it.
+double the tools image, and is the slow part, cached by the Containerfile's digest. The package itself builds in seconds.
+While a `.deb` of the package exists in `dist/`, the testkit returns it without building even the image, so `make clean`
+is what rebuilds it; CI caches that `.deb` keyed on `packages/cog/`.
 
 ## Tier 1
 
