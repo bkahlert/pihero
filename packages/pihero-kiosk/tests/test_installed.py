@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 pytestmark = pytest.mark.installed
@@ -56,6 +58,17 @@ class TestUnit:
             pytest.skip("no connected display")
 
         assert host.service("pihero-kiosk").is_running
+
+    def test_has_not_restarted_since_boot(self, host):
+        if not host.file("/dev/dri").exists:
+            pytest.skip("no display adapter")
+        if "connected" not in host.run("cat /sys/class/drm/card*-*/status").stdout.split():
+            pytest.skip("no connected display")
+        time.sleep(20)
+
+        restarts = host.check_output("systemctl show -p NRestarts --value pihero-kiosk.service").strip()
+
+        assert restarts == "0"
 
 
 class TestStop:
