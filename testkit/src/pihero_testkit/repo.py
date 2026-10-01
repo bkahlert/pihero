@@ -11,13 +11,13 @@ from . import tools
 
 
 
-def release_options(origin: str = "pihero", label: str = "pihero", description: str = "Pi Hero packages") -> list[str]:
+def release_options(origin: str = "pihero", label: str = "pihero", description: str = "Pi Hero packages", architectures: str = "all arm64") -> list[str]:
     """apt-ftparchive options for the Release file; an application publishing its own repository passes its name."""
     return [
         "-o", f"APT::FTPArchive::Release::Origin={origin}",
         "-o", f"APT::FTPArchive::Release::Label={label}",
         "-o", "APT::FTPArchive::Release::Suite=stable",
-        "-o", "APT::FTPArchive::Release::Architectures=all",
+        "-o", f"APT::FTPArchive::Release::Architectures={architectures}",
         "-o", f"APT::FTPArchive::Release::Description={description}",
     ]
 
