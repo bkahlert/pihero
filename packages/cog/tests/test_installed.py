@@ -5,7 +5,7 @@ VERSION = "0.18.4-1+pihero1"
 
 
 class TestPackage:
-    def test_is_installed(self, host):
+    def test_comes_with_the_kiosk(self, host):
         assert host.package("cog").is_installed
 
     def test_is_pi_heros_build_on_arm64(self, host):
@@ -15,3 +15,9 @@ class TestPackage:
         version = host.package("cog").version
 
         assert version == VERSION
+
+
+@pytest.fixture(autouse=True)
+def with_the_kiosk(host):
+    if not host.package("pihero-kiosk").is_installed:
+        pytest.skip("cog comes with pihero-kiosk")
