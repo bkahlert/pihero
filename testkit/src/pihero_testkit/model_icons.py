@@ -1,8 +1,8 @@
 """Regenerates docs/models and the model tables in the READMEs from this Mac's CoreTypes.bundle.
 
-macOS only. device-icons dumps the icons of the pictured model identifiers into a temporary directory; docs/models keeps
-its `icons/` and `sidebar/`, quantised with pngquant, and each README gets the dump's table spliced in between
-`<!-- docs-models -->` and `<!-- /docs-models -->`, followed by a comment naming the call that made it.
+macOS only. device-icons exports the icons of the pictured model identifiers into a temporary directory; docs/models
+keeps its `icons/` and `sidebar/`, quantised with pngquant, and each README gets the export's table spliced in
+between `<!-- docs-models -->` and `<!-- /docs-models -->`, followed by a comment naming the call that made it.
 """
 
 import argparse
@@ -14,7 +14,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-DEVICE_ICONS = ["uvx", "--from", "git+https://github.com/bkahlert/device-icons@v0.1.0", "device-icons"]
+DEVICE_ICONS = ["uvx", "--from", "git+https://github.com/bkahlert/device-icons@v0.2.0", "device-icons"]
 PNGQUANT = ["pngquant", "--force", "--skip-if-larger", "--strip", "--ext", ".png"]
 PNGQUANT_SKIPPED = 98
 START, END = "<!-- docs-models -->", "<!-- /docs-models -->"
@@ -22,7 +22,7 @@ START, END = "<!-- docs-models -->", "<!-- /docs-models -->"
 
 @dataclass(frozen=True)
 class Table:
-    """A model table in a README: the model identifiers it pictures and how the dump's table is fitted to the file."""
+    """A model table in a README: the model identifiers it pictures and how the export's table is fitted to the file."""
 
     readme: str
     models: tuple[str, ...]
@@ -43,14 +43,14 @@ TABLES = (
 )
 
 
-def dump_command(models: tuple[str, ...]) -> list[str]:
-    """Return the device-icons call that dumps the given model identifiers as a horizontal table."""
-    return [*DEVICE_ICONS, "dump", "--horizontal", "--no-open", *(arg for model in models for arg in ("--model", model))]
+def export_command(models: tuple[str, ...]) -> list[str]:
+    """Return the device-icons call that exports the given model identifiers as a horizontal table."""
+    return [*DEVICE_ICONS, "icons", "export", "--horizontal", "--no-open", *(arg for model in models for arg in ("--model", model))]
 
 
-def table(dump_readme: str, prefix: str, width: int | None = None) -> str:
-    """Return the table of a dump's README.md, `src=` paths prefixed with prefix and, given a width, every image that wide."""
-    body = dump_readme.split("\n", 2)[2].replace('src="', f'src="{prefix}')
+def table(export_readme: str, prefix: str, width: int | None = None) -> str:
+    """Return the table of an export's README.md, `src=` paths prefixed with prefix and, given a width, every image that wide."""
+    body = export_readme.split("\n", 2)[2].replace('src="', f'src="{prefix}')
     if width is not None:
         body = re.sub(r'width="\d+"', f'width="{width}"', body)
     return body.strip("\n") + "\n"
@@ -58,7 +58,7 @@ def table(dump_readme: str, prefix: str, width: int | None = None) -> str:
 
 def comment(spec: Table) -> str:
     """Return the HTML comment naming the call and the post-processing the table above it was made with."""
-    call = " \\\n".join(shell_lines(dump_command(spec.models)))
+    call = " \\\n".join(shell_lines(export_command(spec.models)))
     fitted = f"the image paths prefixed with {spec.prefix}" + (f" and every width set to {spec.width}" if spec.width is not None else "")
     return (
         "<!--\n"
@@ -66,14 +66,14 @@ def comment(spec: Table) -> str:
         "\n"
         f"{call}\n"
         "\n"
-        f"then keeps the dump's icons/ and sidebar/ as docs/models/, quantised with pngquant, and splices in its table with\n"
+        f"then keeps the export's icons/ and sidebar/ as docs/models/, quantised with pngquant, and splices in its table with\n"
         f"{fitted}.\n"
         "-->\n"
     )
 
 
 def shell_lines(command: list[str], width: int = 98) -> list[str]:
-    """Return the dump command as indented lines: the options on the first, `--model` pairs packed onto the rest."""
+    """Return the export command as indented lines: the options on the first, `--model` pairs packed onto the rest."""
     first = command.index("--model")
     lines = ["    " + " ".join(command[:first])]
     for pair in (" ".join(command[i : i + 2]) for i in range(first, len(command), 2)):
@@ -84,9 +84,9 @@ def shell_lines(command: list[str], width: int = 98) -> list[str]:
     return lines
 
 
-def block(spec: Table, dump_readme: str) -> str:
+def block(spec: Table, export_readme: str) -> str:
     """Return what goes between the markers of a README: the fitted table, a blank line, and the comment."""
-    return f"{table(dump_readme, spec.prefix, spec.width)}\n{comment(spec)}"
+    return f"{table(export_readme, spec.prefix, spec.width)}\n{comment(spec)}"
 
 
 def splice(text: str, block: str) -> str:
@@ -101,16 +101,16 @@ def splice(text: str, block: str) -> str:
     return f"{text[:start]}\n{block}{text[end:]}"
 
 
-def install(root: Path, dumps: list[tuple[Table, Path]]) -> None:
-    """Replace root/docs/models with the icons of all dumps and splice every README's table from its dump."""
+def install(root: Path, exports: list[tuple[Table, Path]]) -> None:
+    """Replace root/docs/models with the icons of all exports and splice every README's table from its export."""
     models = root / "docs" / "models"
     shutil.rmtree(models, ignore_errors=True)
-    for _, dump in dumps:
+    for _, export in exports:
         for kind in ("icons", "sidebar"):
-            shutil.copytree(dump / kind, models / kind, dirs_exist_ok=True)
-    for spec, dump in dumps:
+            shutil.copytree(export / kind, models / kind, dirs_exist_ok=True)
+    for spec, export in exports:
         readme = root / spec.readme
-        readme.write_text(splice(readme.read_text(), block(spec, (dump / "README.md").read_text())))
+        readme.write_text(splice(readme.read_text(), block(spec, (export / "README.md").read_text())))
 
 
 def quantise(pngs: list[Path]) -> None:
@@ -132,13 +132,13 @@ def main(argv: list[str]) -> int:
         return 2
     root = Path.cwd()
     with tempfile.TemporaryDirectory() as tmp:
-        dumps = []
+        exports = []
         for index, spec in enumerate(TABLES):
             out = Path(tmp) / str(index)
-            if subprocess.run([*dump_command(spec.models), str(out)]).returncode:
-                raise SystemExit(f"device-icons dump failed for {spec.readme}")
-            dumps.append((spec, out))
-        install(root, dumps)
+            if subprocess.run([*export_command(spec.models), str(out)]).returncode:
+                raise SystemExit(f"device-icons icons export failed for {spec.readme}")
+            exports.append((spec, out))
+        install(root, exports)
     quantise(sorted((root / "docs" / "models").rglob("*.png")))
     return 0
 

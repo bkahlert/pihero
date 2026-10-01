@@ -8,43 +8,43 @@ from pihero_testkit.model_icons import Table
 pytestmark = pytest.mark.tier0
 
 
-class TestDumpCommand:
-    def test_names_every_model_identifier_after_the_dump_options(self):
-        command = model_icons.dump_command(("AirPort4", "MacPro7,1@ECOLOR=226,226,224"))
+class TestExportCommand:
+    def test_names_every_model_identifier_after_the_export_options(self):
+        command = model_icons.export_command(("AirPort4", "MacPro7,1@ECOLOR=226,226,224"))
 
         assert command == [
-            *model_icons.DEVICE_ICONS, "dump", "--horizontal", "--no-open",
+            *model_icons.DEVICE_ICONS, "icons", "export", "--horizontal", "--no-open",
             "--model", "AirPort4", "--model", "MacPro7,1@ECOLOR=226,226,224",
         ]
 
 
 class TestTable:
     def test_drops_the_lead_sentence(self):
-        table = model_icons.table(DUMP_README, "")
+        table = model_icons.table(EXPORT_README, "")
 
         assert table.startswith("| Model identifier |")
 
     def test_prefixes_the_image_paths(self):
-        table = model_icons.table(DUMP_README, "../docs/models/")
+        table = model_icons.table(EXPORT_README, "../docs/models/")
 
         assert 'src="../docs/models/icons/com.apple.airport-express.png"' in table
         assert 'src="../docs/models/sidebar/SidebarAirportExpress.png"' in table
 
     def test_keeps_the_widths_without_one(self):
-        table = model_icons.table(DUMP_README, "")
+        table = model_icons.table(EXPORT_README, "")
 
         assert 'width="128"' in table
         assert 'width="32"' in table
 
     def test_sets_every_width_to_the_given_one(self):
-        table = model_icons.table(DUMP_README, "", width=64)
+        table = model_icons.table(EXPORT_README, "", width=64)
 
         assert table.count('width="64"') == 2
         assert 'width="128"' not in table
         assert 'width="32"' not in table
 
     def test_ends_with_one_newline(self):
-        table = model_icons.table(DUMP_README + "\n\n", "")
+        table = model_icons.table(EXPORT_README + "\n\n", "")
 
         assert table.endswith("|\n")
         assert not table.endswith("\n\n")
@@ -60,7 +60,7 @@ class TestComment:
     def test_names_the_call_with_every_model_identifier(self):
         comment = model_icons.comment(DEVICES)
 
-        assert "device-icons dump --horizontal --no-open" in comment
+        assert "device-icons icons export --horizontal --no-open" in comment
         assert "--model AirPort7,120" in comment
         assert "--model MacPro7,1@ECOLOR=226,226,224" in comment
 
@@ -71,7 +71,7 @@ class TestComment:
         assert len(call) > 1
         assert all(line.endswith(" \\") for line in call[:-1])
         assert not call[-1].endswith("\\")
-        assert call[0].endswith("device-icons dump --horizontal --no-open \\")
+        assert call[0].endswith("device-icons icons export --horizontal --no-open \\")
         assert all(line.strip(" \\").startswith("--model ") for line in call[1:])
         assert all(len(line) <= 100 for line in call[1:])
 
@@ -117,11 +117,11 @@ class TestSplice:
 
 
 class TestInstall:
-    def test_replaces_docs_models_with_the_union_of_the_dumps_images(self, tmp_path):
+    def test_replaces_docs_models_with_the_union_of_the_exports_images(self, tmp_path):
         root = repo(tmp_path)
         (root / "docs" / "models" / "stale.png").write_bytes(b"old")
-        first = dump(tmp_path / "first", icons=["com.apple.airport-express"], sidebars=["SidebarAirportExpress"])
-        second = dump(tmp_path / "second", icons=["com.apple.macpro-cylinder"], sidebars=["SidebarMacProCylinder"])
+        first = export(tmp_path / "first", icons=["com.apple.airport-express"], sidebars=["SidebarAirportExpress"])
+        second = export(tmp_path / "second", icons=["com.apple.macpro-cylinder"], sidebars=["SidebarMacProCylinder"])
 
         model_icons.install(root, [(DEVICES, first), (README, second)])
 
@@ -131,8 +131,8 @@ class TestInstall:
 
     def test_splices_each_readme_with_its_table_and_comment(self, tmp_path):
         root = repo(tmp_path)
-        first = dump(tmp_path / "first", icons=["com.apple.airport-express"], sidebars=["SidebarAirportExpress"])
-        second = dump(tmp_path / "second", icons=["com.apple.airport-express"], sidebars=["SidebarAirportExpress"])
+        first = export(tmp_path / "first", icons=["com.apple.airport-express"], sidebars=["SidebarAirportExpress"])
+        second = export(tmp_path / "second", icons=["com.apple.airport-express"], sidebars=["SidebarAirportExpress"])
 
         model_icons.install(root, [(DEVICES, first), (README, second)])
 
@@ -146,8 +146,8 @@ class TestInstall:
         assert readme.endswith(f"{model_icons.END}\n\nAll eleven choices.\n")
 
 
-DUMP_README = (
-    "The icon Finder draws for each model identifier, dumped from `CoreTypes.bundle` by [device-icons](https://github.com/bkahlert/device-icons).\n"
+EXPORT_README = (
+    "The icon Finder draws for each model identifier, exported from `CoreTypes.bundle` by [device-icons](https://github.com/bkahlert/device-icons).\n"
     "\n"
     "| Model identifier | `AirPort4` |\n"
     "| --- | :-: |\n"
@@ -172,7 +172,7 @@ def repo(root: Path) -> Path:
     return root
 
 
-def dump(out: Path, *, icons: list[str], sidebars: list[str]) -> Path:
+def export(out: Path, *, icons: list[str], sidebars: list[str]) -> Path:
     (out / "icons").mkdir(parents=True)
     (out / "sidebar").mkdir()
     (out / "by-sidebar").mkdir()
@@ -181,5 +181,5 @@ def dump(out: Path, *, icons: list[str], sidebars: list[str]) -> Path:
     for sidebar in sidebars:
         (out / "sidebar" / f"{sidebar}.png").write_bytes(b"sidebar")
     (out / "index.json").write_text("{}")
-    (out / "README.md").write_text(DUMP_README)
+    (out / "README.md").write_text(EXPORT_README)
     return out
