@@ -16,6 +16,12 @@ TIER1_DIR = Path(str(files("pihero_testkit") / "tier1"))
 ARCHITECTURES = {"linux/arm64": "arm64", "linux/arm/v7": "armhf"}
 
 
+def installable(debs: list[Path], platform: str) -> list[Path]:
+    """The debs apt can install on the platform: architecture-independent ones and those built for its architecture."""
+    architectures = {"all", ARCHITECTURES[platform]}
+    return [deb for deb in debs if deb.stem.rsplit("_", 1)[1] in architectures]
+
+
 def image_tag(platform: str, context: Path = TIER1_DIR) -> str:
     """The tag carries a digest of the build context, so a changed Containerfile or fixture is rebuilt on first use."""
     digest = hashlib.sha256()
@@ -72,7 +78,7 @@ class SystemdContainer:
 
     def install(self, debs: list[Path]) -> None:
         self._apt("update")
-        self._apt("install", *[f"/dist/{deb.name}" for deb in debs])
+        self._apt("install", *[f"/dist/{deb.name}" for deb in installable(debs, self.platform)])
 
     def install_extra(self, names: list[str]) -> None:
         self._apt("install", *names)
@@ -84,7 +90,7 @@ class SystemdContainer:
         self._apt("purge", *names)
 
     def reinstall(self) -> None:
-        self._apt("install", "--reinstall", *[f"/dist/{deb.name}" for deb in self.debs])
+        self._apt("install", "--reinstall", *[f"/dist/{deb.name}" for deb in installable(self.debs, self.platform)])
 
     def reboot(self) -> None:
         return None

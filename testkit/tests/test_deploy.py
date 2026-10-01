@@ -7,8 +7,9 @@ from pihero_testkit import deploy
 
 pytestmark = pytest.mark.tier0
 
-STATUS = "bash ii \nkaomoji ii \npihero ii \npihero-avahi ii \npihero-usb-gadget rc \npihero-kiosk iF \n"
+STATUS = "arm64\nbash ii \nkaomoji ii \npihero ii \npihero-avahi ii \npihero-usb-gadget rc \npihero-kiosk iF \n"
 DEBS = [Path(f"dist/{name}_2.3.0_all.deb") for name in ["kaomoji", "pihero", "pihero-avahi", "pihero-kiosk", "pihero-usb-gadget"]]
+COG = Path("dist/cog_0.18.4-1+pihero1_arm64.deb")
 
 
 class TestInstalled:
@@ -23,14 +24,31 @@ class TestInstalled:
         assert names == set()
 
 
+class TestArchitecture:
+    def test_is_the_first_line_of_the_status(self):
+        architecture = deploy.architecture(STATUS)
+
+        assert architecture == "arm64"
+
+
 class TestSelect:
     def test_keeps_the_debs_of_installed_packages_in_build_order(self):
-        debs = deploy.select(DEBS, {"pihero-avahi", "pihero", "kaomoji"})
+        debs = deploy.select(DEBS, {"pihero-avahi", "pihero", "kaomoji"}, "arm64")
 
         assert debs == DEBS[:3]
 
     def test_tells_a_package_from_the_siblings_sharing_its_prefix(self):
-        debs = deploy.select(DEBS, {"pihero"})
+        debs = deploy.select(DEBS, {"pihero"}, "arm64")
+
+        assert debs == [DEBS[1]]
+
+    def test_keeps_a_deb_built_for_the_targets_architecture(self):
+        debs = deploy.select([*DEBS, COG], {"pihero", "cog"}, "arm64")
+
+        assert debs == [DEBS[1], COG]
+
+    def test_leaves_out_debs_built_for_another_architecture(self):
+        debs = deploy.select([*DEBS, COG], {"pihero", "cog"}, "armhf")
 
         assert debs == [DEBS[1]]
 
@@ -43,11 +61,12 @@ class TestMain:
 
         assert rc == 0
         assert calls[0][0] == "ssh" and "dpkg-query" in calls[0][2]
+        assert "dpkg --print-architecture" in calls[0][2]
         assert calls[2] == ["scp", "-q", *map(str, DEBS[:3]), "pi@host:/tmp/pihero-deploy/"]
         assert calls[3][0] == "ssh" and "apt-get install" in calls[3][2]
 
     def test_exits_2_on_a_target_with_none_of_the_packages(self, monkeypatch, capsys):
-        calls = fake_target(monkeypatch, "bash ii \n")
+        calls = fake_target(monkeypatch, "arm64\nbash ii \n")
 
         rc = deploy.main(["pi@host"])
 

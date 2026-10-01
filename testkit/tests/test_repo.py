@@ -20,3 +20,9 @@ def test_release_options_take_an_apps_origin():
     assert "APT::FTPArchive::Release::Label=netmon" in options
     assert "APT::FTPArchive::Release::Description=Netmon packages" in options
     assert "APT::FTPArchive::Release::Suite=stable" in options
+
+
+def test_release_options_name_the_architectures_the_repository_carries():
+    options = repo.release_options()
+
+    assert "APT::FTPArchive::Release::Architectures=all arm64" in options

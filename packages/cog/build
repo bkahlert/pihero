@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Purpose: Build Debian's cog 0.18.4-1 with the DRM SHM export fix as cog 0.18.4-1+pihero1 for this machine's architecture.
+# Usage:   build --dist <directory>
+#
+# Options:
+#   --dist <directory>   Where the .deb goes; an existing .deb is reused. The build tree is a temporary directory in the container.
+#   -h, --help           Show this help.
+#
+# Runs inside the image built from the Containerfile next to this script, with the repository mounted at /work.
+# Prints the path of the .deb on stdout and nothing else; everything else goes to stderr.
+
+set -euo pipefail
+
+usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
+die()   { printf '%s: %s\nSee '\''%s --help'\''\n' "${0##*/}" "$1" "${0##*/}" >&2; exit 2; }
+
+readonly UPSTREAM=0.18.4
+readonly DEBIAN=1
+readonly PIHERO=1
+readonly VERSION="${UPSTREAM}-${DEBIAN}+pihero${PIHERO}"
+readonly POOL=https://deb.debian.org/debian/pool/main/c/cog
+declare -rA SHA256=(
+  ["cog_${UPSTREAM}-${DEBIAN}.dsc"]=d3e583c063584067dc0f65b4c4b6e8b953df8f2f93fde44a3abc88832402a399
+  ["cog_${UPSTREAM}.orig.tar.xz"]=31d7079db2eeed790899d2f1f824dd6a54bf30d072d196d737be572f105d99b1
+  ["cog_${UPSTREAM}.orig.tar.xz.asc"]=f578744a2d6aa6a9643c9ecfb9c98fe97e9a4011c5ba1eee188f7ade3c5c1e5a
+  ["cog_${UPSTREAM}-${DEBIAN}.debian.tar.xz"]=5ffe778db83fe92327694c1baaa90ab3cb2db2bc0c9a4661b2a07ae890281e40
+)
+
+dist=""
+while (( $# )); do
+  case $1 in
+    -h|--help) usage; exit 0 ;;
+    --dist)    dist=${2?--dist: missing value}; shift 2 ;;
+    --dist=*)  dist=${1#*=}; shift ;;
+    -?*)       die "unknown option: $1" ;;
+    *)         die "unexpected argument: $1" ;;
+  esac
+done
+[[ -n $dist ]] || { usage >&2; exit 2; }
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+arch=$(dpkg --print-architecture)
+deb="$dist/cog_${VERSION}_${arch}.deb"
+if [[ -f $deb ]]; then
+  printf '%s\n' "$deb"
+  exit 0
+fi
+
+# Not under /work: the bind mount of the Mac's filesystem refuses the symlinks the source tarball carries.
+work=$(mktemp -d)
+for file in "${!SHA256[@]}"; do
+  curl -fsSL -o "$work/$file" "$POOL/$file" || die "download failed: $POOL/$file"
+  printf '%s  %s\n' "${SHA256[$file]}" "$work/$file" | sha256sum -c --quiet - || die "checksum mismatch: $file"
+done
+
+cd "$work"
+dpkg-source -x "cog_${UPSTREAM}-${DEBIAN}.dsc" src >&2
+cd src
+mkdir -p debian/patches
+for patch in "$here"/patches/*.patch; do
+  cp "$patch" debian/patches/
+  basename "$patch" >> debian/patches/series
+done
+stamp=$(date -R)
+{
+  printf 'cog (%s) trixie; urgency=medium\n\n' "$VERSION"
+  printf '  * drm: keep the renderer out of the SHM buffer resource and release the\n'
+  printf '    buffer after the copy (Igalia/cog#794): software-rendered frames no\n'
+  printf '    longer crash the modeset renderer.\n\n'
+  printf ' -- Björn Kahlert <bkahlert@users.noreply.github.com>  %s\n\n' "$stamp"
+  cat debian/changelog
+} > debian/changelog.pihero
+mv debian/changelog.pihero debian/changelog
+dpkg-buildpackage -b -uc -us >&2
+mv "../cog_${VERSION}_${arch}.deb" "$deb"
+printf '%s\n' "$deb"

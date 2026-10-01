@@ -1,0 +1,10 @@
+# Builds Debian's cog with Pi Hero's patch: the tools image's base plus cog's build dependencies (debian/control of cog 0.18.4-1).
+FROM docker.io/library/debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl build-essential debhelper \
+      libcairo-dev libdrm-dev libepoxy-dev libgbm-dev libinput-dev libmanette-0.2-dev libwayland-dev \
+      libwpebackend-fdo-1.0-dev libwpewebkit-2.0-dev meson wayland-protocols \
+    && rm -rf /var/lib/apt/lists/*
+# One-shot build image run with `podman run --rm`; there is no long-running service to probe.
+HEALTHCHECK NONE
+CMD ["bash"]

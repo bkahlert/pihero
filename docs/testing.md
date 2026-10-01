@@ -56,6 +56,13 @@ default. Mac-side tooling is QEMU, podman, and uv from the [Brewfile](../Brewfil
 testinfra; upstream inputs are pinned in [images.lock](../testkit/src/pihero_testkit/images.lock) and cached under
 `~/.cache/pihero/`. `make doctor` reports what is missing.
 
+A package directory with a `build` script next to a `Containerfile` builds itself: `make build` builds that image for
+`linux/arm64` whatever the host is, runs the script with the repository mounted at `/work`, and takes the `.deb` paths it
+prints. [packages/cog](../packages/cog) is the one such package; its image carries cog's build dependencies, which would
+double the tools image, and is the slow part, cached by the Containerfile's digest. The package itself builds in seconds.
+While a `.deb` of the package exists in `dist/`, the testkit returns it without building even the image, so `make clean`
+is what rebuilds it; CI caches that `.deb` keyed on `packages/cog/`.
+
 ## Tier 1
 
 The base image is `debian:trixie-slim` with `systemd`, `dbus`, `apt-utils`, and `sudo`, plus the Raspberry Pi archive as an apt
@@ -64,7 +71,8 @@ to the Containerfile is the one from `raspberrypi-archive-keyring` 2025.1, re-si
 `raspberrypi.gpg.key` still carries only SHA1 self-signatures, which Trixie's apt rejects since 2026-02-01. One image per
 platform, tagged with a digest of its build context so a changed Containerfile is rebuilt on first use, started with
 `podman run --systemd=always … /sbin/init`. The image's `/usr/sbin/policy-rc.d` is removed so package postinsts can start
-services. The built packages are mounted and installed with `apt install ./pkg.deb`, and testinfra gets a `podman://<name>`
+services. The built packages are mounted, and those marked `all` or built for the container's architecture are installed with
+`apt install ./pkg.deb`; the arm64 `cog` stays out of the armhf container, which takes Debian's through `pihero-kiosk`. testinfra gets a `podman://<name>`
 host. `/boot/firmware/` is a fixture directory with the stock `config.txt` and `cmdline.txt`.
 
 What a container cannot show: `RuntimeWatchdogUSec` is `0` inside podman, so the watchdog, left at Raspberry Pi OS's minute,
