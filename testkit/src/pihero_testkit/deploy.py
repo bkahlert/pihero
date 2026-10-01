@@ -6,7 +6,7 @@ from pathlib import Path
 
 from . import build
 
-STATUS_QUERY = "dpkg-query -W -f '${Package} ${db:Status-Abbrev}\\n'"
+STATUS_QUERY = "dpkg --print-architecture && dpkg-query -W -f '${Package} ${db:Status-Abbrev}\\n'"
 
 
 def installed(status: str) -> set[str]:
@@ -18,8 +18,12 @@ def installed(status: str) -> set[str]:
     return names
 
 
-def select(debs: list[Path], names: set[str]) -> list[Path]:
-    return [deb for deb in debs if deb.name.split("_")[0] in names]
+def architecture(status: str) -> str:
+    return status.splitlines()[0].strip() if status.strip() else ""
+
+
+def select(debs: list[Path], names: set[str], target_architecture: str) -> list[Path]:
+    return [deb for deb in debs if deb.name.split("_")[0] in names and deb.stem.rsplit("_", 1)[1] in {"all", target_architecture}]
 
 
 def main(argv: list[str]) -> int:
@@ -29,7 +33,7 @@ def main(argv: list[str]) -> int:
     target = argv[0]
     debs = build.build_all(build.version_from_git())
     status = subprocess.run(["ssh", target, STATUS_QUERY], capture_output=True, text=True, check=True).stdout
-    chosen = select(debs, installed(status))
+    chosen = select(debs, installed(status), architecture(status))
     if not chosen:
         print(f"none of the built packages is installed on {target}; flash a device file to put Pi Hero on a fresh device", file=sys.stderr)
         return 2
