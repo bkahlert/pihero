@@ -1,0 +1,17 @@
+name: kaomoji
+arch: @ARCH@
+platform: linux
+version: @VERSION@
+section: admin
+priority: optional
+maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+description: |
+  The Pi Hero cast: three animated kaomoji for the terminal.
+  kaomoji hero, kaomoji wizard, and kaomoji visitor print one face each, static or animated, plain or colored, in every mood they have.
+homepage: https://github.com/bkahlert/pihero
+license: MIT
+contents:
+  - src: @BINARY@
+    dst: /usr/bin/kaomoji
+    file_info:
+      mode: 0755

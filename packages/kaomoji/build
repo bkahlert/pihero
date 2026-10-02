@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Purpose: Build kaomoji: five static binaries, three Debian packages, and the four bootstrap scripts.
+# Usage:   build --dist <directory> --version <version>
+#
+# Runs in the tools image with the repository at /work and Go and nfpm on PATH. Cross-compiles kaomoji.go
+# for Linux armv6 (every 32-bit Raspberry Pi), arm64, and amd64 and for macOS arm64 and amd64 into
+# <directory>/kaomoji-<os>-<arch>, packs the Linux ones as kaomoji_<version>_{armhf,arm64,amd64}.deb from
+# nfpm.yaml.in with the architecture, version, and binary filled in, and renders bootstrap.sh as kaomoji,
+# hero, wizard, and visitor with the version, the character, and the binaries' hashes filled in. Prints the paths of the .deb files on stdout, nothing else.
+#
+# Options:
+#   --dist <directory>   Where everything goes.
+#   --version <version>  The Debian version to build, as the testkit derives it from git.
+#   -h, --help           Show this help.
+
+set -euo pipefail
+
+usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
+die() { printf '%s: %s\nSee '\''%s --help'\''\n' "${0##*/}" "$1" "${0##*/}" >&2; exit 2; }
+
+dist='' version=''
+while (($#)); do
+    case $1 in
+    -h | --help) usage; exit 0 ;;
+    --dist) dist=${2?--dist: missing value}; shift 2 ;;
+    --dist=*) dist=${1#*=}; shift ;;
+    --version) version=${2?--version: missing value}; shift 2 ;;
+    --version=*) version=${1#*=}; shift ;;
+    -?*) die "unknown option: $1" ;;
+    *) die "unexpected argument: $1" ;;
+    esac
+done
+[[ -n $dist && -n $version ]] || { usage >&2; exit 2; }
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+mkdir -p "$dist"
+export CGO_ENABLED=0 GOFLAGS=-trimpath
+
+# Builds one static binary: <os> <arch> [<arm version>]
+binary() {
+    GOOS=$1 GOARCH=$2 GOARM=${3:-} go build -ldflags "-s -w -X main.version=$version" -o "$dist/kaomoji-$1-$2${3:+v$3}" "$here/kaomoji.go" >&2
+}
+binary linux arm 6
+binary linux arm64
+binary linux amd64
+binary darwin arm64
+binary darwin amd64
+
+# One deb per Linux binary: nfpm's GOARCH-style arch, Debian's name for it, and the binary. nfpm expands
+# no variables in a content's src, so the manifest is rendered per architecture.
+manifests=$(mktemp -d)
+trap 'rm -rf "$manifests"' EXIT
+for spec in 'arm6 armhf kaomoji-linux-armv6' 'arm64 arm64 kaomoji-linux-arm64' 'amd64 amd64 kaomoji-linux-amd64'; do
+    read -r arch debarch name <<<"$spec"
+    deb="$dist/kaomoji_${version}_${debarch}.deb"
+    sed -e "s|@ARCH@|$arch|" -e "s|@VERSION@|$version|" -e "s|@BINARY@|$dist/$name|" "$here/nfpm.yaml.in" >"$manifests/$debarch.yaml"
+    nfpm package -f "$manifests/$debarch.yaml" -p deb -t "$deb" >&2
+    printf '%s\n' "$deb"
+done
+
+sha() { sha256sum "$dist/$1" | cut -d' ' -f1; }
+linux_armv6=$(sha kaomoji-linux-armv6)
+linux_arm64=$(sha kaomoji-linux-arm64)
+linux_amd64=$(sha kaomoji-linux-amd64)
+darwin_arm64=$(sha kaomoji-darwin-arm64)
+darwin_amd64=$(sha kaomoji-darwin-amd64)
+# Renders the bootstrap script: <name> <character>
+render() {
+    sed -e "s|@VERSION@|$version|g" -e "s|@NAME@|$1|g" -e "s|@CHARACTER@|$2|g" \
+        -e "s|@SHA256_LINUX_ARMV6@|$linux_armv6|" -e "s|@SHA256_LINUX_ARM64@|$linux_arm64|" -e "s|@SHA256_LINUX_AMD64@|$linux_amd64|" \
+        -e "s|@SHA256_DARWIN_ARM64@|$darwin_arm64|" -e "s|@SHA256_DARWIN_AMD64@|$darwin_amd64|" "$here/bootstrap.sh" >"$dist/$1"
+    chmod 755 "$dist/$1"
+}
+render kaomoji ''
+render hero hero
+render wizard wizard
+render visitor visitor
