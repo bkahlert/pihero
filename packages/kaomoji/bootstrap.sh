@@ -40,7 +40,7 @@ kaomoji-darwin-amd64 @SHA256_DARWIN_AMD64@
     case $machine in
     x86_64 | amd64) arch=amd64 ;;
     aarch64 | arm64) arch=arm64 ;;
-    armv6l | armv7l) arch=armv6 ;;
+    armv6l | armv7l | armv8l) arch=armv6 ;; # armv8l: a 32-bit userland under a 32-bit personality
     *) arch='' ;;
     esac
     if [ -z "$os" ] || [ -z "$arch" ]; then

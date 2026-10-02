@@ -86,7 +86,7 @@ class TestBootstrap:
 
     @pytest.mark.parametrize(
         ("os_", "arch", "asset"),
-        [("Darwin", "arm64", "kaomoji-darwin-arm64"), ("Darwin", "x86_64", "kaomoji-darwin-amd64"), ("Linux", "x86_64", "kaomoji-linux-amd64"), ("Linux", "armv7l", "kaomoji-linux-armv6"), ("Linux", "armv6l", "kaomoji-linux-armv6")],
+        [("Darwin", "arm64", "kaomoji-darwin-arm64"), ("Darwin", "x86_64", "kaomoji-darwin-amd64"), ("Linux", "x86_64", "kaomoji-linux-amd64"), ("Linux", "armv7l", "kaomoji-linux-armv6"), ("Linux", "armv6l", "kaomoji-linux-armv6"), ("Linux", "armv8l", "kaomoji-linux-armv6")],
     )
     def test_picks_the_asset_by_os_and_architecture(self, release, os_, arch, asset):
         (release.assets / asset).write_bytes(release.binary.read_bytes())
