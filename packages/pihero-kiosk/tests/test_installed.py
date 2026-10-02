@@ -1,6 +1,6 @@
-import time
-
 import pytest
+
+from pihero_testkit.ssh import SshTarget
 
 pytestmark = pytest.mark.installed
 
@@ -59,12 +59,13 @@ class TestUnit:
 
         assert host.service("pihero-kiosk").is_running
 
-    def test_has_not_restarted_since_boot(self, host):
+    def test_has_not_restarted_since_the_vm_booted(self, host, target):
+        if isinstance(target, SshTarget):
+            pytest.skip("a board's restart count spans its uptime")
         if not host.file("/dev/dri").exists:
             pytest.skip("no display adapter")
         if "connected" not in host.run("cat /sys/class/drm/card*-*/status").stdout.split():
             pytest.skip("no connected display")
-        time.sleep(20)
 
         restarts = host.check_output("systemctl show -p NRestarts --value pihero-kiosk.service").strip()
 
