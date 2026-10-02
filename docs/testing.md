@@ -106,7 +106,7 @@ The harness plays the firmware.
   (`--qemu-accel=tcg` elsewhere), 1 GiB, two cores, user-mode networking with a port forward for SSH, `-no-reboot` so a guest
   reboot returns to the harness, serial console logged under `dist/vm/<device>/`, a `virtio-gpu-pci` display at the
   configured size whose EDID makes the guest's connector `Virtual-1` prefer it, and a QMP monitor on a localhost TCP port
-  through which `Vm.screenshot(path)` saves a PNG of the display (`DISPLAY=none` for the headless VM).
+  through which `Vm.screenshot(path)` saves a PNG of the display (`VM_DISPLAY=none` for the headless VM).
 - **Repository.** The run builds every package, generates a flat unsigned repository under `dist/vm/<device>/repo`, serves it
   from the Mac, and the all-features device file points its apt source at the QEMU host address with `Trusted: yes`.
 - **Lifecycle.** Boot, wait for SSH (7 s under HVF), `cloud-init status --wait`, follow the `power_state` reboot, run the tests,

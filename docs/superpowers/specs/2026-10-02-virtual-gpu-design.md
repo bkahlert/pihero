@@ -22,7 +22,7 @@ before; and `Vm.screenshot(path)` is there for an application's own kiosk test.
 | Decision | Choice | Why |
 |---|---|---|
 | Default | The display is on, 800×480, in every tier 2 VM | The all-features device provisions the kiosk since the cog package, so its tests should run; 800×480 is the common HDMI panel size and the one netmon uses |
-| Option | `--display WIDTHxHEIGHT` or `--display none` for pytest and `python -m pihero_testkit.vm`; `Vm(display=...)`; `make test-tier2 DISPLAY=...` and `make vm DISPLAY=...` | An application names its panel in one place; `none` keeps the old VM for a device without a kiosk |
+| Option | `--display WIDTHxHEIGHT` or `--display none` for pytest and `python -m pihero_testkit.vm`; `Vm(display=...)`; `make test-tier2 VM_DISPLAY=...` and `make vm VM_DISPLAY=...` | An application names its panel in one place; `none` keeps the old VM for a device without a kiosk |
 | Device | `-device virtio-gpu-pci,xres=W,yres=H`, EDID on (QEMU's default) | The guest sees a connected connector with W×H preferred, as cog wants; no 3D, since macOS QEMU has no virgl, which is why cog's software path had to be fixed |
 | Monitor | `-qmp tcp:127.0.0.1:<free port>,server,nowait` on every VM, display or not | A UNIX socket path has a 104-byte limit that a scratch directory already exceeds; a port costs nothing |
 | Screenshot | `Vm.screenshot(path) -> Path`: QMP `screendump` with `format: png` into the path given, parent directories created | PNG needs QEMU 7.1 or newer; Homebrew ships 11, Ubuntu 24.04's runner 8.2. With `--display none` QEMU has no graphics console and `screendump` fails; the method raises with QMP's message |
@@ -41,11 +41,11 @@ before; and `Vm.screenshot(path)` is there for an application's own kiosk test.
 - `qmp.py` (new): `execute(port, command, arguments=None) -> dict`: connects, reads the greeting, negotiates
   capabilities, sends the command, skips events, raises `RuntimeError` with QMP's error on failure, returns `return`.
 - [plugin.py](../../../testkit/src/pihero_testkit/plugin.py): the `--display` option, default `800x480`.
-- Makefile: `DISPLAY ?= 800x480` for `test-tier2` and `vm`.
+- Makefile: `VM_DISPLAY ?= 800x480` for `test-tier2` and `vm`.
 - Tests: `testkit/tests/test_vm.py` and `testkit/tests/test_qmp.py` (tier 0, new); `testkit/tests/test_boot.py`
   gains `TestDisplay`; `packages/pihero-kiosk/tests/test_installed.py` gains the restart-count test.
 - Docs: testing.md (the tier 2 bullets, the options, the screenshot), design.md (the kiosk section's claim that the VM
-  has no display), README (`make vm`/`test-tier2` with `DISPLAY=`).
+  has no display), README (`make vm`/`test-tier2` with `VM_DISPLAY=`).
 
 ## Failure modes
 
