@@ -23,7 +23,6 @@ from . import build, prepare, qmp, repo
 PACKAGE_DIR = Path(str(files("pihero_testkit")))
 KEY = PACKAGE_DIR / "keys" / "pihero-testkit"
 DEFAULT_DEVICE = PACKAGE_DIR / "devices" / "all-features"
-REPO_PORT = 8000
 # IdentitiesOnly keeps an ssh-agent with several keys from exhausting sshd's attempts before ours is offered.
 SSH_OPTS = ["-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "LogLevel=ERROR"]
 SSH_CONNECTION_FAILED = 255
@@ -66,8 +65,9 @@ class QemuExited(RuntimeError):
 
 
 class Vm:
-    def __init__(self, base: prepare.BaseImage, bootfs: Path, workdir: Path, accel: str = "hvf", user: str = "pihero", memory_mb: int = 1024, debs: list[Path] = (), display: str = DEFAULT_DISPLAY):
+    def __init__(self, base: prepare.BaseImage, bootfs: Path, workdir: Path, accel: str = "hvf", user: str = "pihero", memory_mb: int = 1024, debs: list[Path] = (), display: str = DEFAULT_DISPLAY, *, repo_port: int):
         self.base, self.bootfs, self.workdir, self.accel, self.user, self.memory_mb, self.debs = base, bootfs, workdir, accel, user, memory_mb, list(debs)
+        self.repo_port = repo_port
         self.overlay = workdir / "overlay.qcow2"
         self.serial_log = workdir / "serial.log"
         # git stores only 644/755, so a fresh checkout's private key is one ssh rejects as UNPROTECTED; use a 0600 copy.
@@ -193,15 +193,16 @@ def provisioned_vm(debs: list[Path], device_dir: str | Path | None, accel: str, 
     shutil.rmtree(workdir, ignore_errors=True)
     workdir.mkdir(parents=True)
     # A repo inside the recreated workdir holds only this run's debs, so no stale build can outrank them in apt's eyes.
-    server = repo.Server(repo.build_repo(debs, workdir / "repo"), port=REPO_PORT)
+    server = repo.Server(repo.build_repo(debs, workdir / "repo"))
     try:
-        vm = Vm(base, bootfs_mod.build_bootfs(device, base.boot, workdir / "bootfs.img"), workdir, accel=accel, debs=debs, display=display).start()
+        image = bootfs_mod.build_bootfs(device, base.boot, workdir / "bootfs.img", server.port)
+        vm = Vm(base, image, workdir, accel=accel, debs=debs, display=display, repo_port=server.port).start()
         try:
             vm.wait_provisioned()
             yield vm
         finally:
             if keep:
-                print(f"\nVM kept running. Connect with:\n  {vm.ssh_command()}\nSerial log: {vm.serial_log}\nQMP port: {vm.qmp_port}", file=sys.stderr)
+                print(f"\nVM kept running. Connect with:\n  {vm.ssh_command()}\nSerial log: {vm.serial_log}\nQMP port: {vm.qmp_port}\nRepository: {server.url}", file=sys.stderr)
             else:
                 vm.stop()
     finally:

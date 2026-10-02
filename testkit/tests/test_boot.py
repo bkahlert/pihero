@@ -26,9 +26,9 @@ class TestProvisioning:
     def test_pretty_hostname_was_applied(self, host):
         assert host.check_output("hostnamectl --pretty").strip() == "All Features"
 
-    def test_apt_knows_the_pihero_source(self, host):
+    def test_apt_knows_the_pihero_source(self, host, target):
         assert host.file("/etc/apt/sources.list.d/pihero.sources").exists
-        assert "10.0.2.2:8000" in host.check_output("apt-cache policy")
+        assert f"10.0.2.2:{target.repo_port}" in host.check_output("apt-cache policy")
 
     def test_cloud_init_performed_the_requested_reboot(self, host):
         log = host.file("/var/log/cloud-init.log").content_string

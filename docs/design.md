@@ -369,7 +369,9 @@ file another daemon reads, defaults in code, overrides from `/etc/pihero/<featur
 Applications live in their own repositories as their own packages and follow [app-conventions.md](app-conventions.md): a
 dedicated system user, `Restart=always`, `MemoryMax=`, hardware access through groups, overrides in `/etc/<app>/<app>.conf`.
 Their tests depend on `pihero-testkit` pinned to a tag and reuse its tiers, with a tier-2 device file that adds the app's apt
-source to a copy of the all-features device. A device file then names the app's repository and packages next to Pi Hero's.
+source, `http://10.0.2.2:8000/` with `Trusted: yes`, to a copy of the all-features device; the harness serves that
+repository on a free port and rewrites the URL's port when it stages the file, so tier-2 runs of several repositories share
+a Mac. A device file then names the app's repository and packages next to Pi Hero's.
 
 ## Out of scope
 
