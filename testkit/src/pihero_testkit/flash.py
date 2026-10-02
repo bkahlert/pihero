@@ -32,10 +32,11 @@ def device_dir(name: str) -> Path:
     candidates = [Path(name), Path.cwd() / "devices" / name]
     if configured := os.environ.get(DEVICES_ENV):
         candidates.append(Path(configured).expanduser() / name)
+    candidates = list(dict.fromkeys(candidates))  # an absolute name makes every candidate the same path
     for path in candidates:
         if (path / "user-data").is_file():
             return path
-    hint = "" if configured else f"; set {DEVICES_ENV} in .env for device directories kept elsewhere"
+    hint = "" if configured or Path(name).is_absolute() else f"; set {DEVICES_ENV} in .env for device directories kept elsewhere"
     raise SystemExit(f"no user-data for {name!r} in {', '.join(map(str, candidates))}{hint}")
 
 

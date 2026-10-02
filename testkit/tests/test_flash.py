@@ -141,6 +141,14 @@ class TestDeviceDir:
         with pytest.raises(SystemExit, match=r"no user-data.*devices/nope.*PIHERO_DEVICES"):
             flash.device_dir("nope")
 
+    def test_names_a_missing_path_once_and_without_the_hint(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(flash.DEVICES_ENV, "")
+
+        with pytest.raises(SystemExit) as exit:
+            flash.device_dir(str(tmp_path / "x"))
+
+        assert str(exit.value) == f"no user-data for '{tmp_path / 'x'}' in {tmp_path / 'x'}"
+
     def test_rejects_a_directory_without_user_data(self, tmp_path):
         with pytest.raises(SystemExit, match="no user-data"):
             flash.device_dir(str(tmp_path))
