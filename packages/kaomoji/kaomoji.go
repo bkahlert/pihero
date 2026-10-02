@@ -99,13 +99,19 @@ type style struct {
 
 var plain = style{}
 
+// sgr is the sequence painting a style at a depth. A terminal lacking one of a style's colors paints
+// neither: the hero's black eyes on a yellow face that is not painted would vanish on a dark theme.
 func (s style) sgr(d depth) string {
+	fg, bg := s.fg.sgr(3, d), s.bg.sgr(4, d)
+	if (s.fg.kind != colorNone && fg == "") || (s.bg.kind != colorNone && bg == "") {
+		fg, bg = "", ""
+	}
 	var b strings.Builder
 	if s.dim {
 		b.WriteString(dim)
 	}
-	b.WriteString(s.fg.sgr(3, d))
-	b.WriteString(s.bg.sgr(4, d))
+	b.WriteString(fg)
+	b.WriteString(bg)
 	return b.String()
 }
 

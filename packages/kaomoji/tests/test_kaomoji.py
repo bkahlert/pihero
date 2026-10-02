@@ -99,8 +99,15 @@ class TestColor:
         hero = kaomoji("hero", term="xterm").run("--color").stdout
         wizard = kaomoji("wizard", term="xterm").run("--color").stdout
 
-        assert "38;5" not in hero and "\x1b[30m" in hero  # the black of the face stays
+        assert "38;5" not in hero and "48;5" not in hero
         assert "\x1b[37m(" in wizard and "\x1b[91m｡" in wizard  # gray, and bright pink as 91
+
+    def test_drops_the_whole_style_of_a_grapheme_when_the_terminal_lacks_one_of_its_colors(self, kaomoji):
+        hero = kaomoji("hero", term="linux").run("--color").stdout  # the Pi's console: sixteen colors
+
+        assert "\x1b[30m" not in hero  # black eyes on a yellow face that is not painted would vanish on a dark theme
+        assert hero.startswith("\x1b[2m─=≡\x1b[0m")  # the dim tail needs no color and stays
+        assert kaomoji.plain(hero) == HERO + "\n"
 
     def test_paints_the_basic_sixteen_as_the_terminal_sets_them(self, kaomoji):
         out = kaomoji("visitor").run("--color").stdout
