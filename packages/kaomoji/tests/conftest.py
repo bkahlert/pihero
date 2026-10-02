@@ -45,7 +45,7 @@ class Kaomoji:
         return [str(self.binary), *([self.character] if self.character else []), *args]
 
     def run(self, *args: str) -> subprocess.CompletedProcess:
-        result = subprocess.run(self.command(*args), capture_output=True, env=self.env())
+        result = subprocess.run(self.command(*args), capture_output=True, env=self.env(), timeout=10)
         # decoded by hand: text mode would turn the \r between frames into newlines
         return subprocess.CompletedProcess(result.args, result.returncode, result.stdout.decode(), result.stderr.decode())
 
@@ -113,7 +113,7 @@ class Kaomoji:
 
     def env(self) -> dict[str, str]:
         env = {**os.environ, "TERM": self.term, "COLUMNS": str(self.columns)}
-        for key in ("NO_COLOR", "COLORTERM", "KAOMOJI_COLUMNS"):
+        for key in ("NO_COLOR", "COLORTERM", "KAOMOJI_COLUMNS", "ACCESSIBLE"):
             env.pop(key, None)
         return {**env, **self.extra_env}
 

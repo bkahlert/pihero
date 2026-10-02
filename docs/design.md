@@ -255,10 +255,14 @@ slides out. The wizard's and the visitor's exits are their entrances run backwar
 runs back from where the entrance stood, in as many steps; the hero leaves from wherever it is. Every call prints one
 kaomoji: the first mood, static, colored on a terminal; `--animate` or any animation option animates it, and `--exit` on
 an endless animation plays the exit when the program is stopped by SIGINT or SIGTERM, a second signal quitting at once,
-so an app can show a face until it is done and let it leave; the grid quits on the first. Go finishes a write a signal
-interrupted, so a frame is never torn. Only `--help`,
-`--version`, and `--preview`, the grid, print anything else. A terminal moves text by whole cells and redraws at its own
-rate, so beyond about sixty frames a second the clock buys timing accuracy, not visible motion.
+so an app can show a face until it is done and let it leave; the grid quits on the first. `--no-animation` undoes the
+animation options before it, the last one given winning as with `--color` and `--no-color`, so a wrapper appends it
+to an app's flags; `ACCESSIBLE` in the environment, non-empty, keeps every call static whatever the flags, the user's
+environment outranking the app's flags, the convention Charm's huh and gum set; color stays `NO_COLOR`'s, the two kept
+apart as gh keeps its accessible prompter and colors. Neither reaches the MOTD nor the panels, which run without a
+user's environment (2026-10-03). Go finishes a write a signal interrupted, so a frame is never torn. Only `--help`,
+`--version`, and `--preview`, the grid, print anything else. A terminal moves text by whole cells and redraws at its
+own rate, so beyond about sixty frames a second the clock buys timing accuracy, not visible motion.
 
 The package builds itself: [build](../packages/kaomoji/build) runs in the tools image, which carries Debian's Go next to
 nfpm, cross-compiles five static binaries, Linux armv6 for every 32-bit Pi and Linux and macOS arm64 and amd64, packs the
