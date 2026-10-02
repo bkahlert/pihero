@@ -35,6 +35,12 @@ class TestProvisioning:
 
         assert "check_condition command (test -f /run/reboot-required): exited 0. condition met." in log
 
+    def test_debians_legal_notice_is_emptied(self, host):
+        motd = host.file("/etc/motd")
+
+        assert motd.exists
+        assert motd.content_string == ""
+
 
 class TestWatchdog:
     def test_keeps_raspberry_pi_os_minute(self, host):

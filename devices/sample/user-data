@@ -62,6 +62,9 @@ write_files:
     content: |
       PRODUCT="Sample Pi"
       CIDR=10.10.10.10/29
+  # Debian's legal notice, the static half of the MOTD; base-files restores it only when the file is missing.
+  - path: /etc/motd
+    content: ""
 runcmd:
   - hostnamectl set-hostname --pretty "Sample Pi"
   - systemctl restart pihero-avahi-render.service

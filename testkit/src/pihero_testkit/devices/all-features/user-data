@@ -29,6 +29,9 @@ write_files:
       Trusted: yes
   - path: /etc/pihero/device-info.conf
     content: MODEL=MacPro7,1@ECOLOR=226,226,224
+  # Debian's legal notice, the static half of the MOTD; base-files restores it only when the file is missing.
+  - path: /etc/motd
+    content: ""
 runcmd:
   # Request the reboot a feature package would, so provisioning exercises the power_state path.
   - touch /run/reboot-required
