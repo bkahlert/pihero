@@ -109,6 +109,14 @@ class TestColor:
         assert hero.startswith("\x1b[2m─=≡\x1b[0m")  # the dim tail needs no color and stays
         assert kaomoji.plain(hero) == HERO + "\n"
 
+    def test_paints_fbterm_in_its_own_256_color_sequences(self, kaomoji):
+        hero = kaomoji("hero", term="fbterm").run("--color").stdout  # the framebuffer terminal on shishakli's LCD
+        wizard = kaomoji("wizard", term="fbterm").run("--color").stdout
+
+        assert "\x1b[1;214}" in hero and "\x1b[2;221}" in hero  # fbterm ignores the standard 38;5 form
+        assert "38;5" not in hero and "\x1b[0m" in hero
+        assert "\x1b[1;7}(" in wizard
+
     def test_paints_the_basic_sixteen_as_the_terminal_sets_them(self, kaomoji):
         out = kaomoji("visitor").run("--color").stdout
 

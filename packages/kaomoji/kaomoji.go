@@ -13,7 +13,8 @@
 // once and the schedule moves with it, which keeps the output deterministic for the tests.
 //
 // Environment: NO_COLOR disables color on a terminal; COLORTERM=truecolor|24bit paints hex colors as
-// truecolor, else as their 256-color index, and a TERM without "256color" drops them; TERM=dumb is plain;
+// truecolor, else as their 256-color index, and a TERM without "256color" drops them, fbterm excepted, which
+// gets its own form of 256 colors; TERM=dumb is plain;
 // KAOMOJI_COLUMNS sets the cells a frame's line has, 0 meaning the character's own width; COLUMNS is the
 // terminal's width when stdout is no terminal.
 package main
@@ -62,18 +63,27 @@ const (
 func basic(n int) color               { return color{kind: colorBasic, basic: n} }
 func hex(rgb uint32, index int) color { return color{kind: colorHex, index: index, rgb: rgb} }
 
-// The depth a terminal paints at: colors16 drops hex colors, colors256 paints them by index, truecolor by value.
+// The depth a terminal paints at: colors16 drops hex colors, colors256 paints them by index, truecolor by
+// value; fbterm256 is fbterm's own form of 256 colors, since that framebuffer terminal ignores the standard one.
 type depth int
 
 const (
 	colors16 depth = iota
 	colors256
 	truecolor
+	fbterm256
 )
 
 // sgr returns the SGR sequence setting the color as a foreground (layer 3) or a background (layer 4),
 // or "" where the depth lacks it.
 func (c color) sgr(layer int, d depth) string {
+	if d == fbterm256 && c.kind != colorNone {
+		n := c.basic
+		if c.kind == colorHex {
+			n = c.index
+		}
+		return fmt.Sprintf("\x1b[%d;%d}", layer-2, n) // ESC[1;N} sets the foreground, ESC[2;N} the background
+	}
 	switch c.kind {
 	case colorBasic:
 		if c.basic < 8 {
@@ -801,9 +811,12 @@ func isTerminal(f *os.File) bool {
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
-// terminalDepth reads the environment: truecolor when COLORTERM says so, 256 colors when TERM does, else
-// the basic sixteen.
+// terminalDepth reads the environment: fbterm's own 256 colors on fbterm, truecolor when COLORTERM says so,
+// 256 colors when TERM does, else the basic sixteen.
 func terminalDepth() depth {
+	if os.Getenv("TERM") == "fbterm" {
+		return fbterm256
+	}
 	switch os.Getenv("COLORTERM") {
 	case "truecolor", "24bit":
 		return truecolor

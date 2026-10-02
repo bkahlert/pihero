@@ -233,8 +233,8 @@ runs the faces from `PATH`. The engine drives the terminal with ANSI sequences a
 show the cursor, erase to the end of the line, cursor up for the grid, SGR for colors. A sprite is a slice of graphemes,
 each with its text, its cells from a small East Asian width table, and its style; a style is a basic color, which follows
 the terminal's theme and is what the wizard and the visitor wear, or a hex color with the 256-color index that stands in
-for it, the hero's palette, painted as truecolor when `COLORTERM` says so, by index on a `TERM` with `256color`, and
-dropped elsewhere.
+for it, the hero's palette, painted as truecolor when `COLORTERM` says so, by index on a `TERM` with `256color`, in
+fbterm's own sequences on that framebuffer terminal, which ignores the standard ones, and dropped elsewhere.
 
 An animation runs on a clock. A character gives a timeline for a mood and a line width: the steps of its entrance, of one
 hover cycle, of its exit, and the frame times the exit lasts. The frame of a step is a pure function, hover steps map
