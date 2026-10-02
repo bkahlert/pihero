@@ -41,6 +41,9 @@ def pytest_collection_modifyitems(config, items):
         from .ssh import installed_packages
 
         installed = installed_packages(uri)
+        under_test = {package for item in items if (package := package_of(item.path))}
+        if under_test and under_test.isdisjoint(installed):
+            raise pytest.UsageError(f"none of the packages under test is installed on {uri}; flash a device file to put Pi Hero on it")
     for item in items:
         if "mutating" in item.keywords and target == "ssh":
             item.add_marker(pytest.mark.skip(reason="mutating test on a real device"))

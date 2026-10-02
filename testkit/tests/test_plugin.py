@@ -36,6 +36,16 @@ class TestSshTarget:
         result.assert_outcomes(passed=2, skipped=1)
         result.stdout.fnmatch_lines(["*probe-panel is not installed on pi@host*"])
 
+    def test_fails_the_run_on_a_device_with_none_of_the_packages(self, pytester, monkeypatch):
+        monkeypatch.setattr(ssh, "installed_packages", lambda uri: {"bash"})
+        tree(pytester)
+
+        result = pytester.runpytest_inprocess(*OPTIONS, "--target=ssh", "--target-uri=pi@host")
+
+        assert result.ret != 0
+        result.assert_outcomes(passed=0, skipped=0)
+        result.stderr.fnmatch_lines(["ERROR: none of the packages under test is installed on pi@host*flash*"])
+
     def test_asks_nothing_on_podman(self, pytester, monkeypatch):
         monkeypatch.setattr(ssh, "installed_packages", lambda uri: pytest.fail("asked the device"))
         tree(pytester)
