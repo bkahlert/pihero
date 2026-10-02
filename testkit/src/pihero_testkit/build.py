@@ -12,6 +12,7 @@ PACKAGES = Path.cwd() / "packages"
 DIST = Path.cwd() / "dist"
 # The devices' architecture; a package that builds itself builds for it, whatever the host is.
 TARGET_PLATFORM = "linux/arm64"
+NAME_LINE = re.compile(r"^name:\s*(?P<name>\S+)")
 
 
 def version_from_describe(describe: str) -> str:
@@ -39,6 +40,16 @@ def version_from_git() -> str:
 def is_package(directory: Path) -> bool:
     """Returns whether directory builds a package: nfpm.yaml is there, or a build script next to a Containerfile."""
     return (directory / "nfpm.yaml").is_file() or ((directory / "build").is_file() and (directory / "Containerfile").is_file())
+
+
+def package_name(directory: Path) -> str:
+    """Returns the name of the package directory builds: the `name:` of its nfpm manifest, else the directory's name."""
+    manifest = directory / "nfpm.yaml"
+    if manifest.is_file():
+        for line in manifest.read_text().splitlines():
+            if match := NAME_LINE.match(line):
+                return match["name"]
+    return directory.name
 
 
 def discover() -> list[Path]:

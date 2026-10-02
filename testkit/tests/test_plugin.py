@@ -18,6 +18,14 @@ class TestPackageOf:
 
         assert name == "pihero-kiosk"
 
+    def test_is_the_manifests_name_when_the_directory_is_called_otherwise(self, tmp_path):
+        (tmp_path / "netmon" / "tests").mkdir(parents=True)
+        (tmp_path / "netmon" / "nfpm.yaml").write_text("name: pihero-netmon\n")
+
+        name = plugin.package_of(tmp_path / "netmon" / "tests" / "test_installed.py")
+
+        assert name == "pihero-netmon"
+
     def test_is_none_outside_a_package(self, tmp_path):
         (tmp_path / "testkit" / "tests").mkdir(parents=True)
 

@@ -31,7 +31,7 @@ def pytest_configure(config):
 
 def package_of(path: Path) -> str | None:
     """Returns the name of the package whose directory holds path, or None for a path outside every package."""
-    return next((directory.name for directory in path.parents if build.is_package(directory)), None)
+    return next((build.package_name(directory) for directory in path.parents if build.is_package(directory)), None)
 
 
 def pytest_collection_modifyitems(config, items):

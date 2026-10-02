@@ -135,3 +135,20 @@ class TestIsPackage:
         (tmp_path / "test_installed.py").write_text("")
 
         assert not build.is_package(tmp_path)
+
+
+class TestPackageName:
+    def test_is_the_name_the_nfpm_manifest_declares(self, tmp_path):
+        (tmp_path / "nfpm.yaml").write_text("name: pihero-netmon\narch: all\n")
+
+        name = build.package_name(tmp_path)
+
+        assert name == "pihero-netmon"
+
+    def test_is_the_directorys_name_for_a_build_script_package(self, tmp_path):
+        (tmp_path / "build").write_text("#!/bin/sh\n")
+        (tmp_path / "Containerfile").write_text("FROM scratch\n")
+
+        name = build.package_name(tmp_path)
+
+        assert name == tmp_path.name
