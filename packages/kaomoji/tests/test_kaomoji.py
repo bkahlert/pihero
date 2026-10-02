@@ -57,7 +57,16 @@ class TestCommandLine:
         assert result.returncode == 2
         assert "unknown mood: grumpy" in result.stderr
 
-    @pytest.mark.parametrize(("args", "message"), [(["--loops", "many"], "--loops: not a number: many"), (["--frame-ms", "-1"], "--frame-ms: not a number: -1"), (["--mood"], "--mood: missing value")])
+    @pytest.mark.parametrize(
+        ("args", "message"),
+        [
+            (["--loops", "many"], "--loops: not a number: many"),
+            (["--frame-ms", "-1"], "--frame-ms: not a number: -1"),
+            (["--mood"], "--mood: missing value"),
+            (["--color=always"], "--color: takes no value"),
+            (["--exit=no", "--loops", "0"], "--exit: takes no value"),
+        ],
+    )
     def test_rejects_a_bad_option_value(self, kaomoji, args, message):
         result = kaomoji("hero").run(*args)
 

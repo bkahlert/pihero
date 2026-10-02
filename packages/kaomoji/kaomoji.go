@@ -995,6 +995,12 @@ func (ch *character) run(args []string) int {
 			name = arg[:at]
 		}
 		switch name {
+		case "-h", "--help", "--preview", "--animate", "--no-entrance", "--exit", "--color", "--no-color":
+			if name != arg {
+				return die(ch, "%s: takes no value", name)
+			}
+		}
+		switch name {
 		case "-h", "--help":
 			moods := strings.Join(ch.moods, ", ")
 			fmt.Printf(ch.usage, fmt.Sprintf(sharedOptions, moods, ch.moods[0]))
