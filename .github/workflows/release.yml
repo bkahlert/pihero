@@ -54,4 +54,8 @@ jobs:
         run: |
           prerelease=()
           case "$GITHUB_REF_NAME" in *-*) prerelease=(--prerelease) ;; esac
-          gh release create "$GITHUB_REF_NAME" dist/*.deb --verify-tag --generate-notes "${prerelease[@]}"
+          # Created as a draft and published once every asset is up: releases/latest/download/hero must
+          # never serve a bootstrap script whose binary is not there yet.
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes "${prerelease[@]}" \
+            dist/*.deb dist/kaomoji-* dist/kaomoji dist/hero dist/wizard dist/visitor
+          gh release edit "$GITHUB_REF_NAME" --draft=false
