@@ -13,6 +13,7 @@ DIST = Path.cwd() / "dist"
 # The devices' architecture; a package that builds itself builds for it, whatever the host is.
 TARGET_PLATFORM = "linux/arm64"
 NAME_LINE = re.compile(r"^name:\s*(?P<name>\S+)")
+ARCH_LINE = re.compile(r"^arch:\s*(?P<arch>\S+)")
 
 
 def version_from_describe(describe: str) -> str:
@@ -52,6 +53,16 @@ def package_name(directory: Path) -> str:
     return directory.name
 
 
+def package_arch(directory: Path) -> str:
+    """Returns the architecture the nfpm manifest of directory declares, `all` when it declares none."""
+    manifest = directory / "nfpm.yaml"
+    if manifest.is_file():
+        for line in manifest.read_text().splitlines():
+            if match := ARCH_LINE.match(line):
+                return match["arch"]
+    return "all"
+
+
 def discover() -> list[Path]:
     return sorted(p for p in PACKAGES.iterdir() if is_package(p))
 
@@ -61,7 +72,7 @@ def build(pkg_dir: Path, version: str, dist: Path = DIST) -> Path:
     dist = dist.resolve()
     maintscripts.write(pkg_dir)
     dist.mkdir(parents=True, exist_ok=True)
-    deb = dist / f"{pkg_dir.name}_{version}_all.deb"
+    deb = dist / f"{pkg_dir.name}_{version}_{package_arch(pkg_dir)}.deb"
     tools.run(
         ["nfpm", "package", "-f", "nfpm.yaml", "-p", "deb", "-t", f"/work/{deb.relative_to(Path.cwd())}"],
         workdir=f"/work/{pkg_dir.relative_to(Path.cwd())}",
