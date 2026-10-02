@@ -40,3 +40,16 @@ class TestInstallable:
         kept = podman.installable(debs, "linux/arm64")
 
         assert kept == debs
+
+
+class TestReinstall:
+    def test_reinstalls_the_local_debs_even_where_an_archive_carries_the_same_version(self):
+        debs = [Path("/x/a_1_all.deb"), Path("/x/b_1_arm64.deb"), Path("/x/c_1_armhf.deb")]
+        container = podman.SystemdContainer("linux/arm64", Path("/x"), debs)
+        calls = []
+        container.exec = lambda *args, **kwargs: calls.append(args)
+
+        container.reinstall()
+
+        # apt reports a same-version deb from another source as a downgrade and refuses it under -y without the flag
+        assert calls == [("env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "-y", "-q", "install", "--reinstall", "--allow-downgrades", "/dist/a_1_all.deb", "/dist/b_1_arm64.deb")]
