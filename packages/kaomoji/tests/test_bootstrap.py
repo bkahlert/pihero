@@ -38,8 +38,9 @@ class Release:
         return path
 
     def run(self, script: Path, *args: str, os_: str = "Linux", arch: str = "aarch64") -> subprocess.CompletedProcess:
+        """Runs the script the way the curl line does: piped into sh, the arguments after -s --."""
         env = {**os.environ, "PATH": f"{self.bin}:{os.environ['PATH']}", "XDG_CACHE_HOME": str(self.cache), "FAKE": str(self.dir), "FAKE_OS": os_, "FAKE_ARCH": arch}
-        return subprocess.run(["sh", str(script), *args], capture_output=True, text=True, env=env)
+        return subprocess.run(["sh", "-s", "--", *args], input=script.read_text(), capture_output=True, text=True, env=env)
 
     def fetched(self) -> list[str]:
         log = self.dir / "curl.log"
