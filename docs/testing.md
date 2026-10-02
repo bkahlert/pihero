@@ -9,7 +9,7 @@ it as a pinned git dependency.
 
 | Tier | Target | Budget | Proves |
 |---|---|---|---|
-| 0 | tools container | seconds | Python helpers against fixtures, shellcheck, `systemd-analyze verify`, `cloud-init schema` for the device files, every package builds |
+| 0 | tools container | seconds | Python helpers against fixtures, shellcheck, gofmt and go vet, `systemd-analyze verify`, `cloud-init schema` for the device files, every package builds |
 | 1 | systemd podman container, `linux/arm64` and `linux/arm/v7` | about a minute | install, dependencies resolve on both archives, units enable and start, renderers write the right files, remove and purge leave nothing behind |
 | 2 | QEMU `virt` VM with the real Raspberry Pi OS Lite root filesystem | under ten minutes | a device file boots to a provisioned system: cloud-init done without errors, no failed unit, Avahi records, boot config edits that survive a reboot, watchdog armed, the `power_state` reboot, the kiosk active on a virtual display, a screenshot of it |
 | ssh | a Raspberry Pi | seconds | the `installed` tests of the packages the device has; the other packages' tests and mutating tests are skipped |
@@ -48,7 +48,7 @@ restores what it changed: `target.reinstall()` after a purge, the previous conff
 
 ## Tools container
 
-Linux-side tooling (nfpm, cloud-init, shellcheck, apt-utils, mtools, dosfstools, e2fsprogs, qemu-utils) runs in one image built
+Linux-side tooling (nfpm, Go, cloud-init, shellcheck, apt-utils, mtools, dosfstools, e2fsprogs, qemu-utils) runs in one image built
 from `debian:trixie-slim` pinned by digest, tagged by the hash of its Containerfile, built on first use and rebuilt when the
 file changes. It is built for the host architecture on purpose: a cross-architecture pull once left a wrong-arch image under the
 same tag, which `podman build` then silently reused. The command comes from the `PODMAN` environment variable, `podman` by
@@ -62,6 +62,11 @@ prints. [packages/cog](../packages/cog) is the one such package; its image carri
 double the tools image, and is the slow part, cached by the Containerfile's digest. The package itself builds in seconds.
 While a `.deb` of the package exists in `dist/`, the testkit returns it without building even the image, so `make clean`
 is what rebuilds it; CI caches that `.deb` keyed on `packages/cog/`.
+
+A `build` script without a Containerfile runs in the tools image instead, with `--dist` and `--version`, every time;
+[packages/kaomoji](../packages/kaomoji) cross-compiles its Go binaries that way, Go's build cache living in the podman
+volume `pihero-go-cache`, so a build takes seconds, and the tier-0 suite builds the Mac binary it tests the same way
+through `python -m pihero_testkit.tools -- <command>`.
 
 ## Tier 1
 
@@ -178,6 +183,10 @@ on the first release under this process (2.4.0). Their device directories are re
 describes; the boards, their images, and `.env` are in "Real devices" above. The checkpoints go first on purpose: every other device takes the
 release only after both have passed, through whatever updates it, so a bad release reaches two disposable boards and no
 more.
+
+The release carries the debs, the five `kaomoji` binaries, and the four bootstrap scripts, see
+[design.md](design.md#kaomoji); it is created as a draft and published when every asset is up, so
+`releases/latest/download/hero` never serves a script whose binary is missing.
 
 Tags with a pre-release suffix such as `v2.1.0-rc.1` publish as `2.1.0~rc.1` and are marked pre-release on GitHub. The
 signing key is the `APT_SIGNING_KEY` secret of the `release` environment, which only `v*` tags can deploy to. The key itself
