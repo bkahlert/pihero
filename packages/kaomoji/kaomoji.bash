@@ -10,7 +10,8 @@
 #                      options: --mood <mood>, --step <n> (static without it), --no-entrance,
 #                      --exit <step>, --color (see hero_frame)
 #   <name>_timeline    fills an array with the number of entrance steps, the steps of one hover
-#                      cycle and the number of exit steps: <name>_timeline --mood <mood> <array>
+#                      cycle, the number of exit steps and, if the exit is to last other than a
+#                      frame per step, the frames it lasts: <name>_timeline --mood <mood> <array>
 #   <name>_pose        fills an array with the sprite of a step of the hover cycle, through
 #                      kaomoji_sprite so that a pose is built once: <name>_pose <mood> <step> <array>;
 #                      the steps of one cycle show every pose the character has
@@ -18,7 +19,8 @@
 # cycle, so the engine renders each of them once and plays them from a cache; the poses are
 # built before an animation starts. A frame's line is KAOMOJI_COLUMNS cells wide: the terminal's
 # width in an animation unless the environment says otherwise, a cell's in the grid; a character
-# leaving through its edge reads it.
+# leaving through its edge reads it. The hover shows a frame per frame time; an entrance slows
+# down into it and an exit speeds up out of it, each over the frame times its timeline gives.
 # Needs bash 5.0+.
 
 [ -z "${KAOMOJI_BASH:-}" ] || return 0
@@ -270,12 +272,12 @@ kaomoji_columns() {
     KAOMOJI_COLUMNS=$((${KAOMOJI_CAP[cols]:-80} - 1))
 }
 
-# Fills an array with a character's timeline, asking <name>_timeline once per mood.
+# Fills an array with a character's timeline, asking <name>_timeline once per mood and line width.
 #   <name> <mood> <array>
 declare -A KAOMOJI_TIMELINES=()
 kaomoji_timeline() {
     local -n into=$3
-    local key="$1 $2"
+    local key="$1 $2 $KAOMOJI_COLUMNS"
     if [ -z "${KAOMOJI_TIMELINES[$key]+set}" ]; then
         "${1}_timeline" --mood "$2" into
         KAOMOJI_TIMELINES[$key]=${into[*]}
@@ -340,11 +342,38 @@ kaomoji_step_frame() {
     fi
 }
 
-# Paces an animation: sleeps until the current frame has been shown for <ms> milliseconds.
-#   <ms>      how long a frame stays
-#   <since>   when it was shown, as ${EPOCHREALTIME/./} (microseconds)
-kaomoji_sleep_ms() {
-    local -i left=$(($2 + $1 * 1000 - ${EPOCHREALTIME/./}))
+# How unevenly an entrance or an exit spreads its duration over its steps, in percent: the fastest
+# step stays this much less than the mean step time and the slowest this much more, the steps
+# between them changing evenly, as under constant acceleration.
+readonly KAOMOJI_EASING=75
+
+# Sets REPLY to how long the frame of a step stays, in microseconds. A hover frame stays a frame
+# time. The frames of the entrance share as many frame times as the entrance has steps, the first
+# staying shortest and the last longest, so that the character slows down into the hover; the
+# frames of the exit share its duration the other way round, so that it speeds up out of it.
+#   <step> <entrance> <exit_step> <exit_steps>   as for kaomoji_step_frame, the exit in steps too
+#   <frame_us> <exit_us>                         the frame time and the exit's duration
+kaomoji_frame_time() {
+    local -i step=$1 entrance=$2 exit_step=$3 exit_steps=$4 frame_us=$5 exit_us=$6
+    local -i i n total sign
+    if ((exit_step >= 0 && step >= exit_step)); then
+        i=$((step - exit_step)) n=$exit_steps total=$exit_us sign=1
+    elif ((step < entrance)); then
+        i=$step n=$entrance total=$((entrance * frame_us)) sign=-1
+    else
+        REPLY=$frame_us
+        return 0
+    fi
+    if ((n < 2)); then
+        REPLY=$total
+        return 0
+    fi
+    REPLY=$((total / n + sign * total * KAOMOJI_EASING * (n - 1 - 2 * i) / (100 * n * (n - 1))))
+}
+
+# Paces an animation: sleeps until the given time, as ${EPOCHREALTIME/./} (microseconds).
+kaomoji_sleep_until() {
+    local -i left=$(($1 - ${EPOCHREALTIME/./}))
     ((left > 0)) || return 0
     local pause
     printf -v pause '%d.%06d' "$((left / 1000000))" "$((left % 1000000))"
@@ -427,9 +456,12 @@ kaomoji_animate() {
     done
 
     local -a timeline
+    kaomoji_animation_begin
+    kaomoji_columns # the timeline may depend on the width of the line
     kaomoji_timeline "$name" "$mood" timeline
     local -i entrance_steps=${timeline[0]} cycle=${timeline[1]} exit_steps=${timeline[2]}
-    local -i first=0 last=-1 exit_step=-1 step stop=0 shown ahead estimate=0 started
+    local -i frame_us=$((frame_ms * 1000)) exit_us=$((${timeline[3]:-${timeline[2]}} * frame_ms * 1000))
+    local -i first=0 last=-1 exit_step=-1 step stop=0 shown due ahead estimate=0 started
     local text
     if ((!entrance)); then first=$((entrance_steps + 1)); fi # the first hover step
     if ((loops >= 0)); then
@@ -439,17 +471,21 @@ kaomoji_animate() {
             last=$((last + exit_steps))
         fi
     fi
-    kaomoji_animation_begin
-    kaomoji_columns
     if ((exit && loops < 0)); then trap 'stop=1' INT TERM; fi # endless: leave when stopped
     kaomoji_warm "$name" "$mood" "${color[@]}"
     kaomoji_step_frame "$name" "$mood" "$first" "$entrance_steps" "$cycle" "$exit_step" "${flags[@]}"
     text=$KAOMOJI_TEXT
     ahead=$((first + 1))
+    due=${EPOCHREALTIME/./}
     for ((step = first; ; step++)); do
         shown=${EPOCHREALTIME/./}
         kaomoji_write $'\r'"$text${KAOMOJI_CAP[el]}"
         if ((last >= 0 && step >= last)); then break; fi
+        # The next frame is due when this one has stayed its time, counted from when this one
+        # was due, so that a late frame is caught up on; one later than its whole time is not.
+        kaomoji_frame_time "$step" "$entrance_steps" "$exit_step" "$exit_steps" "$frame_us" "$exit_us"
+        due=$((due + REPLY))
+        if ((due < shown)); then due=$((shown + REPLY)); fi
         # The next frame renders while this one shows, and further ones as long as the time
         # the last render took suggests there is room before the frame is due.
         kaomoji_step_frame "$name" "$mood" "$((step + 1))" "$entrance_steps" "$cycle" "$exit_step" "${flags[@]}"
@@ -457,13 +493,13 @@ kaomoji_animate() {
         if ((ahead <= step + 1)); then ahead=$((step + 2)); fi
         while ((last >= 0 ? ahead <= last : ahead <= step + cycle)); do
             started=${EPOCHREALTIME/./}
-            ((started - shown + estimate < frame_ms * 1000)) || break
+            ((started + estimate < due)) || break
             kaomoji_step_frame "$name" "$mood" "$ahead" "$entrance_steps" "$cycle" "$exit_step" "${flags[@]}"
             if ((KAOMOJI_RENDERED)); then estimate=$((${EPOCHREALTIME/./} - started)); fi
             ahead+=1
         done
-        kaomoji_sleep_ms "$frame_ms" "$shown"
-        if ((stop)); then # leave from the current step
+        kaomoji_sleep_until "$due"
+        if ((stop)); then # leave from the current step, at once
             stop=0
             trap "$KAOMOJI_QUIT" INT
             trap - TERM
@@ -472,6 +508,7 @@ kaomoji_animate() {
             kaomoji_step_frame "$name" "$mood" "$((step + 1))" "$entrance_steps" "$cycle" "$exit_step" "${flags[@]}"
             text=$KAOMOJI_TEXT
             ahead=$((step + 2))
+            due=${EPOCHREALTIME/./}
         fi
     done
     kaomoji_write $'\n'
@@ -534,22 +571,30 @@ kaomoji_grid() {
             kaomoji_step_frame "$name" "$mood" "$s" "${entrances[i]}" "${cycles[i]}" -1 "${flags[@]}"
             if ((KAOMOJI_WIDTH > cell)); then cell=$KAOMOJI_WIDTH; fi
         done
+    done
+    # An animated cell is a line of its own, which an exit crosses, so the timelines are complete
+    # only now; the rows are paced by the first one's.
+    KAOMOJI_COLUMNS=$cell
+    local -i frame_us=$((frame_ms * 1000)) exit_length=0 exit_us=0
+    for i in "${!moods[@]}"; do
+        kaomoji_timeline "$name" "${moods[i]}" timeline
         first_steps[i]=$((entrance ? 0 : timeline[0] + 1))
         exit_steps[i]=$((exit && loops >= 0 ? timeline[0] + loops * timeline[1] : -1))
         last_steps[i]=$((timeline[0] + loops * timeline[1] + (exit ? timeline[2] : 0))) # meaningless while endless
         if ((last_steps[i] - first_steps[i] > last)); then last=$((last_steps[i] - first_steps[i])); fi
+        if ((i == 0)); then exit_length=${timeline[2]} exit_us=$((${timeline[3]:-${timeline[2]}} * frame_us)); fi
     done
-    KAOMOJI_COLUMNS=$cell # an animated cell is a line of its own: an exit ends at its edge
 
     # The header and the rows are separated by empty lines; all of them are redrawn per step, each
     # line in one write. The cursor is saved below the grid once it exists: a redraw returns there
     # first, and so does a signal, which quits between redraws, not in the middle of one.
-    local -i rows=$((1 + 2 * ${#moods[@]})) step shown quit=0
+    local -i rows=$((1 + 2 * ${#moods[@]})) step shown due quit=0
     local row up=''
     printf '\n'
     kaomoji_animation_begin
     for ((i = 0; i < rows; i++)); do up+=${KAOMOJI_CAP[cuu1]}; done
     trap 'quit=1' INT TERM
+    due=${EPOCHREALTIME/./}
     for ((step = 0; ; step++)); do
         if ((quit)); then
             if ((step > 0)); then kaomoji_write "${KAOMOJI_CAP[rc]}"; fi
@@ -580,7 +625,10 @@ kaomoji_grid() {
         done
         if ((step == 0)); then kaomoji_write "${KAOMOJI_CAP[sc]}"; fi
         if ((loops >= 0 && step >= last)); then break; fi
-        kaomoji_sleep_ms "$frame_ms" "$shown"
+        kaomoji_frame_time "$((first_steps[0] + step))" "${entrances[0]}" "${exit_steps[0]}" "$exit_length" "$frame_us" "$exit_us"
+        due=$((due + REPLY))
+        if ((due < shown)); then due=$((shown + REPLY)); fi
+        kaomoji_sleep_until "$due"
     done
     kaomoji_write $'\n'
     kaomoji_animation_end

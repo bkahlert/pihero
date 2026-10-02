@@ -109,7 +109,7 @@ class TestWarm:
             f". '{PACKAGE}/hero'; "
             'eval "original_$(declare -f hero_sprite)"; builds=0; '
             'hero_sprite() { builds=$((builds + 1)); original_hero_sprite "$@"; }; '
-            'at_first_pause=""; kaomoji_sleep_ms() { at_first_pause=${at_first_pause:-$builds}; }; '
+            'at_first_pause=""; kaomoji_sleep_until() { at_first_pause=${at_first_pause:-$builds}; }; '
             'kaomoji_animate hero --loops 1 --exit --frame-ms 0 >/dev/null; printf "%s %s" "$at_first_pause" "$builds"'
         )
 
@@ -132,7 +132,7 @@ class TestFrameCache:
         out = bash(
             "SLOW_MOODS=(only); slow_timeline() { local -n out=$3; out=(2 4 3); }; slow_pose() { local -n s=$3; s=(); }; rendered=(); "
             'slow_frame() { local step; while [ $# -gt 0 ]; do case $1 in --step) step=$2; shift 2 ;; *) shift ;; esac; done; rendered+=("$step"); KAOMOJI_TEXT=x; KAOMOJI_WIDTH=1; }; '
-            'pauses=(); kaomoji_sleep_ms() { pauses+=("${rendered[*]}"); }; '  # no waiting: the whole frame time is left for rendering ahead
+            'pauses=(); kaomoji_sleep_until() { pauses+=("${rendered[*]}"); }; '  # no waiting: the whole frame time is left for rendering ahead
             'kaomoji_animate slow --loops 1 --exit --frame-ms 40 >/dev/null; printf "%s" "${pauses[0]}"'
         )
 
@@ -167,6 +167,21 @@ class TestCapabilities:
         kaomoji("hero", path=tput_log.directory).run("--color", "--no-entrance", "--loops", "1", "--frame-ms", "0")
 
         assert len(tput_log.calls()) == 3
+
+
+class TestFrameTime:
+    def test_a_hover_frame_stays_the_frame_time(self):
+        assert bash("kaomoji_frame_time 5 2 -1 0 40000 0; printf %s $REPLY") == "40000"
+
+    def test_the_entrance_speeds_in_and_slows_down_over_a_frame_time_per_step(self):
+        out = bash("for s in 0 1 2 3; do kaomoji_frame_time $s 4 -1 0 100000 0; printf '%s ' $REPLY; done")
+
+        assert out == "25000 75000 125000 175000 "
+
+    def test_the_exit_starts_slow_and_speeds_up_over_its_duration(self):
+        out = bash("for s in 10 11 12 13; do kaomoji_frame_time $s 2 10 4 40000 400000; printf '%s ' $REPLY; done")
+
+        assert out == "175000 125000 75000 25000 "
 
 
 class TestPacing:

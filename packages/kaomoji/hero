@@ -131,10 +131,9 @@ hero_pose() {
 #   --step <n>      step of the animation: the hero flies in from the left during the first
 #                   steps, one grapheme per step, and hovers afterwards (default: at rest)
 #   --no-entrance   accepted for symmetry with the other kaomoji; the hero hovers where it lands
-#   --exit <n>      step after which the hero flies out to the right, crossing its line
-#                   (KAOMOJI_COLUMNS cells, or its own width without one) in as many steps as it
-#                   is cells wide and clipped at the line's edge; it is gone after the last of
-#                   them (default: never)
+#   --exit <n>      step after which the hero flies out to the right, one cell per step, clipped at
+#                   the edge of its line (KAOMOJI_COLUMNS cells, or its own width without one); it
+#                   is gone as many steps later as the line is wide (default: never)
 #   --color         colored output
 hero_frame() {
     local mood=neutral step='' exit_step=''
@@ -155,7 +154,7 @@ hero_frame() {
     done
 
     local -a sprite timeline
-    local -i pose=$HERO_REST offset=0 clip=0 size phase line
+    local -i pose=$HERO_REST offset=0 clip=0 size phase
     if [ -n "$step" ]; then
         kaomoji_timeline hero "$mood" timeline # the graphemes and the width of the hero at rest
         size=${timeline[0]}
@@ -165,13 +164,9 @@ hero_frame() {
         pose=$(((step + phase) % HERO_CYCLE))
         if ((step <= size)); then offset=$((size - step)); fi
         if [ -n "$exit_step" ] && ((step > exit_step)); then
-            # The exit crosses the line in the exit steps, as many as the hero is wide, so that it
-            # takes the same time on every terminal. Clipped at the line's edge, less what the hero
-            # had still to enter, it is gone after the last step.
-            line=${KAOMOJI_COLUMNS:-0}
-            ((line > 0)) || line=${timeline[2]}
-            clip=$((line - offset))
-            offset=$((offset - (step - exit_step) * line / timeline[2]))
+            # Clipped at the edge of its line, less what it had still to enter: gone after the exit steps.
+            clip=$((timeline[2] - offset))
+            offset=$((offset - (step - exit_step)))
             if ((-offset > clip)); then offset=$((-clip)); fi
         fi
     fi
@@ -180,7 +175,8 @@ hero_frame() {
 }
 
 # Fills an array with the steps of the hero's entrance (one per grapheme), of one hover cycle,
-# and of its exit (one per cell of its width, however wide its line), see kaomoji.bash.
+# of its exit (one per cell of its line, KAOMOJI_COLUMNS, or of its width without one), and the
+# frames the exit lasts (one per cell of its width, however wide the line), see kaomoji.bash.
 #   --mood <mood>   neutral (default), happy, sad or unknown
 #   <array>         name of the array to fill
 hero_timeline() {
@@ -198,7 +194,9 @@ hero_timeline() {
     local -a sprite
     hero_pose "$mood" "$HERO_REST" sprite
     kaomoji_paint sprite
-    out=("${#sprite[@]}" "$HERO_CYCLE" "$KAOMOJI_WIDTH")
+    local -i line=${KAOMOJI_COLUMNS:-0}
+    ((line > 0)) || line=$KAOMOJI_WIDTH
+    out=("${#sprite[@]}" "$HERO_CYCLE" "$line" "$KAOMOJI_WIDTH")
 }
 
 # Run only when executed; kaomoji-gif sources this file to reuse its functions.

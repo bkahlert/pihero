@@ -230,7 +230,10 @@ checkout and from there once installed, without a fork. It depends on bash alone
 Its tests run in tier 0, its scripts pass the static checks like every package's, and tier 1 runs the faces from `PATH`. The engine,
 [kaomoji.bash](../packages/kaomoji/kaomoji.bash), paints sprites of styled graphemes with tput, paces an animation on one
 line, draws the grid of all variants, and provides the command line; a character script adds its moods, a frame function,
-and a timeline (entrance steps, hover cycle, exit steps). Every call prints one kaomoji: the first mood, static, colored on a
+and a timeline (entrance steps, hover cycle, exit steps, and the frames the exit lasts where that is not one per step).
+An entrance slows down into the hover and an exit speeds up out of it, under constant acceleration; the hero crosses the
+terminal one cell per frame at a frame rate that grows with the width, so that its exit lasts the same everywhere.
+Every call prints one kaomoji: the first mood, static, colored on a
 terminal; `--animate` or any animation option animates it, and `--exit` on an endless animation plays the exit when the script
 is stopped, so an app can show a face until it is done and let it leave. A signal that cuts a write to a slow terminal
 short does not corrupt the frame: every line is one write, restartable from a carriage return or the saved cursor
