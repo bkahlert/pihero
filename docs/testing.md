@@ -123,7 +123,8 @@ testinfra's own plugin registers after the testkit's, and its local-host `host` 
 
 `--target=ssh --target-uri=pi@host[:port]` builds nothing. It compares against the version installed on the device, because
 the git-derived version only matches a device at a tag, and asks the device which packages it has, as `make deploy` does:
-the installed tests of the others are skipped as "not installed on pi@host". The Avahi tests need `avahi-utils` on the device.
+the installed tests of the others are skipped as "not installed on pi@host". The Avahi browse tests need `avahi-utils` on
+the device and skip without it, so a checkpoint's device file installs it.
 
 Neither tier is a Raspberry Pi, so a release is proven on two real boards, the checkpoints, one per image. A 64-bit Zero 2 W
 on Wi-Fi with `pihero-usb-gadget` is the gadget's board: only a fresh card there shows its postinst turning `rpi-usb-gadget`
@@ -168,12 +169,13 @@ curl -fsS https://bkahlert.github.io/pihero/apt/Packages | grep -A1 '^Package: p
 make flash DEVICE=checkpoint DISK=disk9      # then the hardware step: reflash both checkpoints, one card at a time
 make flash DEVICE=checkpoint32 DISK=disk9
 ssh-keygen -R checkpoint.local; ssh-keygen -R checkpoint32.local   # reflashed boards have new host keys
-make checkpoint                   # the ssh tier on both, once they have booted (about 6 min for the Zero 2 W, 16 for the Zero)
+make checkpoint                   # the ssh tier on both, once they have booted (about 8 min for the Zero 2 W, 20 for the Zero)
 ```
 
 The hardware step comes after publishing because a fresh card installs from the repository, so the checkpoints prove the
-release as devices receive it. Their device directories are rendered as the repository holding them describes; the boards,
-their images, and `.env` are in "Real devices" above. The checkpoints go first on purpose: every other device takes the
+release as devices receive it. The times above are power-on to `cloud-init` done with the packages installed, as measured
+on the first release under this process (2.4.0). Their device directories are rendered as the repository holding them
+describes; the boards, their images, and `.env` are in "Real devices" above. The checkpoints go first on purpose: every other device takes the
 release only after both have passed, through whatever updates it, so a bad release reaches two disposable boards and no
 more.
 
