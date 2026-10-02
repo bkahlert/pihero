@@ -26,3 +26,11 @@ jobs:
       # prepare-rootfs mounts the Raspberry Pi OS image through loop devices, which the runner's rootless podman
       # cannot provide, and QEMU must be able to write what the tools container creates: the whole step runs as root.
       - run: sudo -E env "PATH=$PATH" make test-tier2 QEMU_ACCEL=tcg
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: tier2-vm
+          path: |
+            dist/vm/*/display.png
+            dist/vm/*/serial.log
+          if-no-files-found: ignore
