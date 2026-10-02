@@ -9,6 +9,15 @@ from pathlib import Path
 
 from . import tools
 
+HOST = "10.0.2.2"  # the host as QEMU's user-mode network presents it to the guest
+# The source a device file writes for the harness's repository. Tier 2 serves on a free port and points this URL at it
+# when it stages user-data, so tier-2 runs of several repositories share a Mac.
+URL = f"http://{HOST}:8000/"
+
+
+def url(port: int) -> str:
+    """Returns the harness repository's source as the guest reaches it when the Mac serves on port."""
+    return f"http://{HOST}:{port}/"
 
 
 def release_options(origin: str = "pihero", label: str = "pihero", description: str = "Pi Hero packages", architectures: str = "all arm64") -> list[str]:
@@ -41,11 +50,15 @@ def sign_repo(repo: Path, private_key: Path) -> None:
 
 
 class Server:
-    def __init__(self, directory: Path, port: int = 8000):
+    """Serves a repository directory from a free localhost port; `url` is the source as the guest reaches it."""
+
+    def __init__(self, directory: Path):
         handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(directory))
-        self.httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
-        self.port = port
-        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        self.port = self.httpd.server_address[1]
+        self.url = url(self.port)
+        # serve_forever's default poll interval of 0.5 s is what close() waits for; a short one keeps teardown prompt.
+        self.thread = threading.Thread(target=functools.partial(self.httpd.serve_forever, poll_interval=0.05), daemon=True)
         self.thread.start()
 
     def close(self) -> None:

@@ -28,16 +28,17 @@ uv run pytest packages/pihero/tests -m tier0   # one package
 
 ## Writing tests
 
-The plugin, [plugin.py](../testkit/src/pihero_testkit/plugin.py), provides the markers, fixtures, and options. Markers go in
-`pytestmark` at module level: `tier0` runs against fixtures and the tools container with no target; `installed` runs against
-any target with the packages installed; `boot` needs a booted system and is skipped on podman; `mutating` changes the
-target's state and is skipped over ssh. Fixtures: `host` is the testinfra host; `target` is the container, VM, or ssh target
-with `install_extra`, `purge`, `reinstall`, and `reboot`; `version` is what the installed packages must report, the built
-version or, over ssh, the one on the device; `packages` are the built `.deb` paths. Options beyond `--target` and
-`--target-uri`: `--platform` for podman, `--qemu-accel` for the VM, `--device` for a device directory other than the testkit's
-`all-features`, `--display` for the VM's virtual display (`WIDTHxHEIGHT`, default `800x480`, or `none`), and `--keep` to
-leave the container or VM running. `VERSION=` overrides the git-derived version. A tier-0 test of a Mac-side command that
-needs macOS tools is `skipif` not darwin: it runs locally and under `make release`, and CI's Linux runners skip it.
+The plugin, [plugin.py](../testkit/src/pihero_testkit/plugin.py), provides the markers, fixtures, and options. Markers
+go in `pytestmark` at module level: `tier0` runs against fixtures and the tools container with no target; `installed`
+runs against any target with the packages installed; `boot` needs a booted system and is skipped on podman; `mutating`
+changes the target's state and is skipped over ssh. Fixtures: `host` is the testinfra host; `target` is the container,
+VM, or ssh target with `install_extra`, `purge`, `reinstall`, and `reboot`, and on the VM `repo_port`, the Mac port its
+repository is served on; `version` is what the installed packages must report, the built version or, over ssh, the one
+on the device; `packages` are the built `.deb` paths. Options beyond `--target` and `--target-uri`: `--platform` for
+podman, `--qemu-accel` for the VM, `--device` for a device directory other than the testkit's `all-features`,
+`--display` for the VM's virtual display (`WIDTHxHEIGHT`, default `800x480`, or `none`), and `--keep` to leave the
+container or VM running. `VERSION=` overrides the git-derived version. A tier-0 test of a Mac-side command that needs
+macOS tools is `skipif` not darwin: it runs locally and under `make release`, and CI's Linux runners skip it.
 
 On-device executables are extensionless Python files; tier-0 tests import them with `pihero_testkit.scripts.load_script` and
 call their functions, so a script keeps its logic in functions with injectable dependencies (`environ`, `execvp`, `sleep`,
@@ -112,8 +113,11 @@ The harness plays the firmware.
   reboot returns to the harness, serial console logged under `dist/vm/<device>/`, a `virtio-gpu-pci` display at the
   configured size whose EDID makes the guest's connector `Virtual-1` prefer it, and a QMP monitor on a localhost TCP port
   through which `Vm.screenshot(path)` saves a PNG of the display (`VM_DISPLAY=none` for the headless VM).
-- **Repository.** The run builds every package, generates a flat unsigned repository under `dist/vm/<device>/repo`, serves it
-  from the Mac, and the all-features device file points its apt source at the QEMU host address with `Trusted: yes`.
+- **Repository.** The run builds every package, generates a flat unsigned repository under `dist/vm/<device>/repo`, and
+  serves it from the Mac on a free port, so tier-2 runs of several repositories share a Mac. A device file writes the
+  source as `http://10.0.2.2:8000/` with `Trusted: yes`, exactly in that form: the QEMU host address at the conventional
+  port. The harness points that URL at the port it bound when it stages `user-data` for the boot image, and
+  `target.repo_port` is that port.
 - **Lifecycle.** Boot, wait for SSH (7 s under HVF), `cloud-init status --wait`, follow the `power_state` reboot, run the tests,
   tear down. On failure the serial log and the overlay stay for a look; `make vm` boots the VM and keeps it.
 - **Device file.** `testkit/src/pihero_testkit/devices/all-features/user-data` installs every package, requests a reboot so
