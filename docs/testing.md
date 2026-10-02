@@ -173,7 +173,9 @@ make checkpoint                   # the ssh tier on both, once they have booted 
 
 The hardware step comes after publishing because a fresh card installs from the repository, so the checkpoints prove the
 release as devices receive it. Their device directories are rendered as the repository holding them describes; the boards,
-their images, and `.env` are in "Real devices" above.
+their images, and `.env` are in "Real devices" above. The checkpoints go first on purpose: every other device takes the
+release only after both have passed, through whatever updates it, so a bad release reaches two disposable boards and no
+more.
 
 Tags with a pre-release suffix such as `v2.1.0-rc.1` publish as `2.1.0~rc.1` and are marked pre-release on GitHub. The
 signing key is the `APT_SIGNING_KEY` secret of the `release` environment, which only `v*` tags can deploy to. The key itself
