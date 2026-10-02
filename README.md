@@ -94,7 +94,7 @@ make doctor                                  # lists what is missing
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [packages/](packages)  | One directory per Debian package: what it installs under `root/`, its `nfpm.yaml` manifest, its tests; [kaomoji/](packages/kaomoji/README.md) is the cast; [cog/](packages/cog) rebuilds Debian's cog |
 | [testkit/](testkit)    | The test harness: the pytest plugin and the commands behind `make`; builds the packages and tests them in podman containers, a QEMU VM, or on a Pi over SSH     |
-| [devices/](devices)    | Device files, one directory per device, documented in [devices/README.md](devices/README.md); only `sample/` is committed                                       |
+| [devices/](devices)    | Device files, one directory per device, documented in [devices/README.md](devices/README.md); only `sample/` is committed, and a gitignored `.env` names a directory of device directories kept elsewhere |
 | [docs/](docs)          | Design, testing, and platform notes                                                                                                                             |
 
 ### Build and test
@@ -107,6 +107,7 @@ make test-tier2 [VM_DISPLAY=480x320] # boot a QEMU VM from a device file, with a
 make test                           # tiers 0 and 1, what CI runs on every push
 make test-all                       # tiers 0 to 2, what make release runs
 make deploy TARGET=pi@mypi.local    # the packages a real device has, freshly built
+make checkpoint                     # the ssh tier on the checkpoints, the real boards .env names
 make docs-models                    # docs/models and the model tables from this Mac's icons
 ```
 
@@ -119,6 +120,7 @@ READMEs come from `make docs-models`, which runs [device-icons](https://github.c
 ```shell
 make release VERSION=2.1.0   # clean tree required; runs tiers 0 to 2, then tags v2.1.0
 git push origin v2.1.0       # CI builds, signs, and publishes
+make checkpoint              # after reflashing the two real boards; docs/testing.md "Release" has the steps
 ```
 
 ### See also

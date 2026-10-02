@@ -12,7 +12,7 @@ it as a pinned git dependency.
 | 0 | tools container | seconds | Python helpers against fixtures, shellcheck, `systemd-analyze verify`, `cloud-init schema` for the device files, every package builds |
 | 1 | systemd podman container, `linux/arm64` and `linux/arm/v7` | about a minute | install, dependencies resolve on both archives, units enable and start, renderers write the right files, remove and purge leave nothing behind |
 | 2 | QEMU `virt` VM with the real Raspberry Pi OS Lite root filesystem | under ten minutes | a device file boots to a provisioned system: cloud-init done without errors, no failed unit, Avahi records, boot config edits that survive a reboot, watchdog armed, the `power_state` reboot, the kiosk active on a virtual display, a screenshot of it |
-| ssh | a Raspberry Pi | seconds | the `installed` tests against the packages a real device has; mutating tests are skipped |
+| ssh | a Raspberry Pi | seconds | the `installed` tests of the packages the device has; the other packages' tests and mutating tests are skipped |
 
 Tiers 1, 2, and ssh run the same `test_installed.py` files.
 
@@ -121,13 +121,29 @@ testinfra's own plugin registers after the testkit's, and its local-host `host` 
 
 ## Real devices
 
-`--target=ssh --target-uri=pi@host[:port]` builds nothing and compares against the version installed on the device, because
-the git-derived version only matches a device at a tag. The Avahi tests need `avahi-utils` on the device. What only a fresh
-card shows: `pihero-usb-gadget`'s postinst turning `rpi-usb-gadget` on and requesting the reboot, and purge turning it off.
-Neither tier is a Raspberry Pi and mutating tests are skipped over ssh, so a release flashes a device file derived from the
-sample onto a card and runs the ssh tier after provisioning; one board per image where a 32-bit board is at hand. Device
-files live outside this checkout (`make flash DEVICE=<path>`); `devices/` holds only the sample. `make deploy TARGET=pi@host` reinstalls the freshly built packages the device already
-has over SSH for the development loop; it adds none.
+`--target=ssh --target-uri=pi@host[:port]` builds nothing. It compares against the version installed on the device, because
+the git-derived version only matches a device at a tag, and asks the device which packages it has, as `make deploy` does:
+the installed tests of the others are skipped as "not installed on pi@host". The Avahi tests need `avahi-utils` on the device.
+
+Neither tier is a Raspberry Pi, so a release is proven on two real boards, the checkpoints, one per image. A 64-bit Zero 2 W
+on Wi-Fi with `pihero-usb-gadget` is the gadget's board: only a fresh card there shows its postinst turning `rpi-usb-gadget`
+on and requesting the reboot, purge turning it off, and a Mac on the cable getting an address. A 32-bit Zero, the hardware
+floor, on a USB Ethernet hub covers ARMv6 timing and NetworkManager over a cable; it never takes the gadget, because
+peripheral mode claims the Zero's one USB controller and leaves a board on a hub dark. Neither has a display, so the kiosk
+is proven in tier 2 and on application boards. The checkpoints are disposable: their device directories live outside this
+checkout, a release reflashes both, and nothing is kept on them.
+
+A gitignored `.env` at the repository root, which `make` reads, names the directories and the boards:
+
+    PIHERO_DEVICES=~/fleet/devices       # the directory holding the device directories
+    CHECKPOINTS=checkpoint checkpoint32  # their names under it, which are their hostnames; one per image
+
+`make flash DEVICE=<name>` finds a device directory there as well as under `devices/`, and `make checkpoint` runs the ssh tier
+against every board in `CHECKPOINTS` as `pi@<name>.local`, prints one verdict per board with ssh's error for an unreachable
+one, and exits non-zero when one failed or was unreachable. Its login probe accepts a board's new host key, so a reflashed
+board needs only the `ssh-keygen -R` that forgets the old one.
+`make deploy TARGET=pi@host` reinstalls the freshly built packages the device already has over SSH for the development loop;
+it adds none.
 
 ## CI
 
@@ -149,7 +165,17 @@ from external forks wait for approval before they run.
 make release VERSION=2.1.0        # clean tree required; runs tiers 0 to 2, then tags v2.1.0
 git push origin v2.1.0            # the release workflow builds, signs, and publishes
 curl -fsS https://bkahlert.github.io/pihero/apt/Packages | grep -A1 '^Package: pihero'
+make flash DEVICE=checkpoint DISK=disk9      # then the hardware step: reflash both checkpoints, one card at a time
+make flash DEVICE=checkpoint32 DISK=disk9
+ssh-keygen -R checkpoint.local; ssh-keygen -R checkpoint32.local   # reflashed boards have new host keys
+make checkpoint                   # the ssh tier on both, once they have booted (about 6 min for the Zero 2 W, 16 for the Zero)
 ```
+
+The hardware step comes after publishing because a fresh card installs from the repository, so the checkpoints prove the
+release as devices receive it. Their device directories are rendered as the repository holding them describes; the boards,
+their images, and `.env` are in "Real devices" above. The checkpoints go first on purpose: every other device takes the
+release only after both have passed, through whatever updates it, so a bad release reaches two disposable boards and no
+more.
 
 Tags with a pre-release suffix such as `v2.1.0-rc.1` publish as `2.1.0~rc.1` and are marked pre-release on GitHub. The
 signing key is the `APT_SIGNING_KEY` secret of the `release` environment, which only `v*` tags can deploy to. The key itself

@@ -81,7 +81,7 @@ board's only USB controller away from its USB ports and Ethernet. Windows has no
 
 Find the card with `diskutil list external`, then:
 
-    make flash DEVICE=<host> DISK=disk9          # a directory under devices/
+    make flash DEVICE=<name> DISK=disk9          # a directory under devices/, or under the directory .env names
     make flash DEVICE=<path> DISK=disk9          # or a device directory anywhere, such as a private repository
 
 This
@@ -96,6 +96,9 @@ This
 
 macOS asks once for authorization; the card takes about two minutes. Raspberry Pi Imager works too: set the Wi-Fi country
 in its customisation and nothing else, then copy `user-data` and `network-config` to `/Volumes/bootfs/` before ejecting.
+
+Device directories kept in another repository are reached by name through a gitignored `.env` at the repository root that
+`make` reads: `PIHERO_DEVICES=~/fleet/devices` makes `make flash DEVICE=checkpoint` look there after `devices/`.
 
 ## First boot
 
