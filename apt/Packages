@@ -156,6 +156,57 @@ Homepage: https://github.com/bkahlert/pihero
 Description: The Pi Hero cast: three animated kaomoji for the terminal.
  kaomoji hero, kaomoji wizard, and kaomoji visitor print one face each, static or animated, plain or colored, in every mood they have.
 
+Package: kaomoji
+Architecture: amd64
+Version: 2.5.2
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 1600
+Filename: ./kaomoji_2.5.2_amd64.deb
+Size: 746562
+MD5sum: 9f7da813111063c491ace798e2fee103
+SHA1: 0423d4eb8978448b6bde96e840b71fd2e250e59c
+SHA256: d95f3a78795b92e028b13ffe139ead24f53dae882ba963c4d9333124775c4c72
+SHA512: d388f5d0c225037dccd36e9c3dabaf3c7ca93c08571b5010f139cbae57113df927ba39eb6218d15b63ac41c3c2f8fa9b04d22c54b11c88a7e2a8f057fd71c782
+Homepage: https://github.com/bkahlert/pihero
+Description: The Pi Hero cast: three animated kaomoji for the terminal.
+ kaomoji hero, kaomoji wizard, and kaomoji visitor print one face each, static or animated, plain or colored, in every mood they have.
+
+Package: kaomoji
+Architecture: arm64
+Version: 2.5.2
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 1664
+Filename: ./kaomoji_2.5.2_arm64.deb
+Size: 702724
+MD5sum: d185204bcba56c5a2d4438509537251e
+SHA1: 47b4f63c63d5d61a651045f6f895bbcb487ddb33
+SHA256: fdf9b6eb51b75f7fce9f451095b03f29721971a71e6a0313cbb5733d3e34d121
+SHA512: 2ccca03c96f0e1e6fa4936d523a330c32d6cc2dd318ed9f54a1b657569bafef34be600f01e8a56e51ffdcc25cf65dc2de26316464e35a6675d7e3a12eb8f2958
+Homepage: https://github.com/bkahlert/pihero
+Description: The Pi Hero cast: three animated kaomoji for the terminal.
+ kaomoji hero, kaomoji wizard, and kaomoji visitor print one face each, static or animated, plain or colored, in every mood they have.
+
+Package: kaomoji
+Architecture: armhf
+Version: 2.5.2
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 1664
+Filename: ./kaomoji_2.5.2_armhf.deb
+Size: 714254
+MD5sum: 4de2c4042f953559166e4009d2140a95
+SHA1: df56d8e48f504eef45b69b385cbdc0207d32785b
+SHA256: b3fdc98af0de33518a0644d8384082c1a6f1e137a09f68b1880ae9db75bad63f
+SHA512: 10260afa613163fa2356a7394ed82b2a9e30ac63161ee85456330c3498b8e6b534db19efae9dc8130a9ab679fd9b40fb15676807484df3c668688edf394169ab
+Homepage: https://github.com/bkahlert/pihero
+Description: The Pi Hero cast: three animated kaomoji for the terminal.
+ kaomoji hero, kaomoji wizard, and kaomoji visitor print one face each, static or animated, plain or colored, in every mood they have.
+
 Package: pihero-avahi
 Architecture: all
 Version: 2.0.0
@@ -365,6 +416,25 @@ Description: Pi Hero: advertise the device on the local network.
  Publishes _device-info._tcp with model and board, _ssh._tcp/_sftp-ssh._tcp, and _smb._tcp
  under the pretty hostname; the SMB record makes Finder list the device, nothing serves files.
 
+Package: pihero-avahi
+Architecture: all
+Version: 2.5.2
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 3
+Depends: pihero, avahi-daemon
+Filename: ./pihero-avahi_2.5.2_all.deb
+Size: 3056
+MD5sum: 474af6b4fc58626199b85e4ee6a44edd
+SHA1: b694e92548cb70cd8a322c39869b3ee73cf6820d
+SHA256: 6edd45a7ecdc4301c2afc7c315bd0e3760d07ab6c38c29d9267d27516248d931
+SHA512: 70d39063470f6e368448bf9b454c40568aa1a05f77a041a9e3930e186edf9871de0680a35bdf46c2b69c9a5c6d8a8098dcfce1ac26de9c16fb761cc3cf997668
+Homepage: https://github.com/bkahlert/pihero
+Description: Pi Hero: advertise the device on the local network.
+ Publishes _device-info._tcp with model and board, _ssh._tcp/_sftp-ssh._tcp, and _smb._tcp
+ under the pretty hostname; the SMB record makes Finder list the device, nothing serves files.
+
 Package: pihero-kiosk
 Architecture: all
 Version: 2.2.0
@@ -493,6 +563,25 @@ MD5sum: 5a5d509b5a7cf95a8df6850b700dc5f1
 SHA1: 173cb012627d79ebf08e107210549380b2259a2b
 SHA256: e7e9adce355df67e9b7cb0b420a2cdbbc53ac5e3c0ae1363cb8d22f85fdfac3e
 SHA512: 0d3e006390b670b0386455211241e6b24142c33285ca1ea64805d8822c418f9de6c3168d817cf5eab9c5f1d1ca0e07a60aeb0e487ad0b1ee97e29ab419c0a72b
+Homepage: https://github.com/bkahlert/pihero
+Description: Pi Hero: one web page full screen on the display.
+ Runs cog, the WPE WebKit launcher, straight on the DRM device as a system user; no X server,
+ display manager or compositor. The page is URL in /etc/pihero/kiosk.conf.
+
+Package: pihero-kiosk
+Architecture: all
+Version: 2.5.2
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 3
+Depends: pihero, cog, libgles2, fonts-dejavu-core, adduser
+Filename: ./pihero-kiosk_2.5.2_all.deb
+Size: 3310
+MD5sum: 4d17a016d78717233a2d80126bfc98ff
+SHA1: 074611689f61f36b01b9417e31947f2e8b7a6028
+SHA256: 22782cce9f8441f3daa8ea7efff45c5b025342f5bb1fca9466e010d2d828cfe9
+SHA512: b57da819776776aa96aca6cfa9e9d8034c8138ff1b4a207f98b7e7a4c357dd9aa71e56a8bf9da9850a23f74bf4e00034be74156fe7c3cdf6978c1b9afda9c2a8
 Homepage: https://github.com/bkahlert/pihero
 Description: Pi Hero: one web page full screen on the display.
  Runs cog, the WPE WebKit launcher, straight on the DRM device as a system user; no X server,
@@ -664,6 +753,25 @@ MD5sum: 887870dc10a794176c578a4dcc9d9bca
 SHA1: c0af96b29eb487f4bc8c4f8ad849feb75874a3b8
 SHA256: 89ebac3b16109bdba54209527b33a47ed258d9f3b68448296a97dbeb57b5372b
 SHA512: 9b812aa06128909fab7a225286f26e9682308c4dba88ce99584c2d448975da356c1cd5a705bdabf6ecaa853fe811920a63f5e4352bf5bc0a0fd713ddac59b9f9
+Homepage: https://github.com/bkahlert/pihero
+Description: Pi Hero: Ethernet over USB, named after the board.
+ Turns rpi-usb-gadget on and loads g_cdc (CDC ECM) once NetworkManager is up, with MACs derived from
+ the board serial and the device-tree model as the USB product string; the shared subnet is configurable.
+
+Package: pihero-usb-gadget
+Architecture: all
+Version: 2.5.2
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 2
+Depends: pihero, rpi-usb-gadget
+Filename: ./pihero-usb-gadget_2.5.2_all.deb
+Size: 3114
+MD5sum: 051a67da518506bf8bbd7fc69bbe0732
+SHA1: 98b48ae88c6d6b0ac692ce7e3adc4b47518790ff
+SHA256: 74c901e8b533289b3367125146b587e04a395af8e477fc43421fdd3c06bbf60b
+SHA512: e781cc28436c79baee3bfbfd7f1fbde6fa4b122a6b0fbd364ae2e7c7c12bc4239863c87694b85c8585f087639e868fbf77f2f3c9472d2cd05731c2b8ee2c9725
 Homepage: https://github.com/bkahlert/pihero
 Description: Pi Hero: Ethernet over USB, named after the board.
  Turns rpi-usb-gadget on and loads g_cdc (CDC ECM) once NetworkManager is up, with MACs derived from
@@ -881,6 +989,24 @@ MD5sum: d6a99e9f70af4a6dfc3f4ffe05634858
 SHA1: 70d2844600a8eeb721be455ae43d016ac1531428
 SHA256: acdd6e77f374576d6b455b4939f4f1f1fc2e322485b060b33c1e9556e61d00c1
 SHA512: e30d41b8bee922c7317b74cbd8018903d5aba13803e41c8c3e6bed9fbc632783f08f7d58d8ebdb24936f1a0501539951831b17281dd9ec04ee95bb3999dadf9a
+Homepage: https://github.com/bkahlert/pihero
+Description: Pi Hero core: boot-config editor, MOTD.
+ Every pihero-* feature package depends on this one.
+
+Package: pihero
+Architecture: all
+Version: 2.5.2
+Priority: optional
+Section: admin
+Maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>
+Installed-Size: 9
+Depends: python3, systemd, kaomoji
+Filename: ./pihero_2.5.2_all.deb
+Size: 4320
+MD5sum: db845c4dfd07a6390cacf108c983029f
+SHA1: 8c1f238ea11f12954d62fc5f6cdd5224b18ef537
+SHA256: a100ffa2ee53f458c5e159d92eb7ea0e65a2f40781ec8a3ad081d7ef88ddf82a
+SHA512: 27ffcc1160f3f2711e16ab1903894da0a70525daade4fdc4063a59d712ef3dad8859a9ba133fd04f6c146badde801947a7914ff48d18494a30d6af89833c2a85
 Homepage: https://github.com/bkahlert/pihero
 Description: Pi Hero core: boot-config editor, MOTD.
  Every pihero-* feature package depends on this one.
