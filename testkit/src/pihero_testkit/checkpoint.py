@@ -21,10 +21,17 @@ def uri_for(name: str) -> str:
     return f"{USER}@{name}.local"
 
 
-def reachable(uri: str) -> bool:
-    """Returns whether a non-interactive ssh login at uri succeeds within PROBE_TIMEOUT seconds."""
-    probe = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={PROBE_TIMEOUT}", uri, "true"]
-    return subprocess.run(probe, capture_output=True, check=False).returncode == 0
+def probe(uri: str) -> str | None:
+    """Returns None when a non-interactive ssh login at uri succeeds within PROBE_TIMEOUT seconds, else ssh's last line of stderr.
+
+    A reflashed board has a new host key, which the login accepts as the operator would after `ssh-keygen -R`.
+    """
+    command = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={PROBE_TIMEOUT}", "-o", "StrictHostKeyChecking=accept-new", uri, "true"]
+    result = subprocess.run(command, capture_output=True, check=False)
+    if result.returncode == 0:
+        return None
+    lines = [line.strip() for line in result.stderr.decode(errors="replace").splitlines() if line.strip()]
+    return lines[-1] if lines else f"ssh exited with {result.returncode}"
 
 
 def run_tier(uri: str) -> int:
@@ -37,8 +44,8 @@ def main(argv: list[str]) -> int:
     verdicts: dict[str, str] = {}
     for name in boards(argv):
         uri = uri_for(name)
-        if not reachable(uri):
-            verdicts[name] = f"unreachable ({uri})"
+        if error := probe(uri):
+            verdicts[name] = f"unreachable ({uri}): {error}"
             continue
         print(f"  {name}: the ssh tier against {uri}", file=sys.stderr, flush=True)
         verdicts[name] = "passed" if run_tier(uri) == 0 else "failed"

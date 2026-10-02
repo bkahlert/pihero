@@ -139,8 +139,9 @@ A gitignored `.env` at the repository root, which `make` reads, names the direct
     CHECKPOINTS=checkpoint checkpoint32  # their names under it, which are their hostnames; one per image
 
 `make flash DEVICE=<name>` finds a device directory there as well as under `devices/`, and `make checkpoint` runs the ssh tier
-against every board in `CHECKPOINTS` as `pi@<name>.local`, prints one verdict per board, and exits non-zero when one failed or
-was unreachable.
+against every board in `CHECKPOINTS` as `pi@<name>.local`, prints one verdict per board with ssh's error for an unreachable
+one, and exits non-zero when one failed or was unreachable. Its login probe accepts a board's new host key, so a reflashed
+board needs only the `ssh-keygen -R` that forgets the old one.
 `make deploy TARGET=pi@host` reinstalls the freshly built packages the device already has over SSH for the development loop;
 it adds none.
 

@@ -42,19 +42,19 @@ class TestMain:
         rc = checkpoint.main(["a", "b"])
 
         assert rc == 0
-        assert calls[0] == ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "pi@a.local", "true"]
+        assert calls[0] == ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new", "pi@a.local", "true"]
         assert calls[1] == [sys.executable, "-m", "pytest", "-m", "installed", "--target=ssh", "--target-uri=pi@a.local"]
         assert calls[3][-1] == "--target-uri=pi@b.local"
         assert capsys.readouterr().out.splitlines() == ["a: passed", "b: passed"]
 
     def test_reports_an_unreachable_board_and_fails(self, monkeypatch, capsys):
-        calls = fake_ssh(monkeypatch, probe={"pi@b.local": 255})
+        calls = fake_ssh(monkeypatch, probe={"pi@b.local": "ssh: connect to host b.local port 22: No route to host"})
 
         rc = checkpoint.main(["a", "b"])
 
         assert rc == 1
         assert [c for c in calls if c[0] != "ssh"] == [[sys.executable, "-m", "pytest", "-m", "installed", "--target=ssh", "--target-uri=pi@a.local"]]
-        assert capsys.readouterr().out.splitlines() == ["a: passed", "b: unreachable (pi@b.local)"]
+        assert capsys.readouterr().out.splitlines() == ["a: passed", "b: unreachable (pi@b.local): ssh: connect to host b.local port 22: No route to host"]
 
     def test_fails_when_a_boards_tests_fail(self, monkeypatch, capsys):
         fake_ssh(monkeypatch, tier={"pi@a.local": 1})
@@ -65,13 +65,14 @@ class TestMain:
         assert capsys.readouterr().out.splitlines() == ["a: failed", "b: passed"]
 
 
-def fake_ssh(monkeypatch, probe: dict[str, int] | None = None, tier: dict[str, int] | None = None) -> list[list[str]]:
+def fake_ssh(monkeypatch, probe: dict[str, str] | None = None, tier: dict[str, int] | None = None) -> list[list[str]]:
     calls: list[list[str]] = []
 
     def run(cmd, **kwargs):
         calls.append(cmd)
         if cmd[0] == "ssh":
-            return subprocess.CompletedProcess(cmd, (probe or {}).get(cmd[-2], 0))
+            error = (probe or {}).get(cmd[-2])
+            return subprocess.CompletedProcess(cmd, 255 if error else 0, stdout=b"", stderr=f"Warning: Permanently added 'b.local' (ED25519) to the list of known hosts.\r\n{error}\r\n".encode() if error else b"")
         return subprocess.CompletedProcess(cmd, (tier or {}).get(cmd[-1].removeprefix("--target-uri="), 0))
 
     monkeypatch.setattr(checkpoint.subprocess, "run", run)

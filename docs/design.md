@@ -323,7 +323,8 @@ file another daemon reads, defaults in code, overrides from `/etc/pihero/<featur
   trusts nothing else, and rotation is a manual procedure.
   The published release is then proven on hardware: the two checkpoints, a 64-bit Zero 2 W with the gadget and a 32-bit
   Zero on a USB Ethernet hub, are reflashed from device directories a gitignored `.env` names, and `make checkpoint` runs
-  the ssh tier on each. One board per image; the Zero never takes the gadget.
+  the ssh tier on each as `pi@<name>.local`, the directory named after its board, accepting the reflashed board's new host
+  key. One board per image; the Zero never takes the gadget.
 - **Development loop.** `make deploy TARGET=pi@host` builds, asks the device which of the packages it has, and
   reinstalls those of its architecture over SSH with `apt install ./pkg.deb`, skipping the repository. A package the device never had is not
   added: its postinst would run for a board it was not meant for, as the gadget's once did on a Model B. A device without
