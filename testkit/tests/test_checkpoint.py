@@ -21,11 +21,16 @@ class TestBoards:
 
         assert names == ["checkpoint", "checkpoint32"]
 
-    def test_exits_with_the_usage_without_names(self, monkeypatch):
+    def test_exits_2_with_the_usage_without_names(self, monkeypatch, capsys):
         monkeypatch.setenv("CHECKPOINTS", "")
 
-        with pytest.raises(SystemExit, match="CHECKPOINTS"):
+        with pytest.raises(SystemExit) as exit:
             checkpoint.boards([])
+
+        assert exit.value.code == 2
+        usage = capsys.readouterr().err
+        assert usage.startswith("usage:")
+        assert "CHECKPOINTS" in usage
 
 
 class TestUriFor:

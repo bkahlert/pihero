@@ -12,7 +12,8 @@ def boards(argv: list[str]) -> list[str]:
     """Returns the device names given, else those in CHECKPOINTS; exits with the usage when there are none."""
     names = argv or os.environ.get("CHECKPOINTS", "").split()
     if not names:
-        raise SystemExit("usage: python -m pihero_testkit.checkpoint [DEVICE ...]   (default: the names in CHECKPOINTS, set in .env)")
+        print("usage: python -m pihero_testkit.checkpoint [DEVICE ...]   (default: the names in CHECKPOINTS, set in .env)", file=sys.stderr)
+        raise SystemExit(2)
     return names
 
 
