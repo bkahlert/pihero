@@ -69,7 +69,7 @@ class TestAnimation:
         narrow, wide = timed(COLUMNS), timed(3 * COLUMNS)
 
         assert (narrow[0], wide[0]) == (CYCLE + COLUMNS - 1, CYCLE + 3 * COLUMNS - 1)
-        assert 0.5 <= narrow[1] < 0.9 and 0.5 <= wide[1] < 0.9  # 12 hover and 16 exit frame times of 20 ms, plus startup
+        assert 0.35 <= narrow[1] < 0.7 and 0.35 <= wide[1] < 0.7  # 12 hover and 8 exit frame times of 20 ms, plus startup
 
     def test_no_entrance_hovers_where_it_is(self, hero):
         frames = hero.frames("--mood", "neutral", "--loops", "1", "--no-entrance")

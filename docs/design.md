@@ -242,17 +242,18 @@ onto the first cycle, and the frame of a step is due when the one before has sta
 was due; a late frame goes out at once and the schedule moves with it, so frames are never skipped and the output stays
 deterministic, which the tests count frame by frame at `--frame-ms 0`. The hover shows a frame per frame time; the
 entrance and the exit spread their duration under constant acceleration, the fastest interval a quarter of the mean and
-the slowest one and three quarters, the entrance slowing down into the hover and the exit speeding up out of it. The hero
-enters and leaves one cell per step, its exit crossing the whole line in sixteen frame times however wide it is, so a
-200-column terminal sees 200 frames one to eight milliseconds apart where a 40-column one sees 40. `hero` flies in from
-the left, hovers, and flies out through the terminal's right edge; `wizard` slides in, conjures its magic particle by
-particle, runs the colors along it, and slides out to the left; `visitor` peeks out from behind a wall that slides in,
-waves and blinks, and ducks back before the wall slides out. The wizard's and the visitor's exits are their entrances run
-backwards, so an exit begun during the entrance runs back from where the entrance stood, in as many steps; the hero
-leaves from wherever it is. Every call prints one kaomoji: the first mood, static, colored on a terminal; `--animate` or
-any animation option animates it, and `--exit` on an endless animation plays the exit when the program is stopped by
-SIGINT or SIGTERM, a second signal quitting at once, so an app can show a face until it is done and let it leave. Go
-finishes a write a signal interrupted, so a frame is never torn. Only `--help`,
+the slowest one and three quarters, the entrance slowing down into the hover and the exit speeding up out of it. An exit
+lasts half as many frame times as the entrance, twice its pace. The hero enters and leaves one cell per step, its exit
+crossing the whole line in eight frame times however wide it is, so a 200-column terminal sees 200 frames half a
+millisecond to four apart where a 40-column one sees 40. `hero` flies in from the left, hovers, and flies out through the
+terminal's right edge; `wizard` slides in, conjures its magic particle by particle, runs the colors along it, and slides
+out to the left; `visitor` peeks out from behind a wall that slides in, waves and blinks, and ducks back before the wall
+slides out. The wizard's and the visitor's exits are their entrances run backwards, so an exit begun during the entrance
+runs back from where the entrance stood, in as many steps; the hero leaves from wherever it is. Every call prints one
+kaomoji: the first mood, static, colored on a terminal; `--animate` or any animation option animates it, and `--exit` on
+an endless animation plays the exit when the program is stopped by SIGINT or SIGTERM, a second signal quitting at once,
+so an app can show a face until it is done and let it leave. Go finishes a write a signal interrupted, so a frame is
+never torn. Only `--help`,
 `--version`, and `--preview`, the grid, print anything else. A terminal moves text by whole cells and redraws at its own
 rate, so beyond about sixty frames a second the clock buys timing accuracy, not visible motion.
 
@@ -287,7 +288,10 @@ meet the board's floor of about 8 ms per colored write and a wide colored exit s
 gap between frames stayed under 95 ms, the slowest entrance interval being 88 ms by design. The grid redraws in about
 75 ms on the Pi 1, against 125–160 ms before, and stays a Mac-side tool. Before, in bash, the first frame showed after
 0.8–1.2 s plain and 1.6–2 s colored, a cached frame cost 9 ms and a fresh one 25–70 ms, the engine never forked while
-animating and batched its `tput` calls to get there, and the grid's startup took 3.5–8 s (2026-10-02).
+animating and batched its `tput` calls to get there, and the grid's startup took 3.5–8 s (2026-10-02). The exit was
+halved to eight frame times after that measurement, `--loops 1 --exit` now being 1.8 s nominal; on the Pi 1 the colored
+hero's exit frames, 5 ms apart on 80 columns, fall under the board's write floor, so its exit stretches there to about
+0.6 s plain and keeps the 2.5 s on 200 columns (2026-10-02, not re-measured).
 
 ## Planned packages
 

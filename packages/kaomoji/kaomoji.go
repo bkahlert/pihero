@@ -252,14 +252,14 @@ type character struct {
 	frame    func(mood string, step, exitStep, cols int, colored bool, d depth) painting
 }
 
-// reversible is the timeline of a character whose exit runs its entrance of n steps backwards in as many
-// frame times; begun during the entrance, the exit runs back from where the entrance stood.
+// reversible is the timeline of a character whose exit runs its entrance of n steps backwards in half
+// as many frame times; begun during the entrance, the exit runs back from where the entrance stood.
 func reversible(n, cycle, exitStep int) timeline {
 	exit := n
 	if exitStep >= 0 && exitStep < n {
 		exit = exitStep
 	}
-	return timeline{entrance: n, cycle: cycle, exit: exit, exitLen: exit}
+	return timeline{entrance: n, cycle: cycle, exit: exit, exitLen: (exit + 1) / 2}
 }
 
 // entranceStep is the step of the entrance a frame shows: the step itself while entering and the whole
@@ -334,14 +334,14 @@ func heroPose(mood string, step int) sprite {
 }
 
 // The hero's entrance is one cell per step, its exit one cell per step across the whole line, lasting
-// as many frame times as the hero is wide however long the line is and wherever it begins.
+// half as many frame times as the hero is wide however long the line is and wherever it begins.
 func heroTimeline(mood string, cols, exitStep int) timeline {
 	size := heroPose(mood, heroRest).width()
 	line := cols
 	if line <= 0 {
 		line = size
 	}
-	return timeline{entrance: size, cycle: heroCycle, exit: line, exitLen: size}
+	return timeline{entrance: size, cycle: heroCycle, exit: line, exitLen: size / 2}
 }
 
 // The hero flies in from the left, its right end advancing a cell per step, so that it has fully

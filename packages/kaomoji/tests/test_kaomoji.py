@@ -183,6 +183,15 @@ class TestPacing:
 
         assert elapsed < 0.5  # no warm-up: the landed frame is the whole animation with zero loops
 
+    @pytest.mark.parametrize(("character", "entrance", "exit_"), [("hero", 16, 8), ("wizard", 15, 8), ("visitor", 9, 5)])
+    def test_leaves_in_half_as_many_frame_times_as_it_entered(self, kaomoji, character, entrance, exit_):
+        started = time.monotonic()
+        frames = kaomoji(character).frames("--loops", "0", "--exit", "--frame-ms", "60")
+        elapsed = time.monotonic() - started
+
+        assert frames[0] == "" and frames[-1] == ""
+        assert (entrance + exit_) * 0.06 - 0.1 <= elapsed < (entrance + exit_) * 0.06 + 0.15
+
 
 class TestStopping:
     @pytest.mark.parametrize("stop", [signal.SIGINT, signal.SIGTERM])
