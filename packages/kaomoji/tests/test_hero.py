@@ -11,7 +11,7 @@ STATIC = {
     "unknown": "─=≡▰▩▩[༶´⊙﹏⊙`]⊐",
 }
 COLUMNS = 40
-ENTRANCE, CYCLE, EXIT = 14, 12, COLUMNS - 1  # neutral: graphemes, hover steps, cells before the last column
+ENTRANCE, CYCLE, EXIT = 16, 12, COLUMNS - 1  # neutral: cells, hover steps, cells before the last column
 
 
 @pytest.fixture
@@ -33,10 +33,13 @@ class TestAnimation:
     def test_runs_entrance_one_cycle_and_exit(self, frames):
         assert len(frames) == 1 + ENTRANCE + CYCLE + EXIT
 
-    def test_flies_in_from_the_left_one_grapheme_per_step(self, frames):
+    def test_flies_in_from_the_left_one_cell_per_step(self, frames):
         assert frames[0] == ""
         assert frames[1] == "⊐"
         assert frames[2] == "]⊐"
+        assert frames[3] == "•]⊐"
+        assert frames[4] == " •]⊐"  # the wide ｏ straddles the edge and waits a step
+        assert frames[5] == "ｏ•]⫎"
         assert frames[ENTRANCE] == STATIC["neutral"]
 
     def test_rests_where_it_landed_after_a_cycle(self, frames):
