@@ -14,9 +14,9 @@
 //
 // Environment: NO_COLOR disables color on a terminal; COLORTERM=truecolor|24bit paints hex colors as
 // truecolor, else as their 256-color index, and a TERM without "256color" drops them, fbterm excepted, which
-// gets its own form of 256 colors; TERM=dumb is plain;
-// KAOMOJI_COLUMNS sets the cells a frame's line has, 0 meaning the character's own width; COLUMNS is the
-// terminal's width when stdout is no terminal.
+// gets its own form of 256 colors; TERM=dumb is plain; ACCESSIBLE, non-empty, keeps every call static,
+// whatever the options; KAOMOJI_COLUMNS sets the cells a frame's line has, 0 meaning the character's own
+// width; COLUMNS is the terminal's width when stdout is no terminal.
 package main
 
 import (
@@ -844,6 +844,8 @@ Options:
   --exit            Play the exit after the last hover cycle, or when an endless animation is stopped with
                     Ctrl-C or SIGTERM; a second Ctrl-C quits at once, and so does the first in --preview.
   --frame-ms <ms>   Delay between animation frames (default: 50).
+  --no-animation    Static output, undoing the animation options before it; ACCESSIBLE set in the
+                    environment, to anything, does the same for every call.
   --color           Colored output (default: if stdout is a terminal and NO_COLOR is unset).
   --no-color        Plain output.
   --preview         Show all variants in a grid, animated, instead of one kaomoji.
@@ -958,7 +960,7 @@ func run(args []string) int {
 // only --help and --preview print something else.
 func (ch *character) run(args []string) int {
 	o := options{mood: ch.moods[0], entrance: true, loops: -1, frameMs: 50, depth: terminalDepth()}
-	animated, preview, color := false, false, ""
+	animation, preview, color := "", false, ""
 	value := func(i *int) (string, bool) { // the value of the option at i, inline or next
 		if at := strings.IndexByte(args[*i], '='); at >= 0 {
 			return args[*i][at+1:], true
@@ -988,7 +990,7 @@ func (ch *character) run(args []string) int {
 			name = arg[:at]
 		}
 		switch name {
-		case "-h", "--help", "--preview", "--animate", "--no-entrance", "--exit", "--color", "--no-color":
+		case "-h", "--help", "--preview", "--animate", "--no-animation", "--no-entrance", "--exit", "--color", "--no-color":
 			if name != arg {
 				return die(ch, "%s: takes no value", name)
 			}
@@ -1007,22 +1009,24 @@ func (ch *character) run(args []string) int {
 		case "--preview":
 			preview = true
 		case "--animate":
-			animated = true
+			animation = "yes"
+		case "--no-animation":
+			animation = "no"
 		case "--no-entrance":
-			animated, o.entrance = true, false
+			animation, o.entrance = "yes", false
 		case "--exit":
-			animated, o.exit = true, true
+			animation, o.exit = "yes", true
 		case "--color":
 			color = "yes"
 		case "--no-color":
 			color = "no"
 		case "--loops":
-			animated = true
+			animation = "yes"
 			if status := number(&i, "--loops", &o.loops); status != 0 {
 				return status
 			}
 		case "--frame-ms":
-			animated = true
+			animation = "yes"
 			if status := number(&i, "--frame-ms", &o.frameMs); status != 0 {
 				return status
 			}
@@ -1036,10 +1040,16 @@ func (ch *character) run(args []string) int {
 	if !slices.Contains(ch.moods, o.mood) {
 		return die(ch, "unknown mood: %s", o.mood)
 	}
+	if os.Getenv("ACCESSIBLE") != "" {
+		animation = "no" // the user's environment over the app's flags
+	}
 	if preview {
 		moods := ch.moods
 		if o.mood != ch.moods[0] || moodGiven(args) {
 			moods = []string{o.mood}
+		}
+		if animation == "no" {
+			o.entrance, o.loops, o.exit = false, 0, false // one redraw, every cell at rest
 		}
 		return grid(ch, o, moods)
 	}
@@ -1051,7 +1061,7 @@ func (ch *character) run(args []string) int {
 	default:
 		o.colored = isTerminal(os.Stdout) && os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb"
 	}
-	if animated {
+	if animation == "yes" {
 		o.cols = lineColumns()
 		return animate(ch, o)
 	}

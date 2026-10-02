@@ -65,6 +65,7 @@ class TestCommandLine:
             (["--mood"], "--mood: missing value"),
             (["--color=always"], "--color: takes no value"),
             (["--exit=no", "--loops", "0"], "--exit: takes no value"),
+            (["--no-animation=yes"], "--no-animation: takes no value"),
         ],
     )
     def test_rejects_a_bad_option_value(self, kaomoji, args, message):
@@ -89,6 +90,52 @@ class TestCommandLine:
 
             assert result.returncode == 0
             assert result.stdout.count("\r") > 1
+
+        def test_no_animation_wins_when_it_comes_last(self, kaomoji):
+            result = kaomoji("hero").run("--animate", "--exit", "--loops", "1", "--frame-ms", "0", "--no-animation")
+
+            assert result.returncode == 0
+            assert result.stdout == HERO + "\n"
+
+        def test_an_animation_option_after_no_animation_wins(self, kaomoji):
+            result = kaomoji("hero").run("--no-animation", "--loops", "1", "--frame-ms", "0")
+
+            assert result.stdout.count("\r") > 1
+
+        def test_no_animation_shows_the_preview_once_at_rest(self, kaomoji):
+            result = kaomoji("hero").run("--preview", "--loops", "2", "--exit", "--frame-ms", "0", "--no-animation")
+
+            grids = kaomoji.split_grid(result.stdout, 4)
+            assert result.returncode == 0
+            assert len(grids) == 1 and len(grids[0]) == 1 + 4
+            assert grids[0][1].count(HERO) == 4
+
+        class TestAccessible:
+            """ACCESSIBLE in the environment, non-empty, makes every call static whatever the options."""
+
+            def test_overrides_every_animation_option(self, kaomoji):
+                result = kaomoji("hero", env={"ACCESSIBLE": "1"}).run("--mood", "happy", "--animate", "--exit", "--loops", "1", "--frame-ms", "0")
+
+                assert result.returncode == 0
+                assert result.stdout == "─=≡▰▩▩[✿＾ｖ＾]━\n"
+
+            def test_shows_the_preview_once_at_rest(self, kaomoji):
+                result = kaomoji("hero", env={"ACCESSIBLE": "1"}).run("--preview", "--frame-ms", "0")
+
+                grids = kaomoji.split_grid(result.stdout, 4)
+                assert result.returncode == 0
+                assert len(grids) == 1 and len(grids[0]) == 1 + 4
+
+            def test_leaves_color_to_no_color(self, kaomoji):
+                out = kaomoji("hero", env={"ACCESSIBLE": "1"}).run("--color", "--animate").stdout
+
+                assert "\x1b[38;5;214m" in out
+                assert "\r" not in out
+
+            def test_does_not_count_when_empty(self, kaomoji):
+                result = kaomoji("hero", env={"ACCESSIBLE": ""}).run("--loops", "1", "--frame-ms", "0")
+
+                assert result.stdout.count("\r") > 1
 
 
 class TestColor:

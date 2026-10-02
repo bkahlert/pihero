@@ -29,6 +29,10 @@ kaomoji wizard --loops 3 --exit             # entrance, three hover cycles, exit
 kaomoji visitor --preview                   # every mood and style in a grid, animated
 ```
 
+`--no-animation` undoes the animation options before it, so a wrapper can append it to an app's flags, and `ACCESSIBLE`
+set in the environment, to anything, keeps every call static whatever the flags say, as Charm's `huh` and `gum` do; color
+stays with `NO_COLOR`.
+
 ## Preview grids
 
 One row per mood, one column per style: static and animated, each plain and colored.
