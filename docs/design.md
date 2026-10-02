@@ -186,10 +186,11 @@ which Trixie's minimal images no longer carry. `pihero-kiosk.service` runs `/usr
 then execs `cog --platform=drm URL`, so WPE WebKit paints straight onto the DRM device with no X server, display manager, or
 compositor. `URL` and `COG_ARGS` come from `/etc/pihero/kiosk.conf` (`EnvironmentFile=-`), the default page is a black
 `/usr/share/pihero/kiosk/index.html` saying where to set the URL. `ConditionPathExistsGlob=/dev/dri/card*` keeps the unit
-skipped, not failed, in the container, the VM, and on a headless board; `Restart=always` with `StartLimitIntervalSec=0`
-covers a panel that appears late; `MemoryMax=300M` binds once the device file has turned the memory controller on (see
-[app-conventions.md](app-conventions.md)). Cog's own environment passes through, so a panel with several modes takes
-`COG_PLATFORM_DRM_VIDEO_MODE=800x480` in the same file.
+skipped, not failed, in the container, a VM started with `--display none`, and on a headless board; the tier 2 VM has a
+virtual display by default since 2.4.0, where the unit runs on Pi Hero's cog; `Restart=always` with
+`StartLimitIntervalSec=0` covers a panel that appears late; `MemoryMax=300M` binds once the device file has turned the
+memory controller on (see [app-conventions.md](app-conventions.md)). Cog's own environment passes through, so a panel with
+several modes takes `COG_PLATFORM_DRM_VIDEO_MODE=800x480` in the same file.
 
 A panel on SPI with a `mipi-dbi` KMS driver (`ili9486` and its relatives, `dtoverlay=piscreen,drm` for the Waveshare 3.5-inch)
 lists only XRGB8888 and RGB565. Cog's default "modeset" renderer scans out WPE's ARGB8888 buffer unchanged, so such a panel

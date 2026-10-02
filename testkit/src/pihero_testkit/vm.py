@@ -5,6 +5,7 @@ The harness plays the firmware: it reads cmdline.txt from the bootfs image on ev
 """
 
 import argparse
+import re
 import shutil
 import socket
 import subprocess
@@ -17,7 +18,7 @@ from pathlib import Path
 import testinfra
 
 from . import bootfs as bootfs_mod
-from . import build, prepare, repo
+from . import build, prepare, qmp, repo
 
 PACKAGE_DIR = Path(str(files("pihero_testkit")))
 KEY = PACKAGE_DIR / "keys" / "pihero-testkit"
@@ -26,6 +27,38 @@ REPO_PORT = 8000
 # IdentitiesOnly keeps an ssh-agent with several keys from exhausting sshd's attempts before ours is offered.
 SSH_OPTS = ["-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "LogLevel=ERROR"]
 SSH_CONNECTION_FAILED = 255
+DEFAULT_DISPLAY = "800x480"
+DISPLAY = re.compile(r"^(?P<width>\d+)x(?P<height>\d+)$")
+
+
+def parse_display(display: str) -> tuple[int, int] | None:
+    """Returns the virtual display's size, or None for "none"; raises ValueError for anything else."""
+    if display == "none":
+        return None
+    match = DISPLAY.match(display)
+    if not match:
+        raise ValueError(f"display must be WIDTHxHEIGHT or none, not {display!r}")
+    return int(match["width"]), int(match["height"])
+
+
+def qemu_command(base: prepare.BaseImage, overlay: Path, bootfs: Path, serial_log: Path, append: str, accel: str, memory_mb: int, port: int, qmp_port: int, display: tuple[int, int] | None) -> list[str]:
+    """The qemu-system-aarch64 argument list for one boot: the headless virt machine, the disks, the network, the serial log, the QMP port, and the virtual display if any."""
+    cpu = ["-cpu", "host"] if accel == "hvf" else ["-cpu", "cortex-a72"]
+    gpu = ["-device", f"virtio-gpu-pci,xres={display[0]},yres={display[1]}"] if display else []
+    return [
+        "qemu-system-aarch64", "-M", "virt", "-accel", accel, *cpu, "-m", str(memory_mb), "-smp", "2",
+        "-no-reboot", "-display", "none", "-monitor", "none",
+        "-kernel", str(base.kernel), "-initrd", str(base.initrd), "-append", append,
+        "-drive", f"if=none,file={overlay},format=qcow2,id=root", "-device", "virtio-blk-pci,drive=root",
+        "-drive", f"if=none,file={bootfs},format=raw,id=boot", "-device", "virtio-blk-pci,drive=boot",
+        "-netdev", f"user,id=net0,hostfwd=tcp:127.0.0.1:{port}-:22", "-device", "virtio-net-pci,netdev=net0",
+        "-device", "virtio-rng-pci",
+        # `-serial file:` truncates on open and would discard the boot marker written below and every earlier boot.
+        "-chardev", f"file,id=serial0,path={serial_log},append=on", "-serial", "chardev:serial0",
+        # A TCP port, since a UNIX socket path is limited to 104 bytes, which a scratch directory already exceeds.
+        "-qmp", f"tcp:127.0.0.1:{qmp_port},server,nowait",
+        *gpu,
+    ]
 
 
 class QemuExited(RuntimeError):
@@ -33,7 +66,7 @@ class QemuExited(RuntimeError):
 
 
 class Vm:
-    def __init__(self, base: prepare.BaseImage, bootfs: Path, workdir: Path, accel: str = "hvf", user: str = "pihero", memory_mb: int = 1024, debs: list[Path] = ()):
+    def __init__(self, base: prepare.BaseImage, bootfs: Path, workdir: Path, accel: str = "hvf", user: str = "pihero", memory_mb: int = 1024, debs: list[Path] = (), display: str = DEFAULT_DISPLAY):
         self.base, self.bootfs, self.workdir, self.accel, self.user, self.memory_mb, self.debs = base, bootfs, workdir, accel, user, memory_mb, list(debs)
         self.overlay = workdir / "overlay.qcow2"
         self.serial_log = workdir / "serial.log"
@@ -42,24 +75,15 @@ class Vm:
         shutil.copy(KEY, self.key)
         self.key.chmod(0o600)
         self.port = _free_port()
+        self.qmp_port = _free_port()
+        self.display = parse_display(display)
         self.process: subprocess.Popen | None = None
         self.boots = 0
         subprocess.run(["qemu-img", "create", "-q", "-f", "qcow2", "-b", str(base.rootfs), "-F", "qcow2", str(self.overlay)], check=True)
 
     def start(self) -> "Vm":
         append = bootfs_mod.kernel_args(bootfs_mod.read_cmdline(self.bootfs))
-        cpu = ["-cpu", "host"] if self.accel == "hvf" else ["-cpu", "cortex-a72"]
-        command = [
-            "qemu-system-aarch64", "-M", "virt", "-accel", self.accel, *cpu, "-m", str(self.memory_mb), "-smp", "2",
-            "-no-reboot", "-display", "none", "-monitor", "none",
-            "-kernel", str(self.base.kernel), "-initrd", str(self.base.initrd), "-append", append,
-            "-drive", f"if=none,file={self.overlay},format=qcow2,id=root", "-device", "virtio-blk-pci,drive=root",
-            "-drive", f"if=none,file={self.bootfs},format=raw,id=boot", "-device", "virtio-blk-pci,drive=boot",
-            "-netdev", f"user,id=net0,hostfwd=tcp:127.0.0.1:{self.port}-:22", "-device", "virtio-net-pci,netdev=net0",
-            "-device", "virtio-rng-pci",
-            # `-serial file:` truncates on open and would discard the boot marker written below and every earlier boot.
-            "-chardev", f"file,id=serial0,path={self.serial_log},append=on", "-serial", "chardev:serial0",
-        ]
+        command = qemu_command(self.base, self.overlay, self.bootfs, self.serial_log, append, self.accel, self.memory_mb, self.port, self.qmp_port, self.display)
         self.boots += 1
         with self.serial_log.open("a") as log:
             log.write(f"\n===== boot {self.boots}: {append}\n")
@@ -153,9 +177,16 @@ class Vm:
     def ssh_command(self) -> str:
         return f"ssh -i {self.key} -p {self.port} {' '.join(SSH_OPTS)} {self.user}@127.0.0.1"
 
+    def screenshot(self, path: Path) -> Path:
+        """Saves what the virtual display shows as a PNG at path and returns it; fails without a display."""
+        path = path.resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        qmp.execute(self.qmp_port, "screendump", {"filename": str(path), "format": "png"})
+        return path
+
 
 @contextmanager
-def provisioned_vm(debs: list[Path], device_dir: str | Path | None, accel: str, keep: bool):
+def provisioned_vm(debs: list[Path], device_dir: str | Path | None, accel: str, keep: bool, display: str = DEFAULT_DISPLAY):
     device = Path(device_dir) if device_dir else DEFAULT_DEVICE
     base = prepare.prepare()
     workdir = build.DIST / "vm" / device.name
@@ -164,13 +195,13 @@ def provisioned_vm(debs: list[Path], device_dir: str | Path | None, accel: str, 
     # A repo inside the recreated workdir holds only this run's debs, so no stale build can outrank them in apt's eyes.
     server = repo.Server(repo.build_repo(debs, workdir / "repo"), port=REPO_PORT)
     try:
-        vm = Vm(base, bootfs_mod.build_bootfs(device, base.boot, workdir / "bootfs.img"), workdir, accel=accel, debs=debs).start()
+        vm = Vm(base, bootfs_mod.build_bootfs(device, base.boot, workdir / "bootfs.img"), workdir, accel=accel, debs=debs, display=display).start()
         try:
             vm.wait_provisioned()
             yield vm
         finally:
             if keep:
-                print(f"\nVM kept running. Connect with:\n  {vm.ssh_command()}\nSerial log: {vm.serial_log}", file=sys.stderr)
+                print(f"\nVM kept running. Connect with:\n  {vm.ssh_command()}\nSerial log: {vm.serial_log}\nQMP port: {vm.qmp_port}", file=sys.stderr)
             else:
                 vm.stop()
     finally:
@@ -187,10 +218,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Boot the tier-2 VM from a device directory and keep it running.")
     parser.add_argument("--device", default=None)
     parser.add_argument("--qemu-accel", default="hvf")
+    parser.add_argument("--display", default=DEFAULT_DISPLAY)
     parser.add_argument("--keep", action="store_true")
     args = parser.parse_args()
     debs = build.build_all(build.version_from_git())
-    with provisioned_vm(debs, args.device, args.qemu_accel, keep=args.keep) as vm:
+    with provisioned_vm(debs, args.device, args.qemu_accel, keep=args.keep, display=args.display) as vm:
         print(vm.ssh_command())
         if args.keep:
             print("Press Ctrl-C to stop the VM.", file=sys.stderr)

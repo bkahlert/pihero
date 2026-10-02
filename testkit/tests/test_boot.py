@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 
 import pytest
 
@@ -48,6 +49,26 @@ class TestAvahi:
         assert "All\\032Features" in browse
 
 
+class TestDisplay:
+    def test_is_connected_at_the_configured_size(self, host, target):
+        if target.display is None:
+            pytest.skip("no display")
+
+        status = host.file("/sys/class/drm/card0-Virtual-1/status").content_string.strip()
+        modes = host.file("/sys/class/drm/card0-Virtual-1/modes").content_string.split()
+
+        assert status == "connected"
+        assert f"{target.display[0]}x{target.display[1]}" in modes
+
+    def test_is_pictured_as_a_png_of_its_size(self, target):
+        if target.display is None:
+            pytest.skip("no display")
+
+        picture = target.screenshot(target.workdir / "display.png")
+
+        assert png_size(picture) == target.display
+
+
 class TestBootConfigRoundTrip:
     @pytest.mark.mutating
     def test_cmdline_edit_survives_a_reboot(self, target):
@@ -71,3 +92,9 @@ def browse_until(host, service_type: str, needle: str, attempts: int = 10) -> st
             return output
         time.sleep(1)
     return output
+
+
+def png_size(path: Path) -> tuple[int, int]:
+    header = path.read_bytes()[:24]
+    assert header[:8] == b"\x89PNG\r\n\x1a\n"
+    return int.from_bytes(header[16:20], "big"), int.from_bytes(header[20:24], "big")
