@@ -8,15 +8,15 @@
 # row per mood and one column per style. Colors need a 256-color terminal. Needs bash 5.0+.
 #
 # The hero flies in from the left and hovers, tail flickering and hand flexing; on exit it flies
-# out to the right.
+# out through the right edge of the terminal, in the same time however wide the terminal is.
 #
 # Options:
 #   --mood <mood>     One of neutral, happy, sad, unknown (default: neutral).
 #   --animate         Fly the hero in from the left and let it hover (default: static). Implied by the options below.
 #   --no-entrance     Skip the entrance and start hovering right away.
 #   --loops <n>       Stop after <n> hover cycles (default: endless, until stopped with Ctrl-C).
-#   --exit            Fly the hero out to the right after the last hover cycle, or when an endless animation is
-#                     stopped with Ctrl-C or SIGTERM; a second Ctrl-C quits at once.
+#   --exit            Fly the hero out through the terminal's right edge after the last hover cycle, or when an
+#                     endless animation is stopped with Ctrl-C or SIGTERM; a second Ctrl-C quits at once.
 #   --frame-ms <ms>   Delay between animation frames (default: 50).
 #   --color           Colored output (default: if stdout is a terminal and NO_COLOR is unset).
 #   --no-color        Plain output.
@@ -131,8 +131,10 @@ hero_pose() {
 #   --step <n>      step of the animation: the hero flies in from the left during the first
 #                   steps, one grapheme per step, and hovers afterwards (default: at rest)
 #   --no-entrance   accepted for symmetry with the other kaomoji; the hero hovers where it lands
-#   --exit <n>      step after which the hero flies out to the right, one cell per step; it is
-#                   gone as many steps later as it is cells wide (default: never)
+#   --exit <n>      step after which the hero flies out to the right, crossing its line
+#                   (KAOMOJI_COLUMNS cells, or its own width without one) in as many steps as it
+#                   is cells wide and clipped at the line's edge; it is gone after the last of
+#                   them (default: never)
 #   --color         colored output
 hero_frame() {
     local mood=neutral step='' exit_step=''
@@ -153,7 +155,7 @@ hero_frame() {
     done
 
     local -a sprite timeline
-    local -i pose=$HERO_REST offset=0 clip=0 size phase
+    local -i pose=$HERO_REST offset=0 clip=0 size phase line
     if [ -n "$step" ]; then
         kaomoji_timeline hero "$mood" timeline # the graphemes and the width of the hero at rest
         size=${timeline[0]}
@@ -163,9 +165,13 @@ hero_frame() {
         pose=$(((step + phase) % HERO_CYCLE))
         if ((step <= size)); then offset=$((size - step)); fi
         if [ -n "$exit_step" ] && ((step > exit_step)); then
-            # The hero leaves the cells it hovered in and is clipped at their right edge.
-            clip=$((timeline[2] - offset))
-            offset=$((offset - (step - exit_step)))
+            # The exit crosses the line in the exit steps, as many as the hero is wide, so that it
+            # takes the same time on every terminal. Clipped at the line's edge, less what the hero
+            # had still to enter, it is gone after the last step.
+            line=${KAOMOJI_COLUMNS:-0}
+            ((line > 0)) || line=${timeline[2]}
+            clip=$((line - offset))
+            offset=$((offset - (step - exit_step) * line / timeline[2]))
             if ((-offset > clip)); then offset=$((-clip)); fi
         fi
     fi
@@ -174,7 +180,7 @@ hero_frame() {
 }
 
 # Fills an array with the steps of the hero's entrance (one per grapheme), of one hover cycle,
-# and of its exit (one per cell of its width), see kaomoji.bash.
+# and of its exit (one per cell of its width, however wide its line), see kaomoji.bash.
 #   --mood <mood>   neutral (default), happy, sad or unknown
 #   <array>         name of the array to fill
 hero_timeline() {

@@ -11,7 +11,7 @@ them.
 
 | Script             | Character                                                                                                  | Animation                              |
 | ------------------ | ---------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| [hero](hero)       | The Pi Hero, `─=≡▰▩▩[ 蓬•ｏ•]⊐`: flies in from the left, hovers with a flickering tail, flies out to the right | ![hero](assets/hero.gif)               |
+| [hero](hero)       | The Pi Hero, `─=≡▰▩▩[ 蓬•ｏ•]⊐`: flies in from the left, hovers with a flickering tail, flies out through the right edge of the terminal | ![hero](assets/hero.gif)               |
 | [wizard](wizard)   | The Netmon wizard, `(つ◕౪◕)つ─｡ﾟ․☆･*ﾟ`: slides in, conjures the magic particle by particle, slides out         | ![wizard](assets/wizard.gif)           |
 | [visitor](visitor) | The Busy Screen visitor, `┴┬┴┤´Ｏ´)ﾉ`: peeks out from behind a wall, waves and blinks, ducks back            | ![visitor](assets/visitor.gif)         |
 

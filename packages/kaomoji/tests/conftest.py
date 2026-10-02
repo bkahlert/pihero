@@ -15,10 +15,11 @@ CUU1 = "\x1b[A"
 class Kaomoji:
     """Runs a kaomoji script on a 256-color terminal and takes its output apart."""
 
-    def __init__(self, script: str, term: str = "xterm-256color", path: Path | None = None):
+    def __init__(self, script: str, term: str = "xterm-256color", path: Path | None = None, columns: int = 80):
         self.script = PACKAGE / script
         self.term = term
         self.path = path  # prepended to PATH, for a fake tput
+        self.columns = columns  # the terminal's width, as tput cols reports it
 
     def run(self, *args: str) -> subprocess.CompletedProcess:
         result = subprocess.run([str(self.script), *args], capture_output=True, env=self.env())
@@ -92,7 +93,7 @@ class Kaomoji:
         return line.split("One of", 1)[1].split(" (")[0].strip(" .").split(", ")
 
     def env(self) -> dict[str, str]:
-        env = {**os.environ, "TERM": self.term}
+        env = {**os.environ, "TERM": self.term, "COLUMNS": str(self.columns)}
         env.pop("NO_COLOR", None)
         if self.path:
             env["PATH"] = f"{self.path}:{env['PATH']}"

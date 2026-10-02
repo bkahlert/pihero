@@ -234,7 +234,7 @@ and a timeline (entrance steps, hover cycle, exit steps). Every call prints one 
 terminal; `--animate` or any animation option animates it, and `--exit` on an endless animation plays the exit when the script
 is stopped, so an app can show a face until it is done and let it leave. A signal that cuts a write to a slow terminal
 short does not corrupt the frame: every line is one write, restartable from a carriage return or the saved cursor
-position, and repeated when interrupted. Only `--help` and `--preview`, the grid, print anything else. `hero` flies in from the left, hovers, and flies out to the right;
+position, and repeated when interrupted. Only `--help` and `--preview`, the grid, print anything else. `hero` flies in from the left, hovers, and flies out through the terminal's right edge in the same time however wide it is;
 `wizard` slides in, conjures its magic particle by particle, runs the colors along it, and slides out to the left;
 `visitor` peeks out from behind a wall that slides in, waves and blinks, and ducks back before the wall slides out.
 [kaomoji-gif](../packages/kaomoji/kaomoji-gif) records the command given after `--` with asciinema on a virtual 256-color

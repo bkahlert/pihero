@@ -6,9 +6,9 @@
 # Records the command with asciinema (https://asciinema.org) on a virtual 256-color terminal, so a kaomoji
 # script colors its output unless told otherwise, and renders the recording with agg
 # (https://github.com/asciinema/agg). The terminal is as large as what the command drew plus the padding;
-# the final newline and the cursor are not part of the picture. An animation that hovers once loops
-# seamlessly. An endless animation, the scripts' default, never finishes recording: give it --loops, or
-# stop it with Ctrl-C.
+# the final newline and the cursor are not part of the picture, and a kaomoji that would leave through
+# the terminal's edge leaves through its own. An animation that hovers once loops seamlessly. An endless
+# animation, the scripts' default, never finishes recording: give it --loops, or stop it with Ctrl-C.
 #
 # Options:
 #   --output <file>     GIF to write (default: <command>.gif, named after the command's file).
@@ -218,7 +218,8 @@ kaomoji_gif() {
     local quoted
     printf -v quoted '%q ' "${command[@]}"
     local -i status=0
-    SHELL=$BASH asciinema rec --headless --quiet --overwrite --return --output-format asciicast-v2 \
+    # A kaomoji's line is its own width, so that one leaving through the line's edge stays in the picture.
+    SHELL=$BASH KAOMOJI_COLUMNS=0 asciinema rec --headless --quiet --overwrite --return --output-format asciicast-v2 \
         --command "$quoted" "$tmp/recording.cast" || status=$?
     local -a times events
     read_cast "$tmp/recording.cast" times events

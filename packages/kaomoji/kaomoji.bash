@@ -16,7 +16,9 @@
 #                      the steps of one cycle show every pose the character has
 # A frame paints with kaomoji_paint. Frames are deterministic and the hover frames repeat every
 # cycle, so the engine renders each of them once and plays them from a cache; the poses are
-# built before an animation starts.
+# built before an animation starts. A frame's line is KAOMOJI_COLUMNS cells wide: the terminal's
+# width in an animation unless the environment says otherwise, a cell's in the grid; a character
+# leaving through its edge reads it.
 # Needs bash 5.0+.
 
 [ -z "${KAOMOJI_BASH:-}" ] || return 0
@@ -48,7 +50,9 @@ kaomoji_tput() {
     ((${#missing[@]})) || return 0
     if [ -n "$sep" ]; then
         printf -v list '%s\nsgr0\n' "${missing[@]}"
-        out=$(tput -S <<<"$list" 2>/dev/null || true)
+        # tput keeps the script's stderr: its stdout being a pipe, it reads the terminal's size
+        # from there, and a known terminal's missing capabilities are silent anyway.
+        out=$(tput -S <<<"$list" || true)
         for cap in "${missing[@]}"; do
             KAOMOJI_CAP[$cap]=${out%%"$sep"*}
             KAOMOJI_CAP[$cap]=${KAOMOJI_CAP[$cap]%$'\n'} # a count like colors ends in a newline
@@ -253,6 +257,19 @@ kaomoji_sprite() {
     KAOMOJI_SPRITES[$key]=$name
 }
 
+# The cells a frame may use on its line; 0 keeps a character to its own width. The environment
+# may set it, as kaomoji-gif does to keep a recording as small as the character; otherwise the
+# animation measures the terminal (kaomoji_columns) and the grid uses a cell's width.
+KAOMOJI_COLUMNS=${KAOMOJI_COLUMNS:-}
+
+# Sets KAOMOJI_COLUMNS, unless the environment did, to the terminal's width (tput cols, which
+# honors $COLUMNS; 80 without a terminal) less the last column, which some terminals wrap on.
+kaomoji_columns() {
+    [ -z "$KAOMOJI_COLUMNS" ] || return 0
+    kaomoji_tput cols
+    KAOMOJI_COLUMNS=$((${KAOMOJI_CAP[cols]:-80} - 1))
+}
+
 # Fills an array with a character's timeline, asking <name>_timeline once per mood.
 #   <name> <mood> <array>
 declare -A KAOMOJI_TIMELINES=()
@@ -353,9 +370,10 @@ kaomoji_write() {
 # What a signal does during an animation: quit at once, leaving the cursor on a fresh line.
 readonly KAOMOJI_QUIT='printf "\n"; exit 130'
 
-# Hides the cursor for an animation and brings it back when the script ends, also on Ctrl-C.
+# Hides the cursor for an animation and brings it back when the script ends, also on Ctrl-C;
+# fetches every capability an animation needs, the terminal's width included, in one go.
 kaomoji_animation_begin() {
-    kaomoji_tput civis cnorm el cuu1 sc rc colors
+    kaomoji_tput civis cnorm el cuu1 sc rc colors cols
     trap 'printf "%s" "${KAOMOJI_CAP[cnorm]}"' EXIT
     trap "$KAOMOJI_QUIT" INT
     printf '%s' "${KAOMOJI_CAP[civis]}"
@@ -422,6 +440,7 @@ kaomoji_animate() {
         fi
     fi
     kaomoji_animation_begin
+    kaomoji_columns
     if ((exit && loops < 0)); then trap 'stop=1' INT TERM; fi # endless: leave when stopped
     kaomoji_warm "$name" "$mood" "${color[@]}"
     kaomoji_step_frame "$name" "$mood" "$first" "$entrance_steps" "$cycle" "$exit_step" "${flags[@]}"
@@ -520,6 +539,7 @@ kaomoji_grid() {
         last_steps[i]=$((timeline[0] + loops * timeline[1] + (exit ? timeline[2] : 0))) # meaningless while endless
         if ((last_steps[i] - first_steps[i] > last)); then last=$((last_steps[i] - first_steps[i])); fi
     done
+    KAOMOJI_COLUMNS=$cell # an animated cell is a line of its own: an exit ends at its edge
 
     # The header and the rows are separated by empty lines; all of them are redrawn per step, each
     # line in one write. The cursor is saved below the grid once it exists: a redraw returns there

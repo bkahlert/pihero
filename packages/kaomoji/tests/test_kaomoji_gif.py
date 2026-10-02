@@ -68,6 +68,17 @@ class TestCast:
         assert repeated < len(frames) - 1, "the hero's last pose is held for several frames"
         assert abs(fake_agg.option("--last-frame-duration") - expected) < 0.002
 
+    def test_keeps_a_leaving_hero_in_its_own_box(self, tmp_path, fake_agg):
+        cast = tmp_path / "hero.cast"
+
+        result = run("--cast", str(cast), "--output", str(tmp_path / "hero.gif"), "--padding", "0", "--", HERO, "--no-color", "--loops", "1", "--exit", "--frame-ms", "0", path=fake_agg.directory)
+
+        assert result.returncode == 0, result.stderr
+        header, events = read_cast(cast)
+        drawn = [frame for _, data in events if (frame := ESCAPES.sub("", data)).strip()]
+        assert header["width"] == 16
+        assert drawn[-1] == "\r" + " " * 15 + "-"
+
     def test_hides_the_cursor_in_a_still_and_holds_it_for_a_second(self, tmp_path, fake_agg):
         cast = tmp_path / "hero.cast"
 
