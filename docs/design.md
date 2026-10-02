@@ -324,7 +324,8 @@ file another daemon reads, defaults in code, overrides from `/etc/pihero/<featur
 - **Development loop.** `make deploy TARGET=pi@host` builds, asks the device which of the packages it has, and
   reinstalls those of its architecture over SSH with `apt install ./pkg.deb`, skipping the repository. A package the device never had is not
   added: its postinst would run for a board it was not meant for, as the gadget's once did on a Model B. A device without
-  any of the packages is flashed, not deployed to.
+  any of the packages is flashed, not deployed to. The ssh tier asks the same question and skips the tests of the packages the device
+  lacks, so a board with a subset is green.
 
 ## Applications
 

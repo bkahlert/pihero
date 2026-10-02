@@ -112,3 +112,26 @@ def probe_script(name: str, body: str) -> tuple[Path, Path]:
 def remove_probe(pkg: Path) -> None:
     subprocess.run([*tools.PODMAN, "rmi", "-f", tools.image(pkg / "Containerfile")], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(["rm", "-rf", str(pkg.parents[1])], check=True)
+
+
+class TestIsPackage:
+    def test_is_true_for_a_directory_with_an_nfpm_manifest(self, tmp_path):
+        (tmp_path / "nfpm.yaml").write_text("name: probe\n")
+
+        assert build.is_package(tmp_path)
+
+    def test_is_true_for_a_build_script_with_its_containerfile(self, tmp_path):
+        (tmp_path / "build").write_text("#!/bin/sh\n")
+        (tmp_path / "Containerfile").write_text("FROM scratch\n")
+
+        assert build.is_package(tmp_path)
+
+    def test_is_false_for_a_build_script_alone(self, tmp_path):
+        (tmp_path / "build").write_text("#!/bin/sh\n")
+
+        assert not build.is_package(tmp_path)
+
+    def test_is_false_for_a_tests_directory(self, tmp_path):
+        (tmp_path / "test_installed.py").write_text("")
+
+        assert not build.is_package(tmp_path)

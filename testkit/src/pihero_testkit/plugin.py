@@ -1,5 +1,7 @@
 """pytest plugin: target selection, tier markers, and the testinfra host fixture shared by all package tests."""
 
+from pathlib import Path
+
 import pytest
 
 from . import build
@@ -27,13 +29,25 @@ def pytest_configure(config):
         parse_display(config.getoption("--display"))
 
 
+def package_of(path: Path) -> str | None:
+    """Returns the name of the package whose directory holds path, or None for a path outside every package."""
+    return next((directory.name for directory in path.parents if build.is_package(directory)), None)
+
+
 def pytest_collection_modifyitems(config, items):
     target = config.getoption("--target")
+    installed, uri = None, config.getoption("--target-uri")
+    if target == "ssh" and items:
+        from .ssh import installed_packages
+
+        installed = installed_packages(uri)
     for item in items:
         if "mutating" in item.keywords and target == "ssh":
             item.add_marker(pytest.mark.skip(reason="mutating test on a real device"))
         if "boot" in item.keywords and target == "podman":
             item.add_marker(pytest.mark.skip(reason="needs a booted system"))
+        if installed is not None and (package := package_of(item.path)) and package not in installed:
+            item.add_marker(pytest.mark.skip(reason=f"{package} is not installed on {uri}"))
 
 
 @pytest.fixture(scope="session")

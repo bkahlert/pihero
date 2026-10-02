@@ -12,7 +12,7 @@ it as a pinned git dependency.
 | 0 | tools container | seconds | Python helpers against fixtures, shellcheck, `systemd-analyze verify`, `cloud-init schema` for the device files, every package builds |
 | 1 | systemd podman container, `linux/arm64` and `linux/arm/v7` | about a minute | install, dependencies resolve on both archives, units enable and start, renderers write the right files, remove and purge leave nothing behind |
 | 2 | QEMU `virt` VM with the real Raspberry Pi OS Lite root filesystem | under ten minutes | a device file boots to a provisioned system: cloud-init done without errors, no failed unit, Avahi records, boot config edits that survive a reboot, watchdog armed, the `power_state` reboot, the kiosk active on a virtual display, a screenshot of it |
-| ssh | a Raspberry Pi | seconds | the `installed` tests against the packages a real device has; mutating tests are skipped |
+| ssh | a Raspberry Pi | seconds | the `installed` tests of the packages the device has; the other packages' tests and mutating tests are skipped |
 
 Tiers 1, 2, and ssh run the same `test_installed.py` files.
 
@@ -121,9 +121,10 @@ testinfra's own plugin registers after the testkit's, and its local-host `host` 
 
 ## Real devices
 
-`--target=ssh --target-uri=pi@host[:port]` builds nothing and compares against the version installed on the device, because
-the git-derived version only matches a device at a tag. The Avahi tests need `avahi-utils` on the device. What only a fresh
-card shows: `pihero-usb-gadget`'s postinst turning `rpi-usb-gadget` on and requesting the reboot, and purge turning it off.
+`--target=ssh --target-uri=pi@host[:port]` builds nothing. It compares against the version installed on the device, because
+the git-derived version only matches a device at a tag, and asks the device which packages it has, as `make deploy` does:
+the installed tests of the others are skipped as "not installed on pi@host". The Avahi tests need `avahi-utils` on the device.
+What only a fresh card shows: `pihero-usb-gadget`'s postinst turning `rpi-usb-gadget` on and requesting the reboot, and purge turning it off.
 Neither tier is a Raspberry Pi and mutating tests are skipped over ssh, so a release flashes a device file derived from the
 sample onto a card and runs the ssh tier after provisioning; one board per image where a 32-bit board is at hand. Device
 files live outside this checkout (`make flash DEVICE=<path>`); `devices/` holds only the sample. `make deploy TARGET=pi@host` reinstalls the freshly built packages the device already

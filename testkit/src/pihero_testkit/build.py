@@ -36,8 +36,13 @@ def version_from_git() -> str:
     return version_from_describe(out)
 
 
+def is_package(directory: Path) -> bool:
+    """Returns whether directory builds a package: nfpm.yaml is there, or a build script next to a Containerfile."""
+    return (directory / "nfpm.yaml").is_file() or ((directory / "build").is_file() and (directory / "Containerfile").is_file())
+
+
 def discover() -> list[Path]:
-    return sorted(p for p in PACKAGES.iterdir() if (p / "nfpm.yaml").exists() or ((p / "build").exists() and (p / "Containerfile").exists()))
+    return sorted(p for p in PACKAGES.iterdir() if is_package(p))
 
 
 def build(pkg_dir: Path, version: str, dist: Path = DIST) -> Path:
