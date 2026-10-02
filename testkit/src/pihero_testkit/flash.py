@@ -19,6 +19,7 @@ CHUNK = 4 << 20
 SECTOR = 512
 BOOT_LABEL = "bootfs"
 DEVICE_FILES = ("user-data", "network-config", "meta-data")
+DEVICES_ENV = "PIHERO_DEVICES"
 HOSTNAME = re.compile(r"""^hostname:\s*["']?(?P<name>[A-Za-z0-9][A-Za-z0-9.-]*)["']?\s*$""", re.MULTILINE)
 REGULATORY_DOMAIN = re.compile(r"""^\s*regulatory-domain:\s*["']?(?P<code>[A-Z]{2})["']?\s*$""", re.MULTILINE)
 CMDLINE_REGDOM = re.compile(r"\s*cfg80211\.ieee80211_regdom=\S*")
@@ -27,10 +28,15 @@ IMAGE_LINE = re.compile(r"^#\s*image:\s*(?P<name>\S+)")
 
 
 def device_dir(name: str) -> Path:
-    path = Path(name) if Path(name).is_dir() else Path.cwd() / "devices" / name
-    if not (path / "user-data").is_file():
-        raise SystemExit(f"{path} has no user-data")
-    return path
+    """Returns the directory holding name's user-data: name as a path, devices/name, or name under $PIHERO_DEVICES, in that order."""
+    candidates = [Path(name), Path.cwd() / "devices" / name]
+    if configured := os.environ.get(DEVICES_ENV):
+        candidates.append(Path(configured).expanduser() / name)
+    for path in candidates:
+        if (path / "user-data").is_file():
+            return path
+    hint = "" if configured else f"; set {DEVICES_ENV} in .env for device directories kept elsewhere"
+    raise SystemExit(f"no user-data for {name!r} in {', '.join(map(str, candidates))}{hint}")
 
 
 def hostname(user_data: str) -> str | None:
@@ -159,7 +165,8 @@ def say(message: str) -> None:
 
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
-        print("usage: python -m pihero_testkit.flash DEVICE DISK   (DEVICE: a directory under devices/ or a path; e.g. mypi disk9; see: diskutil list external)", file=sys.stderr)
+        usage = "usage: python -m pihero_testkit.flash DEVICE DISK   (DEVICE: a name under devices/ or $PIHERO_DEVICES, or a path; see: diskutil list external)"
+        print(usage, file=sys.stderr)
         return 2
     if sys.platform != "darwin":
         print("flash is macOS only", file=sys.stderr)

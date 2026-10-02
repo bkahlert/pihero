@@ -13,3 +13,4 @@ devices/*
 !devices/sample/
 !devices/README.md
 backups/
+.env

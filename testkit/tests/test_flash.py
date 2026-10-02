@@ -102,6 +102,45 @@ class TestDeviceDir:
 
         assert path == tmp_path / "devices" / "pi"
 
+    def test_resolves_a_name_under_the_configured_directory(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv(flash.DEVICES_ENV, str(tmp_path / "fleet"))
+        (tmp_path / "fleet" / "checkpoint").mkdir(parents=True)
+        (tmp_path / "fleet" / "checkpoint" / "user-data").write_text("#cloud-config\n")
+
+        path = flash.device_dir("checkpoint")
+
+        assert path == tmp_path / "fleet" / "checkpoint"
+
+    def test_prefers_devices_over_the_configured_directory(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv(flash.DEVICES_ENV, str(tmp_path / "fleet"))
+        for parent in ("devices", "fleet"):
+            (tmp_path / parent / "pi").mkdir(parents=True)
+            (tmp_path / parent / "pi" / "user-data").write_text("#cloud-config\n")
+
+        path = flash.device_dir("pi")
+
+        assert path == tmp_path / "devices" / "pi"
+
+    def test_expands_the_home_directory_in_the_configured_path(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv(flash.DEVICES_ENV, "~/fleet")
+        (tmp_path / "fleet" / "pi").mkdir(parents=True)
+        (tmp_path / "fleet" / "pi" / "user-data").write_text("#cloud-config\n")
+
+        path = flash.device_dir("pi")
+
+        assert path == tmp_path / "fleet" / "pi"
+
+    def test_names_every_place_it_looked(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv(flash.DEVICES_ENV, "")
+
+        with pytest.raises(SystemExit, match=r"no user-data.*devices/nope.*PIHERO_DEVICES"):
+            flash.device_dir("nope")
+
     def test_rejects_a_directory_without_user_data(self, tmp_path):
         with pytest.raises(SystemExit, match="no user-data"):
             flash.device_dir(str(tmp_path))

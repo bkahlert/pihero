@@ -13,6 +13,11 @@ OUT ?=
 IDS ?=
 UV := uv run --frozen
 
+PIHERO_DEVICES ?=
+CHECKPOINTS ?=
+-include .env
+export PIHERO_DEVICES CHECKPOINTS
+
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n", $$1, $$2}'
 
@@ -48,8 +53,9 @@ deploy: build ## install built packages on TARGET over SSH
 	@test -n "$(TARGET)" || { echo "usage: make deploy TARGET=host"; exit 2; }
 	@$(UV) python -m pihero_testkit.deploy "$(TARGET)"
 
-flash: ## write Raspberry Pi OS and a device's files to an SD card (make flash DEVICE=name DISK=disk9)
-	@test -n "$(DEVICE)" -a -n "$(DISK)" || { echo "usage: make flash DEVICE=name DISK=diskN   (diskutil list external)"; exit 2; }
+flash: ## write Raspberry Pi OS and a device's files to an SD card (make flash DEVICE=name|path DISK=disk9)
+	@test -n "$(DEVICE)" -a -n "$(DISK)" || \
+		{ echo "usage: make flash DEVICE=name|path DISK=diskN   (name: under devices/ or PIHERO_DEVICES in .env; diskutil list external)"; exit 2; }
 	@$(UV) python -m pihero_testkit.flash "$(DEVICE)" "$(DISK)"
 
 .PHONY: backup

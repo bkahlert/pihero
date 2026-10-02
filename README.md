@@ -94,7 +94,7 @@ make doctor                                  # lists what is missing
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [packages/](packages)  | One directory per Debian package: what it installs under `root/`, its `nfpm.yaml` manifest, its tests; [kaomoji/](packages/kaomoji/README.md) is the cast; [cog/](packages/cog) rebuilds Debian's cog |
 | [testkit/](testkit)    | The test harness: the pytest plugin and the commands behind `make`; builds the packages and tests them in podman containers, a QEMU VM, or on a Pi over SSH     |
-| [devices/](devices)    | Device files, one directory per device, documented in [devices/README.md](devices/README.md); only `sample/` is committed                                       |
+| [devices/](devices)    | Device files, one directory per device, documented in [devices/README.md](devices/README.md); only `sample/` is committed, and a gitignored `.env` names a directory of device directories kept elsewhere |
 | [docs/](docs)          | Design, testing, and platform notes                                                                                                                             |
 
 ### Build and test
