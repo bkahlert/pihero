@@ -72,7 +72,8 @@ def fake_ssh(monkeypatch, probe: dict[str, str] | None = None, tier: dict[str, i
         calls.append(cmd)
         if cmd[0] == "ssh":
             error = (probe or {}).get(cmd[-2])
-            return subprocess.CompletedProcess(cmd, 255 if error else 0, stdout=b"", stderr=f"Warning: Permanently added 'b.local' (ED25519) to the list of known hosts.\r\n{error}\r\n".encode() if error else b"")
+            stderr = f"Warning: Permanently added 'b.local' (ED25519) to the list of known hosts.\r\n{error}\r\n".encode() if error else b""
+            return subprocess.CompletedProcess(cmd, 255 if error else 0, stdout=b"", stderr=stderr)
         return subprocess.CompletedProcess(cmd, (tier or {}).get(cmd[-1].removeprefix("--target-uri="), 0))
 
     monkeypatch.setattr(checkpoint.subprocess, "run", run)
