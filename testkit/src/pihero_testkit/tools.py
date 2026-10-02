@@ -1,4 +1,5 @@
-"""Runs commands in pinned container images, the tools image by default, building an image on first use."""
+"""Runs commands in pinned container images, the tools image by default, building an image on first use;
+`python -m pihero_testkit.tools -- <command>` runs one from the shell."""
 
 import hashlib
 import os
@@ -10,6 +11,10 @@ from pathlib import Path
 
 PODMAN = os.environ.get("PODMAN", "podman").split()
 CONTAINERFILE = Path(str(files("pihero_testkit") / "tools" / "Containerfile"))
+
+# Go's build cache, kept in a named volume across the one-shot containers: without it every build
+# recompiles the standard library, with it a build takes seconds.
+GO_CACHE = "pihero-go-cache:/root/.cache/go-build"
 
 _HOST_ARCH_TO_PLATFORM = {"arm64": "linux/arm64", "aarch64": "linux/arm64", "x86_64": "linux/amd64", "amd64": "linux/amd64"}
 # Pinned to the host arch: a cross-arch pull can leave a wrong-arch image under the same
@@ -71,6 +76,15 @@ def run(
     return subprocess.run(cmd, check=check, text=True, capture_output=capture)
 
 
+def main(argv: list[str]) -> int:
+    """Without arguments prints the tools image; with `-- <command>` runs the command in it, Go's cache mounted, and returns its status."""
+    if not argv:
+        print(ensure_image())
+        return 0
+    if argv[0] == "--":
+        argv = argv[1:]
+    return run(argv, check=False, mounts=[GO_CACHE]).returncode
+
+
 if __name__ == "__main__":
-    print(ensure_image())
-    sys.exit(0)
+    sys.exit(main(sys.argv[1:]))

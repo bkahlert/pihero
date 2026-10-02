@@ -1,4 +1,6 @@
 import hashlib
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -52,3 +54,22 @@ def containerfile_in(directory: Path, content: str) -> Path:
     containerfile = directory / "Containerfile"
     containerfile.write_text(content)
     return containerfile
+
+
+class TestMain:
+    def test_without_arguments_prints_the_tools_image(self, capsys):
+        status = tools.main([])
+
+        assert status == 0
+        assert capsys.readouterr().out.strip() == tools.image()
+
+    def test_runs_a_command_in_the_tools_image_and_returns_its_status(self):
+        result = subprocess.run([sys.executable, "-m", "pihero_testkit.tools", "--", "sh", "-c", "go version; exit 3"], capture_output=True, text=True)
+
+        assert result.returncode == 3
+        assert result.stdout.startswith("go version go1.")
+
+    def test_keeps_gos_build_cache_in_a_volume(self):
+        result = subprocess.run([sys.executable, "-m", "pihero_testkit.tools", "--", "sh", "-c", "go env GOCACHE; mount | grep -c /root/.cache/go-build"], capture_output=True, text=True)
+
+        assert result.stdout.splitlines() == ["/root/.cache/go-build", "1"]
