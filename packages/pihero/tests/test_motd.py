@@ -87,9 +87,9 @@ class TestRender:
 
 
 class TestMain:
-    def test_renders_the_banner_through_hero_in_the_mood_of_the_state(self, tmp_path, monkeypatch, capsys):
+    def test_renders_the_banner_through_kaomoji_hero_in_the_mood_of_the_state(self, tmp_path, monkeypatch, capsys):
         stub(tmp_path, "systemctl", 'printf "x.service loaded failed failed X\\n"')
-        stub(tmp_path, "hero", 'printf "%s\\n" "$*" >> "$0.log"; printf "HERO %s\\n" "$2"')
+        stub(tmp_path, "kaomoji", 'printf "%s\\n" "$*" >> "$0.log"; printf "HERO %s\\n" "$3"')
         monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
         monkeypatch.setattr(motd, "RUN", tmp_path)
 
@@ -97,11 +97,11 @@ class TestMain:
 
         out = capsys.readouterr().out
         assert out.startswith("\nHERO sad\n\n")
-        assert (tmp_path / "hero.log").read_text() == "--mood sad --no-color\n"
+        assert (tmp_path / "kaomoji.log").read_text() == "hero --mood sad --no-color\n"
 
     def test_asks_for_the_puzzled_hero_on_a_pending_reboot(self, tmp_path, monkeypatch, capsys):
         stub(tmp_path, "systemctl", "")
-        stub(tmp_path, "hero", 'printf "HERO %s\\n" "$2"')
+        stub(tmp_path, "kaomoji", 'printf "HERO %s\\n" "$3"')
         (tmp_path / "reboot-required").write_text("*** System restart required ***\n")
         monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
         monkeypatch.setattr(motd, "RUN", tmp_path)
