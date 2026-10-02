@@ -53,6 +53,9 @@ deploy: build ## install built packages on TARGET over SSH
 	@test -n "$(TARGET)" || { echo "usage: make deploy TARGET=host"; exit 2; }
 	@$(UV) python -m pihero_testkit.deploy "$(TARGET)"
 
+checkpoint: ## run the ssh tier against the checkpoints, the real boards CHECKPOINTS names in .env
+	@$(UV) python -m pihero_testkit.checkpoint $(CHECKPOINTS)
+
 flash: ## write Raspberry Pi OS and a device's files to an SD card (make flash DEVICE=name|path DISK=disk9)
 	@test -n "$(DEVICE)" -a -n "$(DISK)" || \
 		{ echo "usage: make flash DEVICE=name|path DISK=diskN   (name: under devices/ or PIHERO_DEVICES in .env; diskutil list external)"; exit 2; }
