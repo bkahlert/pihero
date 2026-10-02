@@ -49,13 +49,13 @@ class Kaomoji:
         # decoded by hand: text mode would turn the \r between frames into newlines
         return subprocess.CompletedProcess(result.args, result.returncode, result.stdout.decode(), result.stderr.decode())
 
-    def stopped(self, *args: str, signals: list[int], frame_mark: bytes = b"\r") -> subprocess.CompletedProcess:
-        """Runs an endless animation and sends each signal once two more frames have shown."""
+    def stopped(self, *args: str, signals: list[int], frame_mark: bytes = b"\r", after: int = 2) -> subprocess.CompletedProcess:
+        """Runs an endless animation and sends each signal once as many more frames have shown."""
         proc = subprocess.Popen(self.command("--no-color", *args), stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env(), bufsize=0)
         out = b""
         for sig in signals:
             seen = out.count(frame_mark)
-            while out.count(frame_mark) < seen + 2:
+            while out.count(frame_mark) < seen + after:
                 chunk = proc.stdout.read(4096)
                 if not chunk:
                     break

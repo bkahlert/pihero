@@ -247,10 +247,12 @@ enters and leaves one cell per step, its exit crossing the whole line in sixteen
 200-column terminal sees 200 frames one to eight milliseconds apart where a 40-column one sees 40. `hero` flies in from
 the left, hovers, and flies out through the terminal's right edge; `wizard` slides in, conjures its magic particle by
 particle, runs the colors along it, and slides out to the left; `visitor` peeks out from behind a wall that slides in,
-waves and blinks, and ducks back before the wall slides out. Every call prints one kaomoji: the first mood, static,
-colored on a terminal; `--animate` or any animation option animates it, and `--exit` on an endless animation plays the
-exit when the program is stopped by SIGINT or SIGTERM, a second signal quitting at once, so an app can show a face until
-it is done and let it leave. Go finishes a write a signal interrupted, so a frame is never torn. Only `--help`,
+waves and blinks, and ducks back before the wall slides out. The wizard's and the visitor's exits are their entrances run
+backwards, so an exit begun during the entrance runs back from where the entrance stood, in as many steps; the hero
+leaves from wherever it is. Every call prints one kaomoji: the first mood, static, colored on a terminal; `--animate` or
+any animation option animates it, and `--exit` on an endless animation plays the exit when the program is stopped by
+SIGINT or SIGTERM, a second signal quitting at once, so an app can show a face until it is done and let it leave. Go
+finishes a write a signal interrupted, so a frame is never torn. Only `--help`,
 `--version`, and `--preview`, the grid, print anything else. A terminal moves text by whole cells and redraws at its own
 rate, so beyond about sixty frames a second the clock buys timing accuracy, not visible motion.
 

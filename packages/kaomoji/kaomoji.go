@@ -242,14 +242,33 @@ type timeline struct {
 }
 
 // A character has moods, a frame for every step, and a timeline. A frame's step is -1 for the character
-// at rest; exitStep is the step after which the exit begins, -1 for none; cols is the line's cells, 0 for
-// the character's own width.
+// at rest; exitStep is the step after which the exit begins, -1 for none, and an exit begun during the
+// entrance may have fewer steps; cols is the line's cells, 0 for the character's own width.
 type character struct {
 	name     string
 	usage    string
 	moods    []string
-	timeline func(mood string, cols int) timeline
+	timeline func(mood string, cols, exitStep int) timeline
 	frame    func(mood string, step, exitStep, cols int, colored bool, d depth) painting
+}
+
+// reversible is the timeline of a character whose exit runs its entrance of n steps backwards in as many
+// frame times; begun during the entrance, the exit runs back from where the entrance stood.
+func reversible(n, cycle, exitStep int) timeline {
+	exit := n
+	if exitStep >= 0 && exitStep < n {
+		exit = exitStep
+	}
+	return timeline{entrance: n, cycle: cycle, exit: exit, exitLen: exit}
+}
+
+// entranceStep is the step of the entrance a frame shows: the step itself while entering and the whole
+// entrance once landed; on exit, the entrance is run backwards from where it stood when the exit began.
+func entranceStep(step, entrance, exitStep int) int {
+	if exitStep >= 0 && step > exitStep {
+		return max(min(exitStep, entrance)-(step-exitStep), 0)
+	}
+	return min(step, entrance)
 }
 
 // The hero: ─=≡▰▩▩[ 蓬•ｏ•]⊐, in the 256-color palette of the Pi Hero logo.
@@ -315,8 +334,8 @@ func heroPose(mood string, step int) sprite {
 }
 
 // The hero's entrance is one cell per step, its exit one cell per step across the whole line, lasting
-// as many frame times as the hero is wide however long the line is.
-func heroTimeline(mood string, cols int) timeline {
+// as many frame times as the hero is wide however long the line is and wherever it begins.
+func heroTimeline(mood string, cols, exitStep int) timeline {
 	size := heroPose(mood, heroRest).width()
 	line := cols
 	if line <= 0 {
@@ -333,7 +352,7 @@ func heroFrame(mood string, step, exitStep, cols int, colored bool, d depth) pai
 		s := heroPose(mood, heroRest)
 		return paint(s, 0, len(s), 0, 0, colored, d)
 	}
-	tl := heroTimeline(mood, cols)
+	tl := heroTimeline(mood, cols, exitStep)
 	phase := (heroRest - tl.entrance%heroCycle + heroCycle) % heroCycle
 	s := heroPose(mood, (step+phase)%heroCycle)
 	entered := step
@@ -398,34 +417,24 @@ func wizardPose(mood string, step int) sprite {
 	return wizardSprite(mood, step/wizardShift%len(wizardMagicColors))
 }
 
-func wizardTimeline(mood string, cols int) timeline {
-	n := len(wizardPose(mood, 0))
-	return timeline{entrance: n, cycle: wizardCycle, exit: n, exitLen: n}
+func wizardTimeline(mood string, cols, exitStep int) timeline {
+	return reversible(len(wizardPose(mood, 0)), wizardCycle, exitStep)
 }
 
 // The wizard slides in from the left, one grapheme per step, then conjures the magic one particle per
-// step; on exit the magic vanishes from the right and the wizard slides out to the left.
+// step; the exit runs that backwards: the magic vanishes from the right and the wizard slides out.
 func wizardFrame(mood string, step, exitStep, cols int, colored bool, d depth) painting {
 	if step < 0 {
 		s := wizardPose(mood, 0)
 		return paint(s, 0, len(s), 0, 0, colored, d)
 	}
-	tl := wizardTimeline(mood, cols)
+	tl := wizardTimeline(mood, cols, exitStep)
 	magic := len(wizardMagic)
 	body := tl.entrance - magic
-	offset, shown := 0, magic
-	if step <= body {
-		offset, shown = body-step, 0
-	} else if step < body+magic {
-		shown = step - body
-	}
-	if exitStep >= 0 && step > exitStep {
-		gone := step - exitStep
-		if gone <= magic {
-			shown = magic - gone
-		} else {
-			shown, offset = 0, gone-magic
-		}
+	at := entranceStep(step, tl.entrance, exitStep)
+	offset, shown := 0, at-body
+	if at <= body {
+		offset, shown = body-at, 0
 	}
 	return paint(wizardPose(mood, step), offset, body+shown, 0, 0, colored, d)
 }
@@ -480,43 +489,26 @@ func visitorPose(mood string, step int) sprite {
 	return visitorSprite(mood, at/visitorSwing%len(visitorHandPoses), blink)
 }
 
-func visitorTimeline(mood string, cols int) timeline {
-	n := len(visitorPose(mood, 0))
-	return timeline{entrance: n, cycle: visitorCycle, exit: n, exitLen: n}
+func visitorTimeline(mood string, cols, exitStep int) timeline {
+	return reversible(len(visitorPose(mood, 0)), visitorCycle, exitStep)
 }
 
 // The wall slides in from the left, one grapheme per step, then the person peeks out from behind it,
-// one grapheme per step; on exit the person ducks back and the wall slides out. Both show their
-// rightmost graphemes, whether coming or going.
+// one grapheme per step; the exit runs that backwards: the person ducks back and the wall slides out.
+// Both show their rightmost graphemes, whether coming or going.
 func visitorFrame(mood string, step, exitStep, cols int, colored bool, d depth) painting {
 	if step < 0 {
 		s := visitorPose(mood, 0)
 		return paint(s, 0, len(s), 0, 0, colored, d)
 	}
-	tl := visitorTimeline(mood, cols)
+	tl := visitorTimeline(mood, cols, exitStep)
 	wall := len(visitorWall)
 	person := tl.entrance - wall
-	hover := step - tl.entrance
-	if hover < 0 {
-		hover = 0
-	}
-	wallShown, personShown := wall, person
-	if step <= wall {
-		wallShown, personShown = step, 0
-	} else if step < tl.entrance {
-		personShown = step - wall
-	}
-	if exitStep >= 0 && step > exitStep {
-		gone := step - exitStep
-		if gone <= person {
-			personShown = person - gone
-		} else {
-			personShown = 0
-			wallShown = wall - (gone - person)
-			if wallShown < 0 {
-				wallShown = 0
-			}
-		}
+	hover := max(step-tl.entrance, 0)
+	at := entranceStep(step, tl.entrance, exitStep)
+	wallShown, personShown := wall, at-wall
+	if at <= wall {
+		wallShown, personShown = at, 0
 	}
 	s := visitorPose(mood, hover)
 	if wallShown == wall && personShown == person {
@@ -625,7 +617,7 @@ func notify() chan os.Signal {
 // when the current one has stayed its time, counted from when the current one was due, so that a late
 // frame is caught up on; one later than its whole time is not.
 func animate(ch *character, o options) int {
-	tl := ch.timeline(o.mood, o.cols)
+	tl := ch.timeline(o.mood, o.cols, -1)
 	frame := time.Duration(o.frameMs) * time.Millisecond
 	exitDur := time.Duration(tl.exitLen) * frame
 	first, last, exitStep := 0, -1, -1
@@ -662,6 +654,8 @@ func animate(ch *character, o options) int {
 			}
 			leaving = false // leave from the current step, at once
 			exitStep = step
+			tl = ch.timeline(o.mood, o.cols, exitStep)
+			exitDur = time.Duration(tl.exitLen) * frame
 			last = step + tl.exit
 			text = stepFrame(ch, o, tl, step+1, exitStep).text
 			due = time.Now()
@@ -686,7 +680,7 @@ func grid(ch *character, o options, moods []string) int {
 		if len(mood) > label {
 			label = len(mood)
 		}
-		tl := ch.timeline(mood, 0)
+		tl := ch.timeline(mood, 0, -1)
 		for s := tl.entrance; s <= tl.entrance+tl.cycle; s++ {
 			if w := ch.frame(mood, s, -1, 0, false, o.depth).width; w > cell {
 				cell = w
@@ -701,7 +695,7 @@ func grid(ch *character, o options, moods []string) int {
 	var timelines []timeline
 	last := 0
 	for _, mood := range moods {
-		tl := ch.timeline(mood, cell)
+		tl := ch.timeline(mood, cell, -1)
 		first, exitStep := 0, -1
 		if !o.entrance {
 			first = tl.entrance + 1

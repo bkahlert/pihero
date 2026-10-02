@@ -193,6 +193,16 @@ class TestStopping:
         assert kaomoji.split_frames(result.stdout)[-4:] == ["┬┴┤", "┴┤", "┤", ""]
         assert result.stdout.endswith("\n" + CNORM)
 
+    @pytest.mark.parametrize("character", ["wizard", "visitor"])
+    def test_an_exit_begun_during_the_entrance_runs_it_backwards_from_there(self, kaomoji, character):
+        result = kaomoji(character).stopped("--exit", "--frame-ms", "100", signals=[signal.SIGINT], after=5)
+
+        frames = kaomoji.split_frames(result.stdout)
+        rise = frames[: frames.index(max(frames, key=len)) + 1]
+        assert result.returncode == 0
+        assert 5 <= len(rise) <= 7, "the signal arrived while the character was still entering"
+        assert frames == rise + rise[-2::-1]
+
     def test_quits_at_once_on_a_second_interrupt(self, kaomoji):
         result = kaomoji("visitor").stopped("--exit", "--no-entrance", "--frame-ms", "50", signals=[signal.SIGINT] * 2)
 
