@@ -264,8 +264,9 @@ class TestPreview:
 
         assert [row.split()[0] for row in rows] == ["happy"]
 
-    def test_leaves_the_cursor_below_the_grid_when_interrupted(self, kaomoji):
-        result = kaomoji("hero").stopped("--preview", "--frame-ms", "20", signals=[signal.SIGINT], frame_mark=CUU1.encode())
+    @pytest.mark.parametrize("args", [[], ["--exit"]])
+    def test_quits_at_once_when_interrupted_and_leaves_the_cursor_below_the_grid(self, kaomoji, args):
+        result = kaomoji("hero").stopped("--preview", *args, "--frame-ms", "20", signals=[signal.SIGINT], frame_mark=CUU1.encode())
 
         assert result.returncode == 130
         assert len(kaomoji.split_grid(result.stdout, 4)[-1]) == 1 + 4  # the header and every row, redrawn completely

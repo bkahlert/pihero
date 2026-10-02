@@ -842,7 +842,7 @@ Options:
   --no-entrance     Skip the entrance and start hovering right away.
   --loops <n>       Stop after <n> hover cycles (default: endless, until stopped with Ctrl-C).
   --exit            Play the exit after the last hover cycle, or when an endless animation is stopped with
-                    Ctrl-C or SIGTERM; a second Ctrl-C quits at once.
+                    Ctrl-C or SIGTERM; a second Ctrl-C quits at once, and so does the first in --preview.
   --frame-ms <ms>   Delay between animation frames (default: 50).
   --color           Colored output (default: if stdout is a terminal and NO_COLOR is unset).
   --no-color        Plain output.
