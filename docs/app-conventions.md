@@ -31,8 +31,8 @@ Apps run as systemd services installed by their own Debian package. Pi Hero pack
 - The app's apt source goes into the device file as a `write_files` entry writing a deb822 `.sources` file; cloud-init's `apt:` block is not applied on Raspberry Pi OS.
 - An app that shows a page depends on `pihero-kiosk`; the device file writes `/etc/pihero/kiosk.conf` with `URL=`. The kiosk
   waits until the URL answers, so the app's units need no ordering towards it.
-- An app that shows a face runs `hero`, `wizard`, or `visitor` from the `kaomoji` package, which `pihero` brings along,
-  and ships no copy of a script.
+- An app that shows a face runs `kaomoji hero`, `kaomoji wizard`, or `kaomoji visitor` from the `kaomoji` package, which
+  `pihero` brings along, and ships no copy of its own.
 - `MemoryMax=` only binds once the memory controller is on: Raspberry Pi OS boots with `cgroup_disable=memory`, so a device
   file that wants the caps enforced adds `/usr/lib/pihero/bootconfig add cmdline cgroup_enable=memory` to its `runcmd`.
 - Measure memory with swap: Raspberry Pi OS Trixie swaps into a zram device (`rpi-swap`), so `free -m`'s Swap line and

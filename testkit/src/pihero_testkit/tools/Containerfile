@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl gnupg \
       apt-utils dpkg-dev shellcheck systemd cloud-init python3 python3-yaml \
       mtools dosfstools e2fsprogs xz-utils util-linux mount fdisk qemu-utils \
+      golang-go \
     && rm -rf /var/lib/apt/lists/*
 RUN echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' > /etc/apt/sources.list.d/goreleaser.list \
     && apt-get update && apt-get install -y --no-install-recommends "nfpm=${NFPM_VERSION}" \

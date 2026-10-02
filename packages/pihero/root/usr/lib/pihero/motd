@@ -66,7 +66,7 @@ def main() -> int:
     failed = parse_failed(_output(["systemctl", "--failed", "--no-legend", "--plain"]))
     usb0 = parse_usb0(_output(["ip", "-o", "-4", "addr", "show", "dev", "usb0"]))
     reboot = reboot_state(RUN)
-    banner = _output(["hero", "--mood", mood(failed, reboot[0]), "--no-color"])
+    banner = _output(["kaomoji", "hero", "--mood", mood(failed, reboot[0]), "--no-color"])
     sys.stdout.write(render(banner, packages, failed, reboot, usb0))
     return 0
 

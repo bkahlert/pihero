@@ -1,39 +1,61 @@
 import os
+import platform
 import re
-import shutil
 import subprocess
 import time
 from pathlib import Path
 
 import pytest
 
+from pihero_testkit import tools
+
 PACKAGE = Path(__file__).resolve().parents[1]
-ESCAPES = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\(B|\x1b[78]")  # CSI sequences, charset, save and restore cursor
-CUU1 = "\x1b[A"
+SOURCE = PACKAGE / "kaomoji.go"
+BINARY = PACKAGE / ".build" / "kaomoji"
+ESCAPES = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[78]")  # CSI sequences, save and restore cursor
+CIVIS, CNORM, CUU1 = "\x1b[?25l", "\x1b[?25h", "\x1b[A"
+
+
+@pytest.fixture(scope="session")
+def binary() -> Path:
+    """The binary for this machine, built through the tools image when the source is newer than the last build."""
+    if not BINARY.exists() or BINARY.stat().st_mtime < SOURCE.stat().st_mtime:
+        BINARY.parent.mkdir(exist_ok=True)
+        goos = {"Darwin": "darwin", "Linux": "linux"}[platform.system()]
+        goarch = {"arm64": "arm64", "aarch64": "arm64", "x86_64": "amd64"}[platform.machine()]
+        tools.run(
+            ["env", f"GOOS={goos}", f"GOARCH={goarch}", "CGO_ENABLED=0", "go", "build", "-trimpath", "-ldflags", "-s -w -X main.version=test",
+             "-o", f"/work/{BINARY.relative_to(Path.cwd())}", f"/work/{SOURCE.relative_to(Path.cwd())}"],
+            mounts=[tools.GO_CACHE],
+        )
+    return BINARY
 
 
 class Kaomoji:
-    """Runs a kaomoji script on a 256-color terminal and takes its output apart."""
+    """Runs the binary for one character, or without one, on a 256-color terminal and takes its output apart."""
 
-    def __init__(self, script: str, term: str = "xterm-256color", path: Path | None = None):
-        self.script = PACKAGE / script
+    def __init__(self, binary: Path, character: str | None = None, term: str = "xterm-256color", columns: int = 80, env: dict[str, str] | None = None):
+        self.binary = binary
+        self.character = character
         self.term = term
-        self.path = path  # prepended to PATH, for a fake tput
+        self.columns = columns  # the terminal's width, as COLUMNS reports it to a program without a terminal
+        self.extra_env = env or {}
+
+    def command(self, *args: str) -> list[str]:
+        return [str(self.binary), *([self.character] if self.character else []), *args]
 
     def run(self, *args: str) -> subprocess.CompletedProcess:
-        result = subprocess.run([str(self.script), *args], capture_output=True, env=self.env())
+        result = subprocess.run(self.command(*args), capture_output=True, env=self.env())
         # decoded by hand: text mode would turn the \r between frames into newlines
         return subprocess.CompletedProcess(result.args, result.returncode, result.stdout.decode(), result.stderr.decode())
 
-    def stopped(self, *args: str, signals: list[int], frame_mark: bytes = b"\r") -> subprocess.CompletedProcess:
-        """Runs an endless animation and sends each signal once two more frames have shown."""
-        proc = subprocess.Popen(
-            [str(self.script), "--no-color", *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env(), bufsize=0
-        )
+    def stopped(self, *args: str, signals: list[int], frame_mark: bytes = b"\r", after: int = 2) -> subprocess.CompletedProcess:
+        """Runs an endless animation and sends each signal once as many more frames have shown."""
+        proc = subprocess.Popen(self.command("--no-color", *args), stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env(), bufsize=0)
         out = b""
         for sig in signals:
             seen = out.count(frame_mark)
-            while out.count(frame_mark) < seen + 2:
+            while out.count(frame_mark) < seen + after:
                 chunk = proc.stdout.read(4096)
                 if not chunk:
                     break
@@ -44,11 +66,9 @@ class Kaomoji:
 
     def blocked(self, *args: str, signals: list[int]) -> subprocess.CompletedProcess:
         """Runs an animation into a pipe nobody reads, so that it blocks in a write, and sends each signal there."""
-        proc = subprocess.Popen(
-            [str(self.script), "--no-color", "--frame-ms", "0", *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env(), bufsize=0
-        )
+        proc = subprocess.Popen(self.command("--no-color", "--frame-ms", "0", *args), stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env(), bufsize=0)
         for sig in signals:
-            time.sleep(0.5)  # the pipe is full and the script blocked long before that
+            time.sleep(0.5)  # the pipe is full and the program blocked long before that
             proc.send_signal(sig)
         out, err = proc.communicate(timeout=10)
         return subprocess.CompletedProcess(proc.args, proc.returncode, out.decode(), err.decode())
@@ -92,32 +112,18 @@ class Kaomoji:
         return line.split("One of", 1)[1].split(" (")[0].strip(" .").split(", ")
 
     def env(self) -> dict[str, str]:
-        env = {**os.environ, "TERM": self.term}
-        env.pop("NO_COLOR", None)
-        if self.path:
-            env["PATH"] = f"{self.path}:{env['PATH']}"
-        return env
-
-
-class TputLog:
-    """A tput on PATH that logs every call before running the real one."""
-
-    def __init__(self, directory: Path):
-        self.directory = directory
-        self.log = directory / "calls"
-        fake = directory / "tput"
-        fake.write_text(f'#!/bin/sh\nprintf \'%s\\n\' "$*" >> "{self.log}"\nexec {shutil.which("tput")} "$@"\n')
-        fake.chmod(0o755)
-
-    def calls(self) -> list[str]:
-        return self.log.read_text().splitlines() if self.log.exists() else []
+        env = {**os.environ, "TERM": self.term, "COLUMNS": str(self.columns)}
+        for key in ("NO_COLOR", "COLORTERM", "KAOMOJI_COLUMNS"):
+            env.pop(key, None)
+        return {**env, **self.extra_env}
 
 
 @pytest.fixture
-def kaomoji():
-    return Kaomoji
+def kaomoji(binary):
+    def factory(character: str | None = None, **kwargs) -> Kaomoji:
+        return Kaomoji(binary, character, **kwargs)
 
-
-@pytest.fixture
-def tput_log(tmp_path):
-    return TputLog(tmp_path)
+    factory.split_frames = Kaomoji.split_frames
+    factory.split_grid = Kaomoji.split_grid
+    factory.plain = Kaomoji.plain
+    return factory

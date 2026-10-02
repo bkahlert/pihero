@@ -7,13 +7,14 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.tier0
+pytestmark = [pytest.mark.tier0, pytest.mark.usefixtures("binary")]
 
 PACKAGE = Path(__file__).resolve().parents[1]
 SCRIPT = PACKAGE / "kaomoji-gif"
-HERO, WIZARD = str(PACKAGE / "hero"), str(PACKAGE / "wizard")
-ESCAPES = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\(B")
-CIVIS, CNORM = "\x1b[?25l", "\x1b[?12l\x1b[?25h"
+BINARY = str(PACKAGE / ".build" / "kaomoji")
+HERO, WIZARD = [BINARY, "hero"], [BINARY, "wizard"]
+ESCAPES = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+CIVIS, CNORM = "\x1b[?25l", "\x1b[?25h"
 needs_asciinema = pytest.mark.skipif(shutil.which("asciinema") is None, reason="needs asciinema")
 needs_agg = pytest.mark.skipif(shutil.which("agg") is None, reason="needs agg")
 
@@ -26,14 +27,14 @@ class TestArguments:
         assert "Usage:" in result.stderr
 
     def test_rejects_unknown_options(self):
-        result = run("--margin", "5", "--", HERO)
+        result = run("--margin", "5", "--", *HERO)
 
         assert result.returncode == 2
         assert "unknown option: --margin" in result.stderr
 
     @needs_asciinema
     def test_fails_with_the_commands_message(self, fake_agg):
-        result = run("--", HERO, "--mood", "dragon", path=fake_agg.directory)
+        result = run("--", *HERO, "--mood", "dragon", path=fake_agg.directory)
 
         assert result.returncode == 2
         assert "unknown mood: dragon" in result.stderr
@@ -44,7 +45,7 @@ class TestCast:
     def test_holds_every_frame_at_the_pictures_size(self, tmp_path, fake_agg):
         cast = tmp_path / "wizard.cast"
 
-        result = run("--cast", str(cast), "--output", str(tmp_path / "wizard.gif"), "--", WIZARD, "--mood", "happy", "--animate", "--no-entrance", "--loops", "1", path=fake_agg.directory)
+        result = run("--cast", str(cast), "--output", str(tmp_path / "wizard.gif"), "--", *WIZARD, "--mood", "happy", "--animate", "--no-entrance", "--loops", "1", path=fake_agg.directory)
 
         assert result.returncode == 0, result.stderr
         header, events = read_cast(cast)
@@ -58,7 +59,7 @@ class TestCast:
     def test_holds_the_last_frame_for_the_frames_it_repeats_and_one_more(self, tmp_path, fake_agg):
         cast = tmp_path / "hero.cast"
 
-        result = run("--cast", str(cast), "--output", str(tmp_path / "hero.gif"), "--", HERO, "--animate", "--no-entrance", "--loops", "1", path=fake_agg.directory)
+        result = run("--cast", str(cast), "--output", str(tmp_path / "hero.gif"), "--", *HERO, "--animate", "--no-entrance", "--loops", "1", path=fake_agg.directory)
 
         assert result.returncode == 0, result.stderr
         _, events = read_cast(cast)
@@ -68,10 +69,22 @@ class TestCast:
         assert repeated < len(frames) - 1, "the hero's last pose is held for several frames"
         assert abs(fake_agg.option("--last-frame-duration") - expected) < 0.002
 
+    def test_keeps_a_leaving_hero_in_its_own_box(self, tmp_path, fake_agg):
+        cast = tmp_path / "hero.cast"
+
+        result = run("--cast", str(cast), "--output", str(tmp_path / "hero.gif"), "--padding", "0", "--", *HERO, "--no-color", "--loops", "1", "--exit", "--frame-ms", "0", path=fake_agg.directory)
+
+        assert result.returncode == 0, result.stderr
+        header, events = read_cast(cast)
+        # at --frame-ms 0 the pty may hand asciinema two writes as one event, so frames are split at their carriage return
+        drawn = [frame for _, data in events for frame in ESCAPES.sub("", data).split("\r") if frame.strip()]
+        assert header["width"] == 16
+        assert drawn[-1] == " " * 15 + "-"
+
     def test_hides_the_cursor_in_a_still_and_holds_it_for_a_second(self, tmp_path, fake_agg):
         cast = tmp_path / "hero.cast"
 
-        result = run("--cast", str(cast), "--output", str(tmp_path / "hero.gif"), "--padding", "2x1", "--", HERO, "--mood", "happy", path=fake_agg.directory)
+        result = run("--cast", str(cast), "--output", str(tmp_path / "hero.gif"), "--padding", "2x1", "--", *HERO, "--mood", "happy", path=fake_agg.directory)
 
         assert result.returncode == 0, result.stderr
         header, events = read_cast(cast)
@@ -84,7 +97,7 @@ class TestCast:
     def test_passes_the_look_on_to_agg(self, tmp_path, fake_agg):
         gif = tmp_path / "hero.gif"
 
-        result = run("--output", str(gif), "--font-family", "Menlo,Apple Symbols", "--font-size", "24", "--line-height", "1.2", "--theme", "nord", "--hold", "0.5", "--", HERO, path=fake_agg.directory)
+        result = run("--output", str(gif), "--font-family", "Menlo,Apple Symbols", "--font-size", "24", "--line-height", "1.2", "--theme", "nord", "--hold", "0.5", "--", *HERO, path=fake_agg.directory)
 
         assert result.returncode == 0, result.stderr
         args = fake_agg.calls()
@@ -97,13 +110,22 @@ class TestCast:
         assert result.stdout == f"{gif}: 1 event on 18x3 cells\n"
 
 
+    def test_names_the_gif_after_the_character_when_the_command_is_the_binary(self, tmp_path, fake_agg, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+
+        result = run("--", *HERO, "--mood", "happy", path=fake_agg.directory)
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.startswith("hero.gif: ")
+
+
 @needs_asciinema
 @needs_agg
 class TestRendering:
     def test_writes_the_gif(self, tmp_path):
         gif = tmp_path / "hero.gif"
 
-        result = run("--output", str(gif), "--", HERO, "--mood", "happy")
+        result = run("--output", str(gif), "--", *HERO, "--mood", "happy")
 
         assert result.returncode == 0, result.stderr
         assert gif.read_bytes().startswith(b"GIF89a")

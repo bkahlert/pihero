@@ -31,6 +31,12 @@ def unit_files():
     yield from (ROOT / "packages").glob("*/root/usr/lib/systemd/system/*.service")
 
 
+def go_files():
+    for path in (ROOT / "packages").rglob("*.go"):
+        if ".build" not in path.parts:
+            yield path
+
+
 def package_dirs():
     yield from (p for p in (ROOT / "packages").iterdir() if (p / "nfpm.yaml").is_file())
 
@@ -58,6 +64,16 @@ def test_shell_file_passes_shellcheck(script):
     result = tools.run(["shellcheck", f"/work/{script.relative_to(ROOT)}"], check=False, capture=True)
 
     assert result.returncode == 0, result.stdout
+
+
+@pytest.mark.parametrize("source", sorted(go_files()), ids=lambda p: str(p.relative_to(ROOT)))
+def test_go_file_is_formatted_and_vets_clean(source):
+    path = f"/work/{source.relative_to(ROOT)}"
+    unformatted = tools.run(["gofmt", "-l", path], capture=True).stdout
+    vet = tools.run(["go", "vet", path], check=False, capture=True, mounts=[tools.GO_CACHE])
+
+    assert unformatted == ""
+    assert vet.returncode == 0, vet.stderr
 
 
 @pytest.mark.parametrize("package", sorted(package_dirs()), ids=lambda p: p.name)

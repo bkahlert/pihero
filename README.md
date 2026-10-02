@@ -17,7 +17,7 @@ No control machine, no playbook.
 | `pihero-usb-gadget`   | Ethernet over USB on top of Raspberry Pi's `rpi-usb-gadget`: a Mac on the cable gets an address from the Pi and lists the interface under the board's name              |
 | `pihero-kiosk`        | One web page full screen on the display: cog (WPE WebKit) straight on the DRM device, no X server and no compositor; the page is `URL` in `/etc/pihero/kiosk.conf`      |
 | `cog`                 | Debian's cog 0.18.4 rebuilt with the fix for software-rendered frames, arm64 only; the kiosk's browser from this repository until Debian carries the fix                |
-| `kaomoji`             | The Pi Hero cast: `hero`, `wizard`, and `visitor` print one animated kaomoji each on the terminal; `pihero` depends on it and shows the hero in its MOTD               |
+| `kaomoji`             | The Pi Hero cast: `kaomoji hero`, `wizard`, and `visitor` print one animated kaomoji each on the terminal, from one static binary that a curl line runs anywhere; `pihero` depends on it and shows the hero in its MOTD |
 
 | [![network browser](docs/network-browser.png) Pis in the network browser](./docs/network-browser.png)     | [![network info foo](docs/network-info-foo.png) device information](./docs/network-info-foo.png)     | [![device info bar](docs/device-info-bar.png) device information with a custom model](./docs/device-info-bar.png)     |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |

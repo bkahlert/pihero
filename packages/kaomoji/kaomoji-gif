@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# Purpose: Render what a command draws on the terminal as an animated GIF, a kaomoji script in particular.
+# Purpose: Render what a command draws on the terminal as an animated GIF, a kaomoji in particular.
 # Usage:   kaomoji-gif [--output <file>] [--cast <file>] [--font-family <list>] [--font-size <px>] [--line-height <n>]
 #                      [--padding <n>|<cols>x<rows>] [--hold <secs>] [--theme <theme>] [--] <command> [<argument>...]
 #
 # Records the command with asciinema (https://asciinema.org) on a virtual 256-color terminal, so a kaomoji
-# script colors its output unless told otherwise, and renders the recording with agg
+# colors its output unless told otherwise, and renders the recording with agg
 # (https://github.com/asciinema/agg). The terminal is as large as what the command drew plus the padding;
-# the final newline and the cursor are not part of the picture. An animation that hovers once loops
-# seamlessly. An endless animation, the scripts' default, never finishes recording: give it --loops, or
-# stop it with Ctrl-C.
+# the final newline and the cursor are not part of the picture, and a kaomoji that would leave through
+# the terminal's edge leaves through its own. An animation that hovers once loops seamlessly. An endless
+# animation, the scripts' default, never finishes recording: give it --loops, or stop it with Ctrl-C.
 #
 # Options:
-#   --output <file>     GIF to write (default: <command>.gif, named after the command's file).
+#   --output <file>     GIF to write (default: <command>.gif, named after the command's file, or after the
+#                       character when the command is kaomoji).
 #   --cast <file>       Also keep the recording as an asciicast v2 file.
 #   --font-family <list>
 #                       Comma-separated font families to try in turn for each glyph (default: agg's list, which
@@ -27,11 +28,11 @@
 #   -h, --help          Show this help.
 #
 # Examples:
-#   kaomoji-gif -- ./hero --animate --no-entrance --loops 1                             # hero.gif: hovering once, a seamless loop
-#   kaomoji-gif --hold 1 -- ./wizard --animate --loops 2 --exit                          # entrance, two hover cycles, exit, a second's pause
-#   kaomoji-gif --output grid.gif --font-size 24 --hold 1 -- ./hero --preview --loops 4 --exit   # the whole grid
-#   kaomoji-gif --font-family "Menlo,Apple Symbols" -- ./hero --mood happy               # a single frame
-#   kaomoji-gif --cast hero.cast -- ./hero --no-color --animate --no-entrance --loops 1   # plain, and the recording kept
+#   kaomoji-gif -- ./.build/kaomoji hero --animate --no-entrance --loops 1              # hero.gif: hovering once, a seamless loop
+#   kaomoji-gif --hold 1 -- ./.build/kaomoji wizard --animate --loops 2 --exit           # entrance, two hover cycles, exit, a second's pause
+#   kaomoji-gif --output grid.gif --font-size 24 --hold 1 -- ./.build/kaomoji hero --preview --loops 4 --exit   # the whole grid
+#   kaomoji-gif --font-family "Menlo,Apple Symbols" -- ./.build/kaomoji hero --mood happy   # a single frame
+#   kaomoji-gif --cast hero.cast -- ./.build/kaomoji hero --no-color --animate --no-entrance --loops 1   # plain, and the recording kept
 
 set -euo pipefail
 
@@ -39,8 +40,38 @@ set -euo pipefail
 export TERM=xterm-256color
 unset NO_COLOR
 
-# shellcheck source=kaomoji.bash
-. "$(dirname "${BASH_SOURCE[0]}")/kaomoji.bash" # usage, die and kaomoji_text_width
+# Bash slices strings by character only in a UTF-8 locale, and kaomoji are made of multibyte ones.
+case ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} in
+*[Uu][Tt][Ff]-8* | *[Uu][Tt][Ff]8*) ;;
+*) export LC_ALL=C.UTF-8 ;;
+esac
+
+usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
+die() { printf '%s: %s\nSee '\''%s --help'\''\n' "${0##*/}" "$1" "${0##*/}" >&2; exit 2; }
+
+# The sequences the cast writes, see kaomoji.go: hide and show the cursor, cursor up one line.
+readonly CIVIS=$'\e[?25l' CNORM=$'\e[?25h' CUU1=$'\e[A'
+
+# Sets REPLY to the cells the text takes: two for East Asian wide and fullwidth characters, one
+# for everything else, as kaomoji.go counts them.
+text_width() {
+    local text=$1 ch
+    local -i i cp
+    REPLY=0
+    for ((i = 0; i < ${#text}; i++)); do
+        ch=${text:i:1}
+        printf -v cp '%d' "'$ch"
+        if ((cp >= 0x1100 && (cp <= 0x115F ||
+            (cp >= 0x2E80 && cp <= 0xA4CF && cp != 0x303F) || (cp >= 0xAC00 && cp <= 0xD7A3) ||
+            (cp >= 0xF900 && cp <= 0xFAFF) || (cp >= 0xFE30 && cp <= 0xFE4F) ||
+            (cp >= 0xFF00 && cp <= 0xFF60) || (cp >= 0xFFE0 && cp <= 0xFFE6) ||
+            (cp >= 0x20000 && cp <= 0x3FFFD)))); then
+            REPLY=$((REPLY + 2))
+        else
+            REPLY=$((REPLY + 1))
+        fi
+    done
+}
 
 # Prints the given text escaped as asciinema writes it into a JSON string.
 json_escape() {
@@ -96,8 +127,7 @@ read_cast() {
 trim() {
     local -n t=$1 e=$2
     local cnorm
-    kaomoji_tput cnorm
-    cnorm=$(json_escape "${KAOMOJI_CAP[cnorm]}")
+    cnorm=$(json_escape "$CNORM")
     local -i i changed
     for ((i = ${#e[@]} - 1; i >= 0; i--)); do
         changed=1
@@ -119,8 +149,7 @@ measure() {
     local -n e=$1
     local cuu1 event text line
     local -i row=1 rows=1 cols=0
-    kaomoji_tput cuu1
-    cuu1=$(json_escape "${KAOMOJI_CAP[cuu1]}")
+    cuu1=$(json_escape "$CUU1")
     for event in "${e[@]}"; do
         count "$event" "$cuu1"
         row=$((row - REPLY))
@@ -136,7 +165,7 @@ measure() {
     text=${text//\\\\/\\}
     text=$(sort -u <<<"$text") # the grid repeats its lines
     while IFS= read -r line; do
-        kaomoji_text_width "$line"
+        text_width "$line"
         if ((REPLY > cols)); then cols=$REPLY; fi
     done <<<"$text"
     REPLY="$cols $rows"
@@ -152,8 +181,7 @@ write_cast() {
     local -i i
     printf -v indent '%*s' "$left" ''
     for ((i = 0; i < top; i++)); do lead+='\r\n'; done
-    kaomoji_tput civis
-    civis=$(json_escape "${KAOMOJI_CAP[civis]}")
+    civis=$(json_escape "$CIVIS")
     {
         printf '{"version": 2, "width": %d, "height": %d, "env": {"TERM": "%s"}}\n' "$width" "$height" "$TERM"
         for i in "${!e[@]}"; do
@@ -199,7 +227,12 @@ kaomoji_gif() {
     ((${#command[@]})) || { usage >&2; exit 2; }
     command -v asciinema >/dev/null || die "asciinema not found, install it with 'brew install asciinema'"
     command -v agg >/dev/null || die "agg not found, install it with 'brew install agg'"
-    [ -n "$output" ] || output=${command[0]##*/}.gif
+    if [ -z "$output" ]; then
+        # Named after the command, or after the character when the command is the kaomoji binary.
+        output=${command[0]##*/}
+        if [ "$output" = kaomoji ] && ((${#command[@]} > 1)); then output=${command[1]}; fi
+        output+=.gif
+    fi
     local -i pad_x pad_y
     case $padding in
     *x*) pad_x=${padding%x*} pad_y=${padding#*x} ;;
@@ -218,7 +251,8 @@ kaomoji_gif() {
     local quoted
     printf -v quoted '%q ' "${command[@]}"
     local -i status=0
-    SHELL=$BASH asciinema rec --headless --quiet --overwrite --return --output-format asciicast-v2 \
+    # A kaomoji's line is its own width, so that one leaving through the line's edge stays in the picture.
+    SHELL=$BASH KAOMOJI_COLUMNS=0 asciinema rec --headless --quiet --overwrite --return --output-format asciicast-v2 \
         --command "$quoted" "$tmp/recording.cast" || status=$?
     local -a times events
     read_cast "$tmp/recording.cast" times events

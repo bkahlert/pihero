@@ -90,7 +90,9 @@ class SystemdContainer:
         self._apt("purge", *names)
 
     def reinstall(self) -> None:
-        self._apt("install", "--reinstall", *[f"/dist/{deb.name}" for deb in installable(self.debs, self.platform)])
+        # The published repository may carry a deb of the same version as a local build; apt calls installing the
+        # local one over it a downgrade and refuses it under -y without the flag.
+        self._apt("install", "--reinstall", "--allow-downgrades", *[f"/dist/{deb.name}" for deb in installable(self.debs, self.platform)])
 
     def reboot(self) -> None:
         return None

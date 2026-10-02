@@ -1,4 +1,4 @@
-"""Builds every package under packages/ into dist/: nfpm manifests in the tools container, build scripts in their own image."""
+"""Builds every package under packages/ into dist/: nfpm manifests and plain build scripts in the tools container, build scripts with a Containerfile in their own image."""
 
 import os
 import re
@@ -38,8 +38,8 @@ def version_from_git() -> str:
 
 
 def is_package(directory: Path) -> bool:
-    """Returns whether directory builds a package: nfpm.yaml is there, or a build script next to a Containerfile."""
-    return (directory / "nfpm.yaml").is_file() or ((directory / "build").is_file() and (directory / "Containerfile").is_file())
+    """Returns whether directory builds a package: nfpm.yaml is there, or a build script."""
+    return (directory / "nfpm.yaml").is_file() or (directory / "build").is_file()
 
 
 def package_name(directory: Path) -> str:
@@ -91,13 +91,30 @@ def build_script(pkg_dir: Path, dist: Path = DIST) -> list[Path]:
     return debs
 
 
+def build_in_tools(pkg_dir: Path, version: str, dist: Path = DIST) -> list[Path]:
+    """Runs the package directory's build script in the tools image with the version; returns the debs the script printed."""
+    pkg_dir = pkg_dir.resolve()
+    dist = dist.resolve()
+    dist.mkdir(parents=True, exist_ok=True)
+    script = f"/work/{pkg_dir.relative_to(Path.cwd())}/build"
+    # Only the deb paths come through stdout; the build's own output stays on the terminal.
+    command = tools.command([script, "--dist", f"/work/{dist.relative_to(Path.cwd())}", "--version", version], mounts=[tools.GO_CACHE])
+    result = subprocess.run(command, check=True, text=True, stdout=subprocess.PIPE)
+    debs = [Path.cwd() / line.removeprefix("/work/") for line in result.stdout.splitlines() if line.startswith("/work/")]
+    if not debs:
+        raise RuntimeError(f"{pkg_dir.name}: the build script printed no .deb path")
+    return debs
+
+
 def build_all(version: str, dist: Path = DIST) -> list[Path]:
     debs = []
     for pkg_dir in discover():
         if (pkg_dir / "nfpm.yaml").exists():
             debs.append(build(pkg_dir, version, dist))
-        else:
+        elif (pkg_dir / "Containerfile").exists():
             debs.extend(build_script(pkg_dir, dist))
+        else:
+            debs.extend(build_in_tools(pkg_dir, version, dist))
     return debs
 
 
