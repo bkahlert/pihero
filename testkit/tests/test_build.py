@@ -27,13 +27,14 @@ class TestVersionFromGit:
 
 
 class TestBuild:
-    def test_builds_a_package_from_a_directory(self, tmp_path, monkeypatch):
+    @pytest.mark.parametrize("arch", ["all", "arm64"])
+    def test_builds_a_package_from_a_directory_named_by_its_architecture(self, arch):
         pkg = Path("dist") / "probe" / "src" / "pihero-zz-probe"
         (pkg / "root" / "usr" / "lib" / "pihero").mkdir(parents=True)
         (pkg / "root" / "usr" / "lib" / "pihero" / "probe").write_text("#!/bin/sh\necho probe\n")
         (pkg / "root" / "usr" / "lib" / "pihero" / "probe").chmod(0o755)
         (pkg / "nfpm.yaml").write_text(
-            "name: pihero-zz-probe\narch: all\nplatform: linux\nversion: ${VERSION}\nsection: admin\npriority: optional\n"
+            f"name: pihero-zz-probe\narch: {arch}\nplatform: linux\nversion: ${{VERSION}}\nsection: admin\npriority: optional\n"
             "maintainer: Björn Kahlert <bkahlert@users.noreply.github.com>\ndescription: probe\nlicense: MIT\n"
             "contents:\n  - src: root/\n    dst: /\n    type: tree\n"
             "scripts:\n  postinstall: .build/postinst\n  preremove: .build/prerm\n  postremove: .build/postrm\n"
@@ -43,8 +44,8 @@ class TestBuild:
 
             info = tools.run(["dpkg-deb", "--info", f"/work/{deb.relative_to(Path.cwd())}"], capture=True).stdout
             contents = tools.run(["dpkg-deb", "--contents", f"/work/{deb.relative_to(Path.cwd())}"], capture=True).stdout
-            assert deb.name == "pihero-zz-probe_9.9.9_all.deb"
-            assert " Architecture: all" in info
+            assert deb.name == f"pihero-zz-probe_9.9.9_{arch}.deb"
+            assert f" Architecture: {arch}" in info
             assert " Version: 9.9.9" in info
             assert "-rwxr-xr-x" in contents and "./usr/lib/pihero/probe" in contents
         finally:
@@ -182,3 +183,19 @@ class TestPackageName:
         name = build.package_name(tmp_path)
 
         assert name == tmp_path.name
+
+
+class TestPackageArch:
+    def test_is_the_architecture_the_nfpm_manifest_declares(self, tmp_path):
+        (tmp_path / "nfpm.yaml").write_text("name: pihero-netmon-scanner\narch: arm64\n")
+
+        arch = build.package_arch(tmp_path)
+
+        assert arch == "arm64"
+
+    def test_is_all_for_a_manifest_that_declares_all(self, tmp_path):
+        (tmp_path / "nfpm.yaml").write_text("name: pihero-netmon\narch: all\n")
+
+        arch = build.package_arch(tmp_path)
+
+        assert arch == "all"
