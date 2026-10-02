@@ -31,7 +31,7 @@ class TestFaces:
     @pytest.mark.parametrize(
         ("command", "text"),
         [
-            ("kaomoji hero --mood happy --no-color", "─=≡▰▩▩[✿＾ｖ＾]⊐"),
+            ("kaomoji hero --mood happy --no-color", "─=≡▰▩▩[✿＾ｖ＾]━"),
             ("kaomoji wizard --no-color", "(つ◕౪◕)つ─｡ﾟ․☆･*ﾟ"),
             ("kaomoji visitor --no-color", "┴┬┴┤´Ｏ´)ﾉ"),
         ],

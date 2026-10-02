@@ -64,7 +64,7 @@ class TestRemoval:
         target.reinstall()
 
 
-FACES = {"sad": "─=≡▰▩▩[ ༶◕︿◕ ]⊐", "unknown": "─=≡▰▩▩[༶´⊙﹏⊙`]⊐", "happy": "─=≡▰▩▩[✿＾ｖ＾]⊐"}
+FACES = {"sad": "─=≡▰▩▩[ ༶◕︿◕ ]━", "unknown": "─=≡▰▩▩[༶´⊙﹏⊙`]━", "happy": "─=≡▰▩▩[✿＾ｖ＾]━"}
 
 
 def face_for(details: str) -> str:

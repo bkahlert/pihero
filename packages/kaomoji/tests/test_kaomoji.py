@@ -9,7 +9,7 @@ CNORM, CUU1 = "\x1b[?25h", "\x1b[A"
 
 pytestmark = pytest.mark.tier0
 
-HERO = "─=≡▰▩▩[ 蓬•ｏ•]⊐"
+HERO = "─=≡▰▩▩[ 蓬•ｏ•]━"
 
 
 class TestCommandLine:
@@ -77,7 +77,7 @@ class TestCommandLine:
         assert kaomoji("hero").run().stdout == HERO + "\n"
 
     def test_is_plain_when_stdout_is_no_terminal(self, kaomoji):
-        assert kaomoji("hero").run("--mood", "happy").stdout == "─=≡▰▩▩[✿＾ｖ＾]⊐\n"
+        assert kaomoji("hero").run("--mood", "happy").stdout == "─=≡▰▩▩[✿＾ｖ＾]━\n"
 
     class TestAnimate:
         def test_is_off_by_default(self, kaomoji):

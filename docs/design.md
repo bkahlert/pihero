@@ -236,6 +236,9 @@ the terminal's theme and is what the wizard and the visitor wear, or a hex color
 for it, the hero's palette, painted as truecolor when `COLORTERM` says so, by index on a `TERM` with `256color`, in
 fbterm's own sequences on that framebuffer terminal, which ignores the standard ones, and dropped elsewhere.
 
+The hero's hand is `━` at rest and `—` while hovering, both glyphs of DejaVu Sans Mono: fbterm draws a glyph its font
+lacks from any installed font and clips it to the one cell wcwidth gives it, which cut the former `⫎` in half.
+
 An animation runs on a clock. A character gives a timeline for a mood and a line width: the steps of its entrance, of one
 hover cycle, of its exit, and the frame times the exit lasts. The frame of a step is a pure function, hover steps map
 onto the first cycle, and the frame of a step is due when the one before has stayed its time, counted from when that one

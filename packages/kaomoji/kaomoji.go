@@ -271,7 +271,7 @@ func entranceStep(step, entrance, exitStep int) int {
 	return min(step, entrance)
 }
 
-// The hero: ─=≡▰▩▩[ 蓬•ｏ•]⊐, in the 256-color palette of the Pi Hero logo.
+// The hero: ─=≡▰▩▩[ 蓬•ｏ•]━, in the 256-color palette of the Pi Hero logo.
 
 var (
 	heroOrange = hex(0xf6b535, 214)
@@ -287,12 +287,12 @@ var (
 // alternates between two poses held for six steps each.
 var (
 	heroTailPoses = []string{"-─=", " -─", "-─=", "─=≡"}
-	heroHandPoses = []string{"⫎", "⊐"}
+	heroHandPoses = []string{"—", "━"}
 )
 
 const (
 	heroCycle = 12
-	heroRest  = heroCycle - 1 // step of the pose at rest: ─=≡ and ⊐
+	heroRest  = heroCycle - 1 // step of the pose at rest: ─=≡ and ━
 )
 
 func heroSprite(mood string, tail, hand int) sprite {
@@ -829,7 +829,7 @@ The Pi Hero cast: hero, wizard, and visitor. Each prints one kaomoji, static unl
 or colored, in every mood it has; 'kaomoji <character> --help' lists its moods and options.
 
 Examples:
-  kaomoji hero                            ─=≡▰▩▩[ 蓬•ｏ•]⊐
+  kaomoji hero                            ─=≡▰▩▩[ 蓬•ｏ•]━
   kaomoji wizard --mood happy             (＾∀＾)つ─｡ﾟ․☆･*ﾟ
   kaomoji visitor --animate --exit        peeks out, waves until Ctrl-C, ducks back
 `
@@ -850,7 +850,7 @@ Options:
   -h, --help        Show this help.
 `
 
-const heroUsage = `Purpose: Render the Pi Hero kaomoji ─=≡▰▩▩[ 蓬•ｏ•]⊐ in all moods, plain or colored, static or animated.
+const heroUsage = `Purpose: Render the Pi Hero kaomoji ─=≡▰▩▩[ 蓬•ｏ•]━ in all moods, plain or colored, static or animated.
 Usage:   kaomoji hero [--mood <mood>] [--color|--no-color]
          kaomoji hero [--mood <mood>] [--color|--no-color] --animate [--no-entrance] [--loops <n>] [--exit] [--frame-ms <ms>]
          kaomoji hero --preview [--mood <mood>] [--no-entrance] [--loops <n>] [--exit] [--frame-ms <ms>]
@@ -863,9 +863,9 @@ out through the right edge of the terminal, in the same time however wide the te
 %s
 Examples:
   kaomoji hero
-  ─=≡▰▩▩[ 蓬•ｏ•]⊐
+  ─=≡▰▩▩[ 蓬•ｏ•]━
   kaomoji hero --mood happy
-  ─=≡▰▩▩[✿＾ｖ＾]⊐
+  ─=≡▰▩▩[✿＾ｖ＾]━
   kaomoji hero --animate                        # entrance, then hovering until Ctrl-C
   kaomoji hero --animate --exit                 # ... leaving on Ctrl-C
   kaomoji hero --mood sad --loops 3 --exit      # entrance, three hover cycles, exit
