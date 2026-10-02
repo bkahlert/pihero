@@ -142,7 +142,10 @@ left to the panels. The banner is `hero --mood <mood> --no-color` from `kaomoji`
 login: plain, static, and 0.3–0.5 s on a Pi 1 next to the 2.4 s the probes take (busy-screen.local, 2026-09-30).
 pam_motd runs the script in the C locale; reading the hero from `hero` and writing it to the terminal both rely on
 Python's UTF-8 mode, which Python enters on its own in that locale (PEP 540). No colours, no animation, nothing beyond
-Python and that one call.
+Python and that one call. Debian's legal notice, `/etc/motd`, the static half pam_motd prints after the dynamic one, the
+device file empties: base-files copies its default only when the file is missing, so an empty file stays and raises no
+conffile prompt, where a deleted one comes back with the next base-files upgrade. `~/.hushlogin` silences the whole
+greeting; sshd honours it before it shows the PAM messages, and login opens the session silent (2026-10-03).
 
 **Watchdog.** Raspberry Pi OS arms the BCM2835 hardware watchdog itself, `RuntimeWatchdogSec=1m` in its
 `40-rpi-enable-watchdog.conf`, and `pihero` leaves it there. 2.1.0 shipped a drop-in tightening it to 15 s, the hardware
