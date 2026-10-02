@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -241,14 +241,13 @@ type timeline struct {
 	exitLen  int // frame times the exit lasts, however many steps it has
 }
 
-// A character has moods, a sprite per pose of its hover cycle, a frame for every step, and a timeline.
-// A frame's step is -1 for the character at rest; exitStep is the step after which the exit begins, -1
-// for none; cols is the line's cells, 0 for the character's own width.
+// A character has moods, a frame for every step, and a timeline. A frame's step is -1 for the character
+// at rest; exitStep is the step after which the exit begins, -1 for none; cols is the line's cells, 0 for
+// the character's own width.
 type character struct {
 	name     string
 	usage    string
 	moods    []string
-	pose     func(mood string, step int) sprite
 	timeline func(mood string, cols int) timeline
 	frame    func(mood string, step, exitStep, cols int, colored bool, d depth) painting
 }
@@ -920,9 +919,9 @@ Examples:
 `
 
 var characters = map[string]*character{
-	"hero":    {name: "hero", usage: heroUsage, moods: []string{"neutral", "happy", "sad", "unknown"}, pose: heroPose, timeline: heroTimeline, frame: heroFrame},
-	"wizard":  {name: "wizard", usage: wizardUsage, moods: []string{"neutral", "happy", "sad", "unknown"}, pose: wizardPose, timeline: wizardTimeline, frame: wizardFrame},
-	"visitor": {name: "visitor", usage: visitorUsage, moods: []string{"neutral", "happy", "sad", "unknown"}, pose: visitorPose, timeline: visitorTimeline, frame: visitorFrame},
+	"hero":    {name: "hero", usage: heroUsage, moods: []string{"neutral", "happy", "sad", "unknown"}, timeline: heroTimeline, frame: heroFrame},
+	"wizard":  {name: "wizard", usage: wizardUsage, moods: []string{"neutral", "happy", "sad", "unknown"}, timeline: wizardTimeline, frame: wizardFrame},
+	"visitor": {name: "visitor", usage: visitorUsage, moods: []string{"neutral", "happy", "sad", "unknown"}, timeline: visitorTimeline, frame: visitorFrame},
 }
 
 // die prints the message and where to find help, and returns the status for the command line.
@@ -1040,8 +1039,7 @@ func (ch *character) run(args []string) int {
 			return die(ch, "unexpected argument: %s", arg)
 		}
 	}
-	known := sort.SearchStrings(sortedMoods(ch), o.mood)
-	if known >= len(ch.moods) || sortedMoods(ch)[known] != o.mood {
+	if !slices.Contains(ch.moods, o.mood) {
 		return die(ch, "unknown mood: %s", o.mood)
 	}
 	if preview {
@@ -1065,12 +1063,6 @@ func (ch *character) run(args []string) int {
 	}
 	write(ch.frame(o.mood, -1, -1, 0, o.colored, o.depth).text + "\n")
 	return 0
-}
-
-func sortedMoods(ch *character) []string {
-	moods := append([]string(nil), ch.moods...)
-	sort.Strings(moods)
-	return moods
 }
 
 func moodGiven(args []string) bool {
