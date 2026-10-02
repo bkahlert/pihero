@@ -99,18 +99,48 @@ class TestBuildScript:
             remove_probe(pkg)
 
 
-def probe_script(name: str, body: str) -> tuple[Path, Path]:
+def probe_script(name: str, body: str, containerfile: bool = True) -> tuple[Path, Path]:
     pkg = Path("dist") / f"probe-{name}" / "src" / name
     pkg.mkdir(parents=True, exist_ok=True)
-    (pkg / "Containerfile").write_text(f"FROM {tools.ensure_image()}\nHEALTHCHECK NONE\n")
+    if containerfile:
+        (pkg / "Containerfile").write_text(f"FROM {tools.ensure_image()}\nHEALTHCHECK NONE\n")
     script = pkg / "build"
     script.write_text('#!/bin/sh\nset -e\n[ "$1" = --dist ] && shift\n' + body)
     script.chmod(0o755)
     return pkg, Path.cwd() / "dist" / f"probe-{name}"
 
 
+class TestBuildInTools:
+    def test_runs_the_script_in_the_tools_image_with_the_version_and_returns_the_debs_it_prints(self):
+        # after the helper's shift: $1 is the dist directory, $2 is --version, $3 the version
+        pkg, dist = probe_script("pihero-zz-tools", 'deb="$1/pihero-zz-tools_$3_arm64.deb"\n: > "$deb"\nprintf "%s\\n" "$deb"\n', containerfile=False)
+        try:
+            debs = build.build_in_tools(pkg, "9.9.9", dist=dist)
+
+            assert debs == [dist / "pihero-zz-tools_9.9.9_arm64.deb"]
+            assert debs[0].exists()
+        finally:
+            remove_probe(pkg)
+
+    def test_fails_on_a_script_that_prints_no_deb(self):
+        pkg, dist = probe_script("pihero-zz-mute", 'echo building >&2\n', containerfile=False)
+        try:
+            with pytest.raises(RuntimeError, match="pihero-zz-mute"):
+                build.build_in_tools(pkg, "9.9.9", dist=dist)
+        finally:
+            remove_probe(pkg)
+
+    def test_has_go_on_path(self):
+        pkg, dist = probe_script("pihero-zz-go", 'go version >&2\ndeb="$1/pihero-zz-go_$3_all.deb"\n: > "$deb"\nprintf "%s\\n" "$deb"\n', containerfile=False)
+        try:
+            assert build.build_in_tools(pkg, "1.0", dist=dist) == [dist / "pihero-zz-go_1.0_all.deb"]
+        finally:
+            remove_probe(pkg)
+
+
 def remove_probe(pkg: Path) -> None:
-    subprocess.run([*tools.PODMAN, "rmi", "-f", tools.image(pkg / "Containerfile")], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if (pkg / "Containerfile").exists():
+        subprocess.run([*tools.PODMAN, "rmi", "-f", tools.image(pkg / "Containerfile")], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(["rm", "-rf", str(pkg.parents[1])], check=True)
 
 
@@ -126,10 +156,10 @@ class TestIsPackage:
 
         assert build.is_package(tmp_path)
 
-    def test_is_false_for_a_build_script_alone(self, tmp_path):
+    def test_is_true_for_a_build_script_alone(self, tmp_path):
         (tmp_path / "build").write_text("#!/bin/sh\n")
 
-        assert not build.is_package(tmp_path)
+        assert build.is_package(tmp_path)
 
     def test_is_false_for_a_tests_directory(self, tmp_path):
         (tmp_path / "test_installed.py").write_text("")
