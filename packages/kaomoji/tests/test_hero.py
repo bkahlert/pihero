@@ -5,10 +5,10 @@ import pytest
 pytestmark = pytest.mark.tier0
 
 STATIC = {
-    "neutral": "─=≡▰▩▩[ 蓬•ｏ•]⊐",
-    "happy": "─=≡▰▩▩[✿＾ｖ＾]⊐",
-    "sad": "─=≡▰▩▩[ ༶◕︿◕ ]⊐",
-    "unknown": "─=≡▰▩▩[༶´⊙﹏⊙`]⊐",
+    "neutral": "─=≡▰▩▩[ 蓬•ｏ•]━",
+    "happy": "─=≡▰▩▩[✿＾ｖ＾]━",
+    "sad": "─=≡▰▩▩[ ༶◕︿◕ ]━",
+    "unknown": "─=≡▰▩▩[༶´⊙﹏⊙`]━",
 }
 COLUMNS = 40
 ENTRANCE, CYCLE, EXIT = 16, 12, COLUMNS - 1  # neutral: cells, hover steps, cells before the last column
@@ -35,11 +35,11 @@ class TestAnimation:
 
     def test_flies_in_from_the_left_one_cell_per_step(self, frames):
         assert frames[0] == ""
-        assert frames[1] == "⊐"
-        assert frames[2] == "]⊐"
-        assert frames[3] == "•]⊐"
-        assert frames[4] == " •]⊐"  # the wide ｏ straddles the edge and waits a step
-        assert frames[5] == "ｏ•]⫎"
+        assert frames[1] == "━"
+        assert frames[2] == "]━"
+        assert frames[3] == "•]━"
+        assert frames[4] == " •]━"  # the wide ｏ straddles the edge and waits a step
+        assert frames[5] == "ｏ•]—"
         assert frames[ENTRANCE] == STATIC["neutral"]
 
     def test_rests_where_it_landed_after_a_cycle(self, frames):
@@ -49,12 +49,12 @@ class TestAnimation:
         hovering = frames[ENTRANCE + 1 : ENTRANCE + CYCLE]
 
         assert {f[:3] for f in hovering} == {"-─=", " -─", "─=≡"}
-        assert {f[-1] for f in hovering} == {"⫎", "⊐"}
+        assert {f[-1] for f in hovering} == {"—", "━"}
 
     def test_flies_out_through_the_right_edge_of_the_terminal_one_cell_per_step(self, frames):
         exit_step = ENTRANCE + CYCLE
 
-        assert frames[exit_step + 1] == " -─=▰▩▩[ 蓬•ｏ•]⫎"
+        assert frames[exit_step + 1] == " -─=▰▩▩[ 蓬•ｏ•]—"
         assert frames[exit_step + CYCLE] == " " * CYCLE + STATIC["neutral"]
         assert frames[exit_step + 24] == " " * 24 + "─=≡▰▩▩[ 蓬•ｏ•]"
         assert frames[exit_step + 36] == " " * 36 + "─=≡"

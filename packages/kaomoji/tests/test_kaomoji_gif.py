@@ -90,7 +90,7 @@ class TestCast:
         header, events = read_cast(cast)
         assert header["width"] == 16 + 4 and header["height"] == 1 + 2
         assert len(events) == 1
-        assert ESCAPES.sub("", events[0][1]) == "\r\n  ─=≡▰▩▩[✿＾ｖ＾]⊐"
+        assert ESCAPES.sub("", events[0][1]) == "\r\n  ─=≡▰▩▩[✿＾ｖ＾]━"
         assert events[0][1].endswith(CIVIS)
         assert fake_agg.option("--last-frame-duration") == 1.0
 
