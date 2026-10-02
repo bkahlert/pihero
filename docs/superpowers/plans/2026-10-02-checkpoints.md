@@ -484,6 +484,10 @@ git commit -m "feat(testkit): skip the tests of packages the ssh target lacks"
 
 ### Task 3: `make checkpoint`
 
+> Executed with one ruling: `uri_for(name)` returns `pi@<name>.local` without reading `user-data`, because the fleet's
+> device directories hold only `user-data.tmpl` between a flash and the next render, so the `fleet()` helper and the
+> `hostname:` tests below were not written. The spec's decision table is the current description.
+
 **Files:**
 - Create: `testkit/src/pihero_testkit/checkpoint.py`
 - Test: `testkit/tests/test_checkpoint.py`
