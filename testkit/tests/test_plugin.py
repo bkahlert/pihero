@@ -46,6 +46,16 @@ class TestSshTarget:
         result.assert_outcomes(passed=0, skipped=0)
         result.stderr.fnmatch_lines(["ERROR: none of the packages under test is installed on pi@host*flash*"])
 
+    def test_reports_a_device_it_cannot_ask_as_an_error_not_a_crash(self, pytester, monkeypatch):
+        monkeypatch.setattr(ssh, "installed_packages", lambda uri: exit_with(f"cannot list the packages installed on {uri}: Connection refused"))
+        tree(pytester)
+
+        result = pytester.runpytest_inprocess(*OPTIONS, "--target=ssh", "--target-uri=pi@host")
+
+        assert result.ret != 0
+        result.stderr.fnmatch_lines(["ERROR: cannot list the packages installed on pi@host: Connection refused"])
+        assert "INTERNALERROR" not in result.stdout.str()
+
     def test_asks_nothing_on_podman(self, pytester, monkeypatch):
         monkeypatch.setattr(ssh, "installed_packages", lambda uri: pytest.fail("asked the device"))
         tree(pytester)
@@ -64,3 +74,7 @@ def tree(pytester) -> None:
             "harness/tests/test_harness": INSTALLED_TEST,
         }
     )
+
+
+def exit_with(message: str):
+    raise SystemExit(message)

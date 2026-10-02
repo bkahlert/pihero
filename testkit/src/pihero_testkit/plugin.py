@@ -40,7 +40,10 @@ def pytest_collection_modifyitems(config, items):
     if target == "ssh" and items:
         from .ssh import installed_packages
 
-        installed = installed_packages(uri)
+        try:
+            installed = installed_packages(uri)
+        except SystemExit as exc:  # pytest reports a SystemExit from a hook as an internal error
+            raise pytest.UsageError(str(exc)) from None
         under_test = {package for item in items if (package := package_of(item.path))}
         if under_test and under_test.isdisjoint(installed):
             raise pytest.UsageError(f"none of the packages under test is installed on {uri}; flash a device file to put Pi Hero on it")
