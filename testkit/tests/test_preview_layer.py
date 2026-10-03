@@ -1,4 +1,5 @@
 import fcntl
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -104,6 +105,93 @@ class TestEnsure:
     def test_refuses_a_device_file_without_the_kiosk(self, tmp_path):
         with pytest.raises(ValueError, match="must install pihero-kiosk"):
             layer.ensure(app(tmp_path, user_data="#cloud-config\npackages:\n  - pihero\n"), cache=tmp_path, build=lambda *a: pytest.fail("built"), prepare_base=lambda: BASE, report=lambda m: None)
+
+    def test_skips_the_build_a_waiting_run_finds_done_inside_the_lock(self, tmp_path, monkeypatch):
+        expected = layer.layer_for(BASE, USER_DATA, tmp_path)
+
+        @contextmanager
+        def first_holder_finishes(path):
+            expected.rootfs.parent.mkdir()
+            expected.rootfs.touch()
+            expected.bootfs.touch()
+            yield
+
+        monkeypatch.setattr(layer.locks, "held", first_holder_finishes)
+
+        found = layer.ensure(app(tmp_path), cache=tmp_path, build=lambda *a: pytest.fail("built"), prepare_base=lambda: BASE, report=lambda m: None)
+
+        assert found == expected
+
+    def test_leaves_the_device_file_alone_when_the_layer_exists(self, tmp_path):
+        existing = layer.layer_for(BASE, USER_DATA, tmp_path)
+        existing.rootfs.parent.mkdir()
+        existing.rootfs.touch()
+        existing.bootfs.touch()
+
+        layer.ensure(app(tmp_path), cache=tmp_path, build=lambda *a: pytest.fail("built"), prepare_base=lambda: BASE, report=lambda m: None)
+
+        assert not (tmp_path / "dist").exists()
+
+
+class TestBuildLayer:
+    def test_provisions_the_device_directory_without_debs_and_without_keeping_the_vm(self, tmp_path, monkeypatch):
+        vm = FakeVm(tmp_path)
+        calls = fake_provisioned_vm(monkeypatch, vm)
+        into = tmp_path / "into"
+        into.mkdir()
+
+        layer.build_layer(tmp_path / "device", "hvf", (800, 480), into)
+
+        assert calls == [(([], tmp_path / "device", "hvf"), {"keep": False, "display": "800x480"})]
+
+    def test_powers_the_vm_off_and_waits_for_it_to_exit(self, tmp_path, monkeypatch):
+        vm = FakeVm(tmp_path)
+        fake_provisioned_vm(monkeypatch, vm)
+        into = tmp_path / "into"
+        into.mkdir()
+
+        layer.build_layer(tmp_path / "device", "hvf", (800, 480), into)
+
+        assert vm.events == ["ssh sudo poweroff", "wait_exit"]
+
+    def test_copies_the_disk_and_boot_image_as_they_are_once_the_vm_has_exited(self, tmp_path, monkeypatch):
+        vm = FakeVm(tmp_path)
+        fake_provisioned_vm(monkeypatch, vm)
+        into = tmp_path / "into"
+        into.mkdir()
+
+        layer.build_layer(tmp_path / "device", "hvf", (800, 480), into)
+
+        assert (into / "rootfs.qcow2").read_bytes() == b"overlay after exit"
+        assert (into / "bootfs.img").read_bytes() == b"boot"
+
+
+class FakeVm:
+    def __init__(self, directory: Path):
+        self.overlay = directory / "overlay.qcow2"
+        self.bootfs = directory / "vm-bootfs.img"
+        self.overlay.write_bytes(b"overlay while running")
+        self.bootfs.write_bytes(b"boot")
+        self.events = []
+
+    def ssh(self, command, timeout=120):
+        self.events.append(f"ssh {command}")
+
+    def wait_exit(self, timeout=180):
+        self.events.append("wait_exit")
+        self.overlay.write_bytes(b"overlay after exit")
+
+
+def fake_provisioned_vm(monkeypatch, vm):
+    calls = []
+
+    @contextmanager
+    def provisioned_vm(*args, **kwargs):
+        calls.append((args, kwargs))
+        yield vm
+
+    monkeypatch.setattr(layer, "provisioned_vm", provisioned_vm)
+    return calls
 
 
 def app(root: Path, user_data: str = USER_DATA):

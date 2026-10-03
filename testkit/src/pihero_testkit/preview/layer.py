@@ -54,7 +54,6 @@ def ensure(app: KioskApp, cache: Path = CACHE, accel: str = "hvf", *, build: Cal
     if kiosk.PACKAGE not in user_data:
         raise ValueError(f"the preview's device file must install {kiosk.PACKAGE}; add it to its packages")
     base = prepare_base()
-    device = device_file.write(app.root / "dist" / "preview" / DEVICE_DIR, user_data)
     layer = layer_for(base, user_data, cache)
     if layer.rootfs.exists() and layer.bootfs.exists():
         return layer
@@ -62,6 +61,7 @@ def ensure(app: KioskApp, cache: Path = CACHE, accel: str = "hvf", *, build: Cal
     with locks.held(cache / f"{directory.name}.lock"):
         if layer.rootfs.exists() and layer.bootfs.exists():
             return layer
+        device = device_file.write(app.root / "dist" / "preview" / DEVICE_DIR, user_data)
         report("building the preview's base layer, once per base image and device file (about 2.5 minutes)")
         building = cache / f"{directory.name}.building"
         shutil.rmtree(building, ignore_errors=True)
