@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from pihero_testkit import preview
 from pihero_testkit.preview import flavors, session
 from pihero_testkit.preview.api import DevServer, Settings
 
@@ -203,9 +204,10 @@ class TestMain:
         assert status == 130
 
     def test_is_exported_by_the_package(self):
-        from pihero_testkit import preview
-
         assert preview.main is session.main
+
+    def test_is_exported_next_to_run(self):
+        assert (preview.run, "run" in preview.__all__) == (session.run, True)
 
 
 class TestStateDir:
