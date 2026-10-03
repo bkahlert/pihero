@@ -34,9 +34,10 @@ def stale_actions(record: dict, alive=process.alive) -> list[tuple[str, object]]
     return actions
 
 
-def carry_out(actions, stop_backend: Callable[[], None], restore_board: Callable[[str], None], *, kill=os.kill, killpg=os.killpg, getpgid=os.getpgid, info=process.info, sleep=time.sleep, clock=time.monotonic) -> None:
-    """Carry out `actions` and wait until the ended processes are gone; a process that ended meanwhile is skipped."""
+def carry_out(actions, stop_backend: Callable[[], None], restore_board: Callable[[str], bool], *, kill=os.kill, killpg=os.killpg, getpgid=os.getpgid, info=process.info, sleep=time.sleep, clock=time.monotonic) -> str | None:
+    """Carry out `actions`, wait until the ended processes are gone, and return the board whose restore failed (None when none did); a process that ended meanwhile is skipped."""
     ended = []
+    failed = None
     for action, subject in actions:
         try:
             if action == "terminate":
@@ -46,12 +47,14 @@ def carry_out(actions, stop_backend: Callable[[], None], restore_board: Callable
                 killpg(getpgid(subject), signal.SIGTERM)
                 ended.append(subject)
             elif action == "restore-device":
-                restore_board(subject)
+                if not restore_board(subject):
+                    failed = subject
             elif action == "stop-backend":
                 stop_backend()
         except ProcessLookupError:
             pass
     process.wait_until_gone(ended, info, sleep=sleep, clock=clock)
+    return failed
 
 
 class Record:
@@ -70,13 +73,15 @@ class Record:
             return {}
         return content if isinstance(content, dict) else {}
 
-    def claim(self, stop_backend: Callable[[], None], restore_board: Callable[[str], None], *, alive=process.alive, info=process.info, kill=os.kill, killpg=os.killpg, getpgid=os.getpgid, sleep=time.sleep, clock=time.monotonic) -> None:
-        """End what a killed preview left behind, delete its session directory, and record this process as the owner; raise AlreadyRunning next to a live one."""
+    def claim(self, stop_backend: Callable[[], None], restore_board: Callable[[str], bool], *, alive=process.alive, info=process.info, kill=os.kill, killpg=os.killpg, getpgid=os.getpgid, sleep=time.sleep, clock=time.monotonic) -> None:
+        """End what a killed preview left behind, delete its session directory, and record this process as the owner, keeping a board whose restore failed; raise AlreadyRunning next to a live one."""
         self.directory.mkdir(parents=True, exist_ok=True)
+        device = None
         if self.path.exists():
-            carry_out(stale_actions(self.read(), alive), stop_backend, restore_board, kill=kill, killpg=killpg, getpgid=getpgid, info=info, sleep=sleep, clock=clock)
+            device = carry_out(stale_actions(self.read(), alive), stop_backend, restore_board, kill=kill, killpg=killpg, getpgid=getpgid, info=info, sleep=sleep, clock=clock)
             shutil.rmtree(self.session_dir, ignore_errors=True)
-        self.path.write_text(json.dumps({"owner": process.entry(os.getpid(), info)}))
+        owner = {"owner": process.entry(os.getpid(), info)}
+        self.path.write_text(json.dumps({**owner, "device": device} if device else owner))
 
     def update(self, **fields) -> None:
         """Add `fields` to the record."""

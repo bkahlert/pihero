@@ -73,6 +73,16 @@ class TestCarryOut:
 
         assert waited == []
 
+    def test_returns_the_board_whose_restore_failed(self):
+        failed = record.carry_out([("restore-device", "pi@host")], stop_backend=lambda: None, restore_board=lambda t: False, info=lambda pid: None)
+
+        assert failed == "pi@host"
+
+    def test_returns_none_when_the_board_was_restored(self):
+        failed = record.carry_out([("restore-device", "pi@host")], stop_backend=lambda: None, restore_board=lambda t: True, info=lambda pid: None)
+
+        assert failed is None
+
 
 class TestRecord:
     def test_claim_records_this_process_as_the_owner(self, tmp_path):
@@ -92,6 +102,22 @@ class TestRecord:
 
         assert stopped == [True]
         assert not rec.session_dir.exists()
+
+    def test_claim_keeps_a_board_whose_restore_failed_next_to_the_new_owner(self, tmp_path):
+        rec = record.Record(tmp_path)
+        rec.path.write_text(json.dumps({"device": "pi@host"}))
+
+        rec.claim(stop_backend=lambda: None, restore_board=lambda t: False, alive=lambda entry: False, info=lambda pid: (STARTED, "S"))
+
+        assert rec.read() == {"owner": [os.getpid(), STARTED], "device": "pi@host"}
+
+    def test_claim_drops_a_board_whose_restore_succeeded(self, tmp_path):
+        rec = record.Record(tmp_path)
+        rec.path.write_text(json.dumps({"device": "pi@host"}))
+
+        rec.claim(stop_backend=lambda: None, restore_board=lambda t: True, alive=lambda entry: False, info=lambda pid: (STARTED, "S"))
+
+        assert rec.read() == {"owner": [os.getpid(), STARTED]}
 
     def test_claim_treats_a_corrupt_record_as_empty(self, tmp_path):
         rec = record.Record(tmp_path)
