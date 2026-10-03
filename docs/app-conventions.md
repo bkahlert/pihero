@@ -69,3 +69,9 @@ board, each with a Web Inspector, each ended by Ctrl-C with nothing left behind.
   opens nothing) and `preview-device` takes `TARGET=user@host[:port]`.
 - One preview per app (Gradle allows one build per project directory) and one per board (one kiosk); two apps preview side
   by side, each in its VM or on its board.
+
+The VM flavor needs QEMU, a running podman machine (the tools container renders the boot files and indexes the empty
+repository during the layer build), Accessibility permission for the terminal (System Events places the window) and, on
+the first layer build, internet for the published `pihero-kiosk`. Run the make targets from the app's repository root,
+because the layer build's working directory follows the current directory. [testing.md](testing.md#tier-2) "Tier 2"
+describes the tooling this repository uses for it.
