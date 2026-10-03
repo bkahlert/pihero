@@ -106,6 +106,7 @@ make test-tier1                     # install, remove, purge in a systemd contai
 make test-tier2 [VM_DISPLAY=480x320] # boot a QEMU VM from a device file, with a virtual display
 make test                           # tiers 0 and 1, what CI runs on every push
 make test-all                       # tiers 0 to 2, what make release runs
+make test-preview                   # the kiosk preview's VM session on this Mac (QEMU, a window server)
 make deploy TARGET=pi@mypi.local    # the packages a real device has, freshly built
 make checkpoint                     # the ssh tier on the checkpoints, the real boards .env names
 make docs-models                    # docs/models and the model tables from this Mac's icons

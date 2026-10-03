@@ -194,7 +194,11 @@ skipped, not failed, in the container, a VM started with `--display none`, and o
 virtual display by default since 2.4.0, where the unit runs on Pi Hero's cog; `Restart=always` with
 `StartLimitIntervalSec=0` covers a panel that appears late; `MemoryMax=300M` binds once the device file has turned the
 memory controller on (see [app-conventions.md](app-conventions.md)). Cog's own environment passes through, so a panel with
-several modes takes `COG_PLATFORM_DRM_VIDEO_MODE=800x480` in the same file.
+several modes takes `COG_PLATFORM_DRM_VIDEO_MODE=800x480` in the same file. The testkit's preview drives this unit from the
+Mac: it rewrites `kiosk.conf` for a session (the page's URL, developer extras, the Web Inspector, `GSETTINGS_BACKEND=memory`
+against a dconf hang, and in the VM the display mode, since a windowed QEMU offers the guest the window's size as its
+preferred mode) in a VM's overlay or in a `/run` drop-in on a board, and a tier-0 test holds the preview's constants to this
+package's unit and script.
 
 A panel on SPI with a `mipi-dbi` KMS driver (`ili9486` and its relatives, `dtoverlay=piscreen,drm` for the Waveshare 3.5-inch)
 lists only XRGB8888 and RGB565. Cog's default "modeset" renderer scans out WPE's ARGB8888 buffer unchanged, so such a panel
@@ -383,6 +387,14 @@ Their tests depend on `pihero-testkit` pinned to a tag and reuse its tiers, with
 source, `http://10.0.2.2:8000/` with `Trusted: yes`, to a copy of the all-features device; the harness serves that
 repository on a free port and rewrites the URL's port when it stages the file, so tier-2 runs of several repositories share
 a Mac. A device file then names the app's repository and packages next to Pi Hero's.
+
+An app that shows a page previews it from the Mac through `pihero_testkit.preview` (2026-10-03): the page from the app's
+dev server in a browser tab, in the kiosk of a VM shown in a window, or in the kiosk of a real board, with a Web Inspector
+and a clean exit. The app implements `KioskApp` ([app-conventions.md](app-conventions.md) "Kiosk preview"); the testkit
+owns the session, the provisioned layer cache, the VM and its window, the board's tunnel and drop-in. The server a session
+starts on the Mac is the app's *fake*: the real backend software seeded with a *fixture*. Two apps preview at once because
+everything on the Mac is scoped by the app's name or allocated per session. Design:
+[2026-10-03-kiosk-preview-design.md](superpowers/specs/2026-10-03-kiosk-preview-design.md).
 
 ## Out of scope
 

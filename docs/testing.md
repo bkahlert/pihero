@@ -22,6 +22,7 @@ make test-tier1 PLATFORM=linux/arm/v7          # default linux/arm64
 make test-tier2                                # make vm keeps the VM running
 make test                                      # tiers 0 and 1
 make test-all                                  # tiers 0 to 2, what make release runs
+make test-preview                              # the kiosk preview's VM session, Mac only
 uv run pytest -m installed --target=ssh --target-uri=pi@mypi.local
 uv run pytest packages/pihero/tests -m tier0   # one package
 ```
@@ -46,6 +47,11 @@ call their functions, so a script keeps its logic in functions with injectable d
 `/proc/device-tree/model`, no USB device controller, and no DRM device, so a unit with `ConditionPathExistsGlob=` is skipped
 there, not active; assert on the condition, or check the device exists before asserting `is_running`. A `mutating` test
 restores what it changed: `target.reinstall()` after a purge, the previous conffile after an override.
+
+`preview` marks the tests of the kiosk preview that boot a VM in a window on this Mac (`make test-preview`); they are opt-in and
+`skipif` not darwin. They run whenever selected, so a bare `pytest` run without `-m` on a Mac collects them too; every
+documented command selects by marker. Their reference app serves a static page with `http.server` and installs the published
+`pihero-kiosk` into the sample device, so the first run builds a layer under `~/.cache/pihero/preview` (about 2.5 minutes).
 
 ## Tools container
 
@@ -149,6 +155,12 @@ floor, on a USB Ethernet hub covers ARMv6 timing and NetworkManager over a cable
 peripheral mode claims the Zero's one USB controller and leaves a board on a hub dark. Neither has a display, so the kiosk
 is proven in tier 2 and on application boards. The checkpoints are disposable: their device directories live outside this
 checkout, a release reflashes both, and nothing is kept on them.
+
+The kiosk preview's device flavor (`preview-device` in an app, [app-conventions.md](app-conventions.md) "Kiosk preview") has
+no VM counterpart: it is proven by hand on an application board. The check: the page shows the app's fixture; a CSS edit
+reaches the panel within seconds; the Web Inspector shows the live DOM; Ctrl-C leaves `/run/<app>-preview` and the drop-in
+under `/run/systemd/system/pihero-kiosk.service.d/` gone and the kiosk on its own `URL`; `kill -9` of the session and the
+next start recovers both. Last run: netmon on `netmon.local`, 2026-10-03, with netmon's own implementation.
 
 A gitignored `.env` at the repository root, which `make` reads, names the directories and the boards:
 
