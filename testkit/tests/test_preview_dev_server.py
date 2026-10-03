@@ -1,3 +1,4 @@
+import re
 import signal
 import subprocess
 from types import SimpleNamespace
@@ -15,7 +16,7 @@ class TestStart:
     def test_runs_the_command_in_the_root_in_its_own_session_with_the_env_added(self, tmp_path):
         calls = []
 
-        dev_server.start(SERVER, tmp_path, tmp_path / "dist" / "preview" / "dev-server.log", environ={"PATH": "/bin"}, popen=lambda argv, **kw: calls.append((argv, kw)))
+        dev_server.start(SERVER, tmp_path, tmp_path / "dist" / "preview" / "dev-server.log", environ={"PATH": "/bin", "NETMON_STATS_PROXY": "http://old"}, popen=lambda argv, **kw: calls.append((argv, kw)))
 
         argv, kw = calls[0]
         assert argv == SERVER.argv
@@ -37,7 +38,7 @@ class TestWaitUntilServing:
             dev_server.wait_until_serving(SimpleNamespace(poll=lambda: 1, returncode=1), 8081, tmp_path / "log", answers=lambda h, p: False, sleep=lambda s: None, clock=counter())
 
     def test_times_out_naming_the_log(self, tmp_path):
-        with pytest.raises(TimeoutError, match="nothing answers on port 8081 after 900 s"):
+        with pytest.raises(TimeoutError, match=re.escape(f"nothing answers on port 8081 after 900 s; see {tmp_path / 'log'}")):
             dev_server.wait_until_serving(SimpleNamespace(poll=lambda: None), 8081, tmp_path / "log", answers=lambda h, p: False, sleep=lambda s: None, clock=counter(step=500))
 
 
