@@ -5,7 +5,7 @@ from contextlib import ExitStack
 from dataclasses import dataclass, field
 
 from . import board, layer, process, vm
-from .api import Backend, DevServer, KioskApp, Served, Settings
+from .api import Backend, DevServer, KioskApp, Settings
 from .record import Record
 
 
@@ -46,11 +46,6 @@ class BoardServed:
     def address(self, mac_port: int) -> str:
         """Return the address of `mac_port` as the board reaches it, on its reverse port."""
         return f"127.0.0.1:{board.remote_port(mac_port)}"
-
-
-def served_for(flavor: str) -> Served:
-    """Return how the kiosk of `flavor` reaches the Mac; raise KeyError for an unknown flavor."""
-    return {"browser": BrowserServed, "vm": VmServed, "device": BoardServed}[flavor]()
 
 
 def mac_ports(dev: DevServer, backend: Backend) -> list[int]:

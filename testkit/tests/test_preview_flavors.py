@@ -13,16 +13,16 @@ DEV = DevServer(["serve"], 8081)
 
 class TestServed:
     def test_the_browser_reaches_the_mac_on_localhost(self):
-        assert flavors.served_for("browser").address(8081) == "localhost:8081"
+        assert flavors.BrowserServed().address(8081) == "localhost:8081"
 
     def test_the_vm_reaches_the_mac_at_qemus_host_address(self):
-        assert flavors.served_for("vm").address(8081) == "10.0.2.2:8081"
+        assert flavors.VmServed().address(8081) == "10.0.2.2:8081"
 
     def test_the_board_reaches_the_mac_through_the_reverse_port(self):
-        assert flavors.served_for("device").address(8081) == "127.0.0.1:18081"
+        assert flavors.BoardServed().address(8081) == "127.0.0.1:18081"
 
     def test_each_names_its_flavor(self):
-        assert [flavors.served_for(f).flavor for f in ("browser", "vm", "device")] == ["browser", "vm", "device"]
+        assert [served.flavor for served in (flavors.BrowserServed(), flavors.VmServed(), flavors.BoardServed())] == ["browser", "vm", "device"]
 
 
 class TestMacPorts:
