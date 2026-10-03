@@ -1,9 +1,10 @@
 import fcntl
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
 
-from pihero_testkit import prepare, tools
+from pihero_testkit import locks, prepare, tools
 
 pytestmark = pytest.mark.tier0
 
@@ -49,6 +50,24 @@ class TestPrepare:
         out = tmp_path / "base" / prepare.key()
         out.mkdir(parents=True)
         (out / "done").touch()
+
+        base = prepare.prepare()
+
+        assert base.rootfs == out / "rootfs.qcow2"
+
+    def test_skips_the_build_a_waiting_run_finds_done_inside_the_lock(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(prepare, "CACHE", tmp_path)
+        monkeypatch.setattr(prepare, "download", lambda url, sha256: pytest.fail("downloaded again"))
+        monkeypatch.setattr(tools, "run", lambda *args, **kwargs: pytest.fail("built again"))
+        out = tmp_path / "base" / prepare.key()
+
+        @contextmanager
+        def first_holder_finishes_while_we_wait(path):
+            out.mkdir(parents=True)
+            (out / "done").touch()
+            yield
+
+        monkeypatch.setattr(locks, "held", first_holder_finishes_while_we_wait)
 
         base = prepare.prepare()
 
