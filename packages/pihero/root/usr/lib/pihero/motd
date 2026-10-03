@@ -50,7 +50,7 @@ def render(banner: str, packages: list[tuple[str, str]], failed: list[str], rebo
         f"  packages:        {', '.join(f'{name} {version}' for name, version in packages) or 'none'}\n"
         f"  failed units:    {', '.join(failed) or 'none'}\n"
         f"  reboot required: {reboot_text}\n"
-        f"  usb0:            {usb0 or 'not present'}\n"
+        f"  usb0:            {usb0 or 'not present'}\n\n"
     )
 
 
