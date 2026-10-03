@@ -73,7 +73,7 @@ class Vm:
         self._ensure_layer, self._make_session, self._free_port, self._entry = ensure_layer, make_session, free_port, entry
 
     def show(self, app: KioskApp, settings: Settings, backend: Backend, dev: DevServer, cleanup: ExitStack, rec: Record) -> Shown:
-        """Boot the app's VM, point its kiosk at the page and open the inspector tunnel; stop the VM on `cleanup`, and when any step raises."""
+        """Boot the app's VM, point its kiosk at the page and open the inspector tunnel, watching for QEMU to end; stop the VM on `cleanup`, and when any step raises."""
         session = self._make_session(self._ensure_layer(app), rec.session_dir, app.display)
         cleanup.callback(session.stop)
         session.start(on_qemu=lambda pid: rec.update(qemu=self._entry(pid)))
@@ -82,7 +82,7 @@ class Vm:
         local = self._free_port()
         session.open_tunnel(local)
         rec.update(inspector=local)
-        return Shown(f"http://localhost:{dev.port}/", f"127.0.0.1:{local}")
+        return Shown(f"http://localhost:{dev.port}/", f"127.0.0.1:{local}", lambda: f"the VM's QEMU ended; see {session.keep_serial_log()}" if session.vm.process.poll() is not None else None)
 
 
 class Device:

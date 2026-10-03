@@ -61,6 +61,25 @@ class TestVm:
             assert rec.read() == {"qemu": [4242, "T"], "inspector": 54321}
         assert session.calls[-1] == "stop"
 
+    def test_watch_is_quiet_while_qemu_runs(self, tmp_path):
+        with ExitStack() as cleanup:
+            shown = flavors.Vm(ensure_layer=lambda a: LAYER, make_session=lambda *a: FakeSession(), free_port=lambda: 1, entry=lambda pid: None).show(app(), Settings("vm", None, None, {}), backend(), DEV, cleanup, record.Record(tmp_path))
+
+            problem = shown.watch()
+
+        assert problem is None
+
+    def test_watch_reports_that_qemu_ended_naming_the_kept_serial_log(self, tmp_path):
+        session = FakeSession()
+
+        with ExitStack() as cleanup:
+            shown = flavors.Vm(ensure_layer=lambda a: LAYER, make_session=lambda *a: session, free_port=lambda: 1, entry=lambda pid: None).show(app(), Settings("vm", None, None, {}), backend(), DEV, cleanup, record.Record(tmp_path))
+            session.vm.process.poll = lambda: 1
+
+            problem = shown.watch()
+
+        assert problem == "the VM's QEMU ended; see /state/serial.log"
+
     def test_stops_the_session_when_the_kiosk_fails_to_load(self, tmp_path):
         session = FakeSession(fail_kiosk=True)
 
@@ -136,7 +155,7 @@ def backend(mac_port=None):
 class FakeSession:
     def __init__(self, fail_kiosk: bool = False):
         self.calls, self.fail_kiosk = [], fail_kiosk
-        self.vm = SimpleNamespace(process=SimpleNamespace(pid=4242))
+        self.vm = SimpleNamespace(process=SimpleNamespace(pid=4242, poll=lambda: None))
 
     def start(self, on_qemu=None):
         self.calls.append("start")
@@ -154,6 +173,9 @@ class FakeSession:
 
     def open_tunnel(self, local_port):
         self.calls.append(f"open_tunnel {local_port}")
+
+    def keep_serial_log(self):
+        return Path("/state/serial.log")
 
     def stop(self):
         self.calls.append("stop")

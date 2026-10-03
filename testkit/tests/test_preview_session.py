@@ -127,14 +127,41 @@ class TestRun:
         assert log.index("restore") < log.index("backend.start")
         assert log.index("backend.stop") < log.index("backend.start")
 
-    def test_hands_the_flavors_watch_to_the_wait(self, tmp_path):
+    def test_the_wait_reports_the_flavors_problem(self, tmp_path):
         log = []
         harness = Harness(log)
         harness.watch = lambda: "problem"
 
         session.run(App(tmp_path, log), Settings("vm", None, None, {}), **harness.injected)
 
-        assert harness.waited_with is harness.watch
+        assert harness.waited_with() == "problem"
+
+    def test_the_wait_reports_that_the_dev_server_exited(self, tmp_path):
+        log = []
+        harness = Harness(log, flavor="browser")
+        harness.server_status = 1
+
+        session.run(App(tmp_path, log), Settings("browser", None, None, {}), **harness.injected)
+
+        assert harness.waited_with() == f"the dev server exited with status 1; see {tmp_path / 'dist' / 'preview' / 'dev-server.log'}"
+
+    def test_the_wait_defers_to_the_flavors_problem_over_the_dev_servers_exit(self, tmp_path):
+        log = []
+        harness = Harness(log)
+        harness.watch = lambda: "problem"
+        harness.server_status = 1
+
+        session.run(App(tmp_path, log), Settings("vm", None, None, {}), **harness.injected)
+
+        assert harness.waited_with() == "problem"
+
+    def test_the_wait_is_quiet_while_the_flavor_and_the_dev_server_run(self, tmp_path):
+        log = []
+        harness = Harness(log)
+
+        session.run(App(tmp_path, log), Settings("vm", None, None, {}), **harness.injected)
+
+        assert harness.waited_with() is None
 
 
 class TestMain:
@@ -227,7 +254,7 @@ class App:
 class Harness:
     def __init__(self, log: list, flavor: str = "vm", on_wait=lambda: None, on_serving_wait=lambda: None):
         self.log, self.flavor_name, self.on_wait, self.on_serving_wait = log, flavor, on_wait, on_serving_wait
-        self.open_status, self.show_error, self.watch, self.waited_with = 0, None, None, None
+        self.open_status, self.show_error, self.watch, self.waited_with, self.server_status = 0, None, None, None, None
 
     @property
     def injected(self) -> dict:
@@ -239,7 +266,7 @@ class Harness:
 
     def ensure(self, dev, root, log, *, on_start):
         self.log.append(f"ensure {dev.port}")
-        proc = SimpleNamespace(pid=77)
+        proc = SimpleNamespace(pid=77, poll=lambda: self.server_status)
         on_start(proc)
         self.on_serving_wait()
         return proc

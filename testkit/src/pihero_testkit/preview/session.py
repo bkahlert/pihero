@@ -26,7 +26,7 @@ def ready_message(settings: Settings, shown: flavors.Shown, backend: Backend) ->
 
 
 def run(app: KioskApp, settings: Settings, *, ensure_dev_server=dev_server.ensure, stop_dev_server=dev_server.stop, flavor_for=flavors.flavor_for, wait_for_inspector=kiosk.wait_for_inspector, open_=subprocess.run, until_interrupted=process.until_interrupted, arm_sigterm=process.raise_on_sigterm, entry=process.entry, make_board=board.Board, out=None) -> int:
-    """Run the preview until Ctrl-C and return 0, printing progress to `out` (stderr by default); everything started is ended on the way out."""
+    """Run the preview until Ctrl-C and return 0, printing progress to `out` (stderr by default); raise RuntimeError when the flavor reports a problem or the dev server exits meanwhile; everything started is ended on the way out."""
     out = sys.stderr if out is None else out
     backend = app.backend(settings)
     dev = app.dev_server(settings)
@@ -49,7 +49,15 @@ def run(app: KioskApp, settings: Settings, *, ensure_dev_server=dev_server.ensur
         if settings.inspect:
             open_(kiosk.open_command(settings.inspect, opened), check=False)
         print(ready_message(settings, shown, backend), file=out, flush=True)
-        until_interrupted(shown.watch)
+
+        def watch() -> str | None:
+            problem = shown.watch() if shown.watch else None
+            if problem:
+                return problem
+            status = server.poll()
+            return f"the dev server exited with status {status}; see {log}" if status is not None else None
+
+        until_interrupted(watch)
     return 0
 
 
