@@ -221,6 +221,10 @@ dev server is `python -m http.server` on a static page and whose backend is unma
 - `device_file`: `block` on a sample with comments and blanks inside and after a block, `with_user` and its two
   `ValueError`s, `with_source` with the default and a given URL, `drop`, `write`.
 - `prepare`: the lock file taken around the build (a fake `tools.run`).
+- The kiosk's contract: the preview's constants against the package in this repository, so a change to the unit fails
+  the same `make test-tier0`: the unit name and `EnvironmentFile=-/etc/pihero/kiosk.conf` read from
+  `packages/pihero-kiosk/root/usr/lib/systemd/system/pihero-kiosk.service`, and the `URL` and `COG_ARGS` variables the
+  kiosk script reads, loaded with `load_script`, against the keys `session_conf` writes.
 
 The `preview` marker, Mac only (`skipif` not darwin), run by `make test-preview`: a session of the reference app on the
 VM flavor keeps the guest at its display size after the window was resized and the kiosk restarted; a page served from
