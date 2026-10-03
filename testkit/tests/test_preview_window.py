@@ -61,10 +61,18 @@ class TestPlace:
 
     def test_reports_the_accessibility_hint_and_gives_up_after_the_attempts(self):
         reported = []
+        calls = []
+        sleeps = []
 
-        placed = window.place(501, (800, 480), attempts=2, run=lambda argv, **kw: CompletedProcess(argv, 1, "", ""), sleep=lambda s: None, report=reported.append)
+        def run(argv, **kwargs):
+            calls.append(argv)
+            return CompletedProcess(argv, 1, "", "")
+
+        placed = window.place(501, (800, 480), attempts=2, run=run, sleep=sleeps.append, report=reported.append)
 
         assert placed is False
+        assert [argv[0] for argv in calls] == ["ps", "osascript", "osascript"]
+        assert sleeps == [1, 1]
         assert reported == ["could not place the VM's window; allow your terminal under Privacy & Security > Accessibility"]
 
     def test_cascades_behind_the_other_vm_windows(self):
