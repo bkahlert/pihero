@@ -62,7 +62,7 @@ def run(app: KioskApp, settings: Settings, *, ensure_dev_server=dev_server.ensur
 
 
 def main(app: KioskApp, argv: list[str] | None = None, environ: Mapping[str, str] | None = None) -> int:
-    """Run the app's preview for `--on browser|vm|device`; return 2 with the message on a bad variable or a failure, 130 on Ctrl-C."""
+    """Run the app's preview for `--on browser|vm|device`; return 0 when Ctrl-C ends a ready preview, 130 when Ctrl-C lands before it is ready, and 2 with the message on a bad variable or a failure."""
     parser = argparse.ArgumentParser(prog="preview.py", description=f"Show {app.name}'s page from the dev server in a browser, a VM's kiosk or a board's kiosk until Ctrl-C.")
     parser.add_argument("--on", required=True, choices=FLAVORS, help="where to show the page")
     flavor = parser.parse_args(argv).on
