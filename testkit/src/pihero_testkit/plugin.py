@@ -23,6 +23,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "installed: runs against any target with the packages installed (podman, vm, ssh)")
     config.addinivalue_line("markers", "boot: cross-cutting checks that need a booted VM or device (vm, ssh)")
     config.addinivalue_line("markers", "mutating: changes the target's state; skipped on --target=ssh")
+    config.addinivalue_line("markers", "preview: runs a kiosk preview session on this Mac (QEMU, a window server), opt-in (make test-preview)")
     if config.getoption("--target") == "vm":
         from .vm import parse_display
 

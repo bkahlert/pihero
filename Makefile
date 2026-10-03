@@ -39,6 +39,9 @@ test-tier1: ## install packages into a systemd container and test
 test-tier2: ## boot a VM from a device file and test
 	@$(UV) pytest -m 'installed or boot' --target=vm --qemu-accel=$(QEMU_ACCEL) --display=$(VM_DISPLAY)
 
+test-preview: ## the kiosk preview's VM session on this Mac (QEMU, a window server, Accessibility for the terminal)
+	@$(UV) pytest -m preview
+
 test: test-tier0 test-tier1 ## tiers 0 and 1
 
 test-all: test-tier0 test-tier1 test-tier2 ## tiers 0 to 2

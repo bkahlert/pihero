@@ -73,6 +73,15 @@ class TestSshTarget:
         result.assert_outcomes(passed=3)
 
 
+class TestPreviewMarker:
+    def test_is_registered_as_opt_in(self, pytester):
+        pytester.makepyfile("import pytest\n\npytestmark = pytest.mark.preview\n\n\ndef test_passes():\n    assert True\n")
+
+        result = pytester.runpytest_inprocess("-p", "pihero_testkit.plugin", "-p", "no:pytest11.testinfra", "--strict-markers", "-m", "preview")
+
+        result.assert_outcomes(passed=1)
+
+
 def tree(pytester) -> None:
     pytester.makefile(".yaml", **{"probes/probe-core/nfpm": "name: probe-core", "probes/probe-panel/nfpm": "name: probe-panel"})
     pytester.makepyfile(
