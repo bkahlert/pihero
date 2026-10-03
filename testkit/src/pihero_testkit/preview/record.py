@@ -81,16 +81,22 @@ class Record:
             device = carry_out(stale_actions(self.read(), alive), stop_backend, restore_board, kill=kill, killpg=killpg, getpgid=getpgid, info=info, sleep=sleep, clock=clock)
             shutil.rmtree(self.session_dir, ignore_errors=True)
         owner = {"owner": process.entry(os.getpid(), info)}
-        self.path.write_text(json.dumps({**owner, "device": device} if device else owner))
+        self._write({**owner, "device": device} if device else owner)
 
     def update(self, **fields) -> None:
         """Add `fields` to the record."""
-        self.path.write_text(json.dumps({**self.read(), **fields}))
+        self._write({**self.read(), **fields})
 
     def forget(self) -> None:
         """Delete the record, keeping only a board that still runs the session so the next start retries its restore."""
         device = self.read().get("device")
         if device:
-            self.path.write_text(json.dumps({"device": device}))
+            self._write({"device": device})
         else:
             self.path.unlink(missing_ok=True)
+
+    def _write(self, content: dict) -> None:
+        # A preview killed mid-write must leave the previous record, not a truncated one the next start reads as empty.
+        temporary = self.directory / "session.json.tmp"
+        temporary.write_text(json.dumps(content))
+        os.replace(temporary, self.path)

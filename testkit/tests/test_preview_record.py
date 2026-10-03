@@ -153,6 +153,23 @@ class TestRecord:
 
         assert rec.read() == {"owner": [1, STARTED], "qemu": [2, STARTED], "inspector": 54321}
 
+    def test_update_replaces_the_file_instead_of_rewriting_it_in_place(self, tmp_path):
+        rec = record.Record(tmp_path)
+        rec.path.write_text(json.dumps({"owner": [1, STARTED]}))
+        before = rec.path.stat().st_ino
+
+        rec.update(inspector=54321)
+
+        assert rec.path.stat().st_ino != before
+
+    def test_update_leaves_no_temporary_file_behind(self, tmp_path):
+        rec = record.Record(tmp_path)
+        rec.path.write_text(json.dumps({"owner": [1, STARTED]}))
+
+        rec.update(inspector=54321)
+
+        assert [p.name for p in tmp_path.iterdir()] == ["session.json"]
+
     def test_forget_deletes_the_record(self, tmp_path):
         rec = record.Record(tmp_path)
         rec.path.write_text(json.dumps({"owner": [1, STARTED], "dev_server": [2, STARTED]}))
