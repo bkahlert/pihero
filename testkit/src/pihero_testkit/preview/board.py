@@ -14,6 +14,7 @@ LOG_NAME = "tunnel.log"
 DROPIN_DIR = f"/run/systemd/system/{kiosk.UNIT}.service.d"
 REMOTE_OFFSET = 10000
 CHANNEL_NOISE = re.compile(r"channel \d+: open failed")
+APP_NAME = re.compile(r"[A-Za-z0-9._-]+")
 
 
 def remote_port(mac_port: int) -> int:
@@ -38,9 +39,11 @@ def tunnel_command(target: str, forward_args: list[str]) -> list[str]:
 
 
 class Board:
-    """A real board reached over ssh, with the session's kiosk files and tunnel on it."""
+    """A real board reached over ssh, with the session's kiosk files and tunnel on it; the app's `name` is letters, digits, '-', '_' or '.'."""
 
     def __init__(self, target: str, name: str, tunnel_log: Path, *, run=subprocess.run, popen=subprocess.Popen, answers=process.answers, sleep=time.sleep, clock=time.monotonic, report: Callable[[str], None] = lambda message: print(message, file=sys.stderr)):
+        if not APP_NAME.fullmatch(name):
+            raise ValueError(f"the app's name must be letters, digits, '-', '_' or '.', not {name!r}")
         self.target, self.tunnel_log = target, tunnel_log
         self.run_dir = f"/run/{name}-preview"
         self.conf = f"{self.run_dir}/kiosk.conf"

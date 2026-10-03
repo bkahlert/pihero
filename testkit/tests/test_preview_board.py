@@ -1,3 +1,4 @@
+import re
 import subprocess
 from subprocess import CompletedProcess
 from types import SimpleNamespace
@@ -46,6 +47,17 @@ class TestBoardPaths:
         b = board.Board(TARGET, "netmon", tmp_path / "tunnel.log")
 
         assert (b.run_dir, b.conf, b.dropin) == ("/run/netmon-preview", "/run/netmon-preview/kiosk.conf", "/run/systemd/system/pihero-kiosk.service.d/netmon-preview.conf")
+
+
+class TestBoardName:
+    @pytest.mark.parametrize("name", ["", "my app", "a;b", "a/b", "ä"])
+    def test_refuses_a_name_that_is_not_letters_digits_dash_underscore_or_dot(self, name, tmp_path):
+        with pytest.raises(ValueError, match=re.escape(f"the app's name must be letters, digits, '-', '_' or '.', not {name!r}")):
+            board.Board(TARGET, name, tmp_path / "t")
+
+    @pytest.mark.parametrize("name", ["busy-screen", "Net_mon.2"])
+    def test_accepts_letters_digits_dash_underscore_and_dot(self, name, tmp_path):
+        assert board.Board(TARGET, name, tmp_path / "t").run_dir == f"/run/{name}-preview"
 
 
 class TestCommands:
@@ -163,6 +175,18 @@ class TestRestore:
         assert warned == ["could not restore the kiosk on pi@netmon.local: no route; a reboot of the board removes the session's files"]
 
 
+    def test_warns_and_returns_false_when_it_hangs(self, tmp_path):
+        warned = []
+
+        def run(argv, **kwargs):
+            raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+        b = board.Board(TARGET, "netmon", tmp_path / "t", run=run, report=warned.append)
+
+        assert b.restore() is False
+        assert warned == ["could not restore the kiosk on pi@netmon.local: pi@netmon.local did not answer within 30 s; a reboot of the board removes the session's files"]
+
+
 class TestOpenTunnel:
     def test_ends_stale_forwards_then_opens_the_tunnel_and_waits_for_the_inspector_port(self, tmp_path):
         remotes, popened = [], []
@@ -193,6 +217,36 @@ class TestOpenTunnel:
             b.open_tunnel([], 54321, [])
 
         assert closed == [True]
+
+
+class TestCloseTunnel:
+    def test_terminates_a_running_tunnel_and_waits_five_seconds(self, tmp_path):
+        events = []
+        tunnel = SimpleNamespace(poll=lambda: None, terminate=lambda: events.append("terminate"), wait=lambda t: events.append(("wait", t)), kill=lambda: events.append("kill"))
+
+        board.Board(TARGET, "netmon", tmp_path / "t").close_tunnel(tunnel)
+
+        assert events == ["terminate", ("wait", 5)]
+
+    def test_kills_a_tunnel_that_does_not_end_in_time(self, tmp_path):
+        events = []
+
+        def wait(timeout):
+            raise subprocess.TimeoutExpired("ssh", timeout)
+
+        tunnel = SimpleNamespace(poll=lambda: None, terminate=lambda: events.append("terminate"), wait=wait, kill=lambda: events.append("kill"))
+
+        board.Board(TARGET, "netmon", tmp_path / "t").close_tunnel(tunnel)
+
+        assert events == ["terminate", "kill"]
+
+    def test_leaves_an_ended_tunnel_alone(self, tmp_path):
+        events = []
+        tunnel = SimpleNamespace(poll=lambda: 255, terminate=lambda: events.append("terminate"), wait=lambda t: events.append("wait"), kill=lambda: events.append("kill"))
+
+        board.Board(TARGET, "netmon", tmp_path / "t").close_tunnel(tunnel)
+
+        assert events == []
 
 
 class TestTunnelProblem:
