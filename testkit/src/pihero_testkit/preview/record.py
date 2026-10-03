@@ -63,11 +63,12 @@ class Record:
         self.session_dir = directory / "session"
 
     def read(self) -> dict:
-        """Return the record, empty when missing or unreadable."""
+        """Return the record, empty when missing, unreadable or not a JSON object."""
         try:
-            return json.loads(self.path.read_text())
+            content = json.loads(self.path.read_text())
         except (OSError, ValueError):
             return {}
+        return content if isinstance(content, dict) else {}
 
     def claim(self, stop_backend: Callable[[], None], restore_board: Callable[[str], None], *, alive=process.alive, info=process.info, kill=os.kill, killpg=os.killpg, getpgid=os.getpgid, sleep=time.sleep, clock=time.monotonic) -> None:
         """End what a killed preview left behind, delete its session directory, and record this process as the owner; raise AlreadyRunning next to a live one."""

@@ -78,9 +78,9 @@ class TestRecord:
     def test_claim_records_this_process_as_the_owner(self, tmp_path):
         rec = record.Record(tmp_path)
 
-        rec.claim(stop_backend=lambda: None, restore_board=lambda t: None, alive=lambda entry: False)
+        rec.claim(stop_backend=lambda: None, restore_board=lambda t: None, alive=lambda entry: False, info=lambda pid: (STARTED, "S"))
 
-        assert rec.read()["owner"][0] == os.getpid()
+        assert rec.read()["owner"] == [os.getpid(), STARTED]
 
     def test_claim_ends_the_stale_session_and_removes_its_directory(self, tmp_path):
         rec = record.Record(tmp_path)
@@ -88,7 +88,7 @@ class TestRecord:
         rec.session_dir.mkdir()
         stopped = []
 
-        rec.claim(stop_backend=lambda: stopped.append(True), restore_board=lambda t: None, alive=lambda entry: False)
+        rec.claim(stop_backend=lambda: stopped.append(True), restore_board=lambda t: None, alive=lambda entry: False, info=lambda pid: (STARTED, "S"))
 
         assert stopped == [True]
         assert not rec.session_dir.exists()
@@ -97,16 +97,25 @@ class TestRecord:
         rec = record.Record(tmp_path)
         rec.path.write_text('{"owner": [1, "Fri')
 
-        rec.claim(stop_backend=lambda: None, restore_board=lambda t: None, alive=lambda entry: pytest.fail("asked"))
+        rec.claim(stop_backend=lambda: None, restore_board=lambda t: None, alive=lambda entry: pytest.fail("asked"), info=lambda pid: (STARTED, "S"))
 
         assert "owner" in rec.read()
+
+    @pytest.mark.parametrize("content", ["[]", "null", '"x"'])
+    def test_claim_treats_a_record_that_is_not_an_object_as_empty(self, tmp_path, content):
+        rec = record.Record(tmp_path)
+        rec.path.write_text(content)
+
+        rec.claim(stop_backend=lambda: None, restore_board=lambda t: None, alive=lambda entry: pytest.fail("asked"), info=lambda pid: (STARTED, "S"))
+
+        assert rec.read()["owner"] == [os.getpid(), STARTED]
 
     def test_claim_raises_next_to_a_live_owner_and_changes_nothing(self, tmp_path):
         rec = record.Record(tmp_path)
         rec.path.write_text(json.dumps({"owner": [1, STARTED]}))
 
         with pytest.raises(record.AlreadyRunning):
-            rec.claim(stop_backend=lambda: None, restore_board=lambda t: None, alive=lambda entry: True)
+            rec.claim(stop_backend=lambda: None, restore_board=lambda t: None, alive=lambda entry: True, info=lambda pid: (STARTED, "S"))
 
         assert rec.read() == {"owner": [1, STARTED]}
 
