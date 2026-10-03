@@ -113,6 +113,10 @@ The harness plays the firmware.
   reboot returns to the harness, serial console logged under `dist/vm/<device>/`, a `virtio-gpu-pci` display at the
   configured size whose EDID makes the guest's connector `Virtual-1` prefer it, and a QMP monitor on a localhost TCP port
   through which `Vm.screenshot(path)` saves a PNG of the display (`VM_DISPLAY=none` for the headless VM).
+  `Vm(..., window=True)` shows the display in a macOS window that scales it. QEMU is told not to report the window's
+  size to the guest (`edid=off`) and the kernel command line forces the display's mode, so the guest keeps its
+  `WIDTHxHEIGHT` whatever the window does. `Vm(..., backing=path)` creates the overlay on a disk of one's own, for
+  instance a provisioned and powered-off overlay, instead of on the base image.
 - **Repository.** The run builds every package, generates a flat unsigned repository under `dist/vm/<device>/repo`, and
   serves it from the Mac on a free port, so tier-2 runs of several repositories share a Mac. A device file writes the
   source as `http://10.0.2.2:8000/` with `Trusted: yes`, exactly in that form: the QEMU host address at the conventional
