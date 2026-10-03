@@ -64,6 +64,22 @@ class TestSessionConf:
 
         assert text.startswith(f"# the kiosk\n\nURL={URL}\n")
 
+    def test_adds_the_video_mode_when_given_and_absent(self):
+        text = kiosk.session_conf("URL=http://localhost/\n", URL, video_mode="800x480")
+
+        assert text.count("COG_PLATFORM_DRM_VIDEO_MODE=800x480\n") == 1
+
+    def test_replaces_a_video_mode_already_present_when_given(self):
+        text = kiosk.session_conf(QUOTED, URL, video_mode="1024x600")
+
+        assert kiosk.parse_conf(text)["COG_PLATFORM_DRM_VIDEO_MODE"] == "1024x600"
+        assert text.count("COG_PLATFORM_DRM_VIDEO_MODE=") == 1
+
+    def test_leaves_a_video_mode_already_present_alone_when_not_given(self):
+        text = kiosk.session_conf(QUOTED.replace("800x480", "1024x600"), URL)
+
+        assert "COG_PLATFORM_DRM_VIDEO_MODE=1024x600\n" in text
+
 
 class TestUnquote:
     @pytest.mark.parametrize("value, expected", [('"a b"', "a b"), ("'a b'", "a b"), ("a b", "a b"), ('"', '"'), ("", "")])

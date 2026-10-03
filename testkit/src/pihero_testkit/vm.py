@@ -43,7 +43,7 @@ def parse_display(display: str) -> tuple[int, int] | None:
 def qemu_command(base: prepare.BaseImage, overlay: Path, bootfs: Path, serial_log: Path, append: str, accel: str, memory_mb: int, port: int, qmp_port: int, display: tuple[int, int] | None, window: bool = False) -> list[str]:
     """The qemu-system-aarch64 argument list for one boot: the headless virt machine, the disks, the network, the serial log, the QMP port, and the virtual display if any.
 
-    With `window`, the display is shown in a macOS window that scales it. The guest is not told the window's size (no EDID) and gets its mode from the kernel command line, so resizing the window never changes what the guest draws.
+    With `window`, the display is shown in a macOS window that scales it. The window's size still reaches the guest as the connector's preferred mode, even with `edid=off`, and the kernel command line sets only the console's mode, so a kiosk that must keep its size pins it with COG_PLATFORM_DRM_VIDEO_MODE.
     """
     if window and not display:
         raise ValueError("a window needs a display")

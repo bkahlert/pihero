@@ -62,7 +62,7 @@ class TestConfigureKiosk:
 
         argv, kw = runs[0]
         assert argv[-1] == f"sudo tee {kiosk.CONF} >/dev/null"
-        assert kw["input"] == kiosk.session_conf('URL=http://localhost/\nCOG_ARGS="--doc-viewer"\n', "http://10.0.2.2:8081/")
+        assert kw["input"] == kiosk.session_conf('URL=http://localhost/\nCOG_ARGS="--doc-viewer"\n', "http://10.0.2.2:8081/", video_mode="800x480")
         assert f"sudo systemctl restart {kiosk.UNIT}" in fake.commands
 
 

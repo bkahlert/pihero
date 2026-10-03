@@ -11,6 +11,7 @@ INSPECTOR_PORT = 2999
 LOADED = "Loaded successfully"
 DEVELOPER_EXTRAS = "--enable-developer-extras=true"
 SESSION_KEYS = ("WEBKIT_INSPECTOR_HTTP_SERVER", "GSETTINGS_BACKEND")
+VIDEO_MODE_KEY = "COG_PLATFORM_DRM_VIDEO_MODE"
 INSPECTOR = re.compile(r"window\.open\('Main\.html\?ws=' \+ window\.location\.host \+ '(?P<path>/socket/[^']+)'")
 
 
@@ -22,9 +23,12 @@ def unquote(value: str) -> str:
     return value
 
 
-def session_conf(current: str, url: str, inspector_port: int = INSPECTOR_PORT) -> str:
+def session_conf(current: str, url: str, inspector_port: int = INSPECTOR_PORT, video_mode: str | None = None) -> str:
     """Return the kiosk.conf `current` for a session: URL set to `url` (added when absent), developer extras in front of
-    COG_ARGS (quoted, unquoted or absent), and the inspector address and GSETTINGS_BACKEND=memory replacing any such lines."""
+    COG_ARGS (quoted, unquoted or absent), and the inspector address and GSETTINGS_BACKEND=memory replacing any such lines.
+
+    With `video_mode` (WIDTHxHEIGHT), COG_PLATFORM_DRM_VIDEO_MODE is set to it, replacing any such line; without, a present
+    line stays as it is."""
     lines, has_url, has_args = [], False, False
     for line in current.splitlines():
         name, separator, value = line.partition("=")
@@ -34,13 +38,15 @@ def session_conf(current: str, url: str, inspector_port: int = INSPECTOR_PORT) -
         elif separator and name == "COG_ARGS":
             words = " ".join(word for word in (DEVELOPER_EXTRAS, unquote(value)) if word)
             line, has_args = f'COG_ARGS="{words}"', True
-        elif separator and name in SESSION_KEYS:
+        elif separator and (name in SESSION_KEYS or (video_mode and name == VIDEO_MODE_KEY)):
             continue
         lines.append(line)
     if not has_url:
         lines.insert(0, f"URL={url}")
     if not has_args:
         lines.append(f'COG_ARGS="{DEVELOPER_EXTRAS}"')
+    if video_mode:
+        lines.append(f"{VIDEO_MODE_KEY}={video_mode}")
     lines += [f"WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:{inspector_port}", "GSETTINGS_BACKEND=memory"]
     return "\n".join(lines) + "\n"
 

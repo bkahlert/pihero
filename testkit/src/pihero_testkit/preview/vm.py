@@ -43,7 +43,7 @@ class Session:
     def configure_kiosk(self, url: str) -> None:
         """Write the session's kiosk.conf over the guest's and restart the kiosk until it loads `url`."""
         current = self.vm.ssh(f"cat {kiosk.CONF}").stdout
-        updated = kiosk.session_conf(current, url)
+        updated = kiosk.session_conf(current, url, video_mode=f"{self.display[0]}x{self.display[1]}")
         self._run(self.ssh_argv(f"sudo tee {kiosk.CONF} >/dev/null"), input=updated, text=True, check=True, capture_output=True)
         self.restart_kiosk()
 
