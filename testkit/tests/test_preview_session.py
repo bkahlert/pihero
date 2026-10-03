@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from subprocess import CompletedProcess
+from subprocess import CalledProcessError, CompletedProcess
 from types import SimpleNamespace
 
 import pytest
@@ -90,6 +90,34 @@ class TestRun:
 
         assert log[-2:] == ["stop dev server", "backend.stop"]
 
+    def test_stops_the_backend_and_forgets_the_record_when_it_fails_to_start(self, tmp_path):
+        log = []
+        app = App(tmp_path, log, managed=True)
+        app.start_error = RuntimeError("no fake")
+
+        with pytest.raises(RuntimeError, match="no fake"):
+            session.run(app, Settings("vm", None, None, {}), **Harness(log).injected)
+
+        assert "backend.stop" in log
+        assert not (tmp_path / "dist" / "preview" / "session.json").exists()
+
+    def test_restores_the_board_and_stops_the_backend_a_killed_preview_left_behind_before_starting(self, tmp_path):
+        log = []
+        state = tmp_path / "dist" / "preview"
+        state.mkdir(parents=True)
+        (state / "session.json").write_text(json.dumps({"owner": [999999, "gone"], "backend": True, "device": "pi@old"}))
+        made = []
+
+        def make_board(*args):
+            made.append(args)
+            return SimpleNamespace(restore=lambda: log.append("restore") or True)
+
+        session.run(App(tmp_path, log, managed=True), Settings("vm", None, None, {}), make_board=make_board, **Harness(log).injected)
+
+        assert made == [("pi@old", "probe", state / "tunnel.log")]
+        assert log.index("restore") < log.index("backend.start")
+        assert log.index("backend.stop") < log.index("backend.start")
+
 
 class TestMain:
     def test_returns_2_with_the_message_for_a_variable_that_does_not_fit(self, tmp_path, capsys):
@@ -129,7 +157,7 @@ class App:
     display = (800, 480)
 
     def __init__(self, root: Path, log: list, managed: bool = False):
-        self.root, self.log, self.managed, self.bad_backend = root, log, managed, False
+        self.root, self.log, self.managed, self.bad_backend, self.start_error = root, log, managed, False, None
 
     def user_data(self):
         return "#cloud-config\npackages:\n  - pihero-kiosk\n"
@@ -143,7 +171,13 @@ class App:
         if self.bad_backend:
             raise ValueError("BROKER must be fake, device or HOST:PORT")
         log = self.log
-        return SimpleNamespace(managed=self.managed, mac_port=8080, start=lambda: log.append("backend.start"), stop=lambda: log.append("backend.stop"), describe=lambda: "fake on localhost:8080")
+
+        def start():
+            log.append("backend.start")
+            if self.start_error:
+                raise self.start_error
+
+        return SimpleNamespace(managed=self.managed, mac_port=8080, start=start, stop=lambda: log.append("backend.stop"), describe=lambda: "fake on localhost:8080")
 
     def page_url(self, backend, served):
         return f"http://{served.address(8081)}/?x=1"
@@ -180,6 +214,8 @@ class Harness:
 
     def open_(self, argv, check):
         self.log.append(f"open {argv[2]} {argv[3]}")
+        if check and self.open_status:
+            raise CalledProcessError(self.open_status, argv)
         return CompletedProcess(argv, self.open_status, "", "")
 
     def until_interrupted(self, watch):
