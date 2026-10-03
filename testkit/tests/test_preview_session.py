@@ -118,6 +118,15 @@ class TestRun:
         assert log.index("restore") < log.index("backend.start")
         assert log.index("backend.stop") < log.index("backend.start")
 
+    def test_hands_the_flavors_watch_to_the_wait(self, tmp_path):
+        log = []
+        harness = Harness(log)
+        harness.watch = lambda: "problem"
+
+        session.run(App(tmp_path, log), Settings("vm", None, None, {}), **harness.injected)
+
+        assert harness.waited_with is harness.watch
+
 
 class TestMain:
     def test_returns_2_with_the_message_for_a_variable_that_does_not_fit(self, tmp_path, capsys):
@@ -141,6 +150,22 @@ class TestMain:
         assert status == 2
         assert "BROKER must be" in capsys.readouterr().err
 
+    @pytest.mark.parametrize("error", [RuntimeError("no kiosk"), TimeoutError("board did not answer")])
+    def test_returns_2_with_the_message_of_a_failed_run(self, tmp_path, capsys, monkeypatch, error):
+        monkeypatch.setattr(session, "run", raising(error))
+
+        status = session.main(App(tmp_path, []), ["--on", "vm"], {})
+
+        assert status == 2
+        assert str(error) in capsys.readouterr().err
+
+    def test_returns_130_on_ctrl_c(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(session, "run", raising(KeyboardInterrupt()))
+
+        status = session.main(App(tmp_path, []), ["--on", "vm"], {})
+
+        assert status == 130
+
     def test_is_exported_by_the_package(self):
         from pihero_testkit import preview
 
@@ -150,6 +175,13 @@ class TestMain:
 class TestStateDir:
     def test_is_dist_preview_under_the_apps_root(self):
         assert session.state_dir(SimpleNamespace(root=Path("/repo"))) == Path("/repo/dist/preview")
+
+
+def raising(error: BaseException):
+    def run(app, settings):
+        raise error
+
+    return run
 
 
 class App:
@@ -186,7 +218,7 @@ class App:
 class Harness:
     def __init__(self, log: list, flavor: str = "vm", on_wait=lambda: None):
         self.log, self.flavor_name, self.on_wait = log, flavor, on_wait
-        self.open_status, self.show_error = 0, None
+        self.open_status, self.show_error, self.watch, self.waited_with = 0, None, None, None
 
     @property
     def injected(self) -> dict:
@@ -206,7 +238,7 @@ class Harness:
             raise self.show_error
         if self.flavor_name == "browser":
             return flavors.Shown(app.page_url(backend, flavors.BrowserServed()))
-        return flavors.Shown("http://localhost:8081/", "127.0.0.1:54321")
+        return flavors.Shown("http://localhost:8081/", "127.0.0.1:54321", self.watch)
 
     def wait_for_inspector(self, address):
         self.log.append(f"wait_for_inspector {address}")
@@ -219,5 +251,6 @@ class Harness:
         return CompletedProcess(argv, self.open_status, "", "")
 
     def until_interrupted(self, watch):
+        self.waited_with = watch
         self.on_wait()
         self.log.append("until_interrupted")
