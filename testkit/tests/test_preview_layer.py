@@ -79,6 +79,20 @@ class TestEnsure:
 
         layer.ensure(app(tmp_path), cache=tmp_path, build=build, prepare_base=lambda: BASE, report=lambda m: None)
 
+    def test_rebuilds_a_layer_directory_missing_one_of_its_files(self, tmp_path):
+        half = layer.layer_for(BASE, USER_DATA, tmp_path)
+        half.rootfs.parent.mkdir()
+        half.rootfs.write_text("old")
+        half.rootfs.chmod(0o444)
+
+        def build(device, accel, display, into):
+            (into / "rootfs.qcow2").write_text("disk")
+            (into / "bootfs.img").write_text("boot")
+
+        found = layer.ensure(app(tmp_path), cache=tmp_path, build=build, prepare_base=lambda: BASE, report=lambda m: None)
+
+        assert (found.rootfs.read_text(), found.bootfs.read_text()) == ("disk", "boot")
+
     def test_takes_the_lock_of_the_layer_while_building(self, tmp_path):
         name = layer.name("aa0c21373d89", USER_DATA)
 

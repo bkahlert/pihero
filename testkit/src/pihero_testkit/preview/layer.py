@@ -46,7 +46,7 @@ def build_layer(device: Path, accel: str, display: tuple[int, int], into: Path) 
 
 
 def ensure(app: KioskApp, cache: Path = CACHE, accel: str = "hvf", *, build: Callable[[Path, str, tuple[int, int], Path], None] = build_layer, prepare_base=prepare.prepare, report: Callable[[str], None] = lambda message: print(message, file=sys.stderr, flush=True)) -> Layer:
-    """Return the layer for the current base image and the app's device file, building it under a lock when the cache has none.
+    """Return the layer for the current base image and the app's device file, building it under a lock when the cache has none or only part of one.
 
     Raise ValueError when the device file does not install pihero-kiosk.
     """
@@ -69,5 +69,6 @@ def ensure(app: KioskApp, cache: Path = CACHE, accel: str = "hvf", *, build: Cal
         build(device, accel, app.display, building)
         for artifact in building.iterdir():
             artifact.chmod(0o444)
+        shutil.rmtree(directory, ignore_errors=True)
         os.replace(building, directory)
     return layer
