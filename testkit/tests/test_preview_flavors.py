@@ -104,6 +104,18 @@ class TestDevice:
         assert rec.read()["device"] == "pi@host"
 
 
+    def test_restores_the_board_and_closes_the_tunnel_when_install_fails(self, tmp_path):
+        b = FakeBoard(fail_install=True)
+        rec = record.Record(tmp_path)
+        rec.update()
+
+        with pytest.raises(TimeoutError), ExitStack() as cleanup:
+            flavors.Device(make_board=lambda *a: b, free_port=lambda: 1, entry=lambda pid: [pid, "T"]).show(app(), Settings("device", "pi@host", None, {}), backend(), DEV, cleanup, rec)
+
+        assert b.calls[-2:] == ["restore", "close_tunnel"]
+        assert rec.read()["device"] is None
+
+
 class TestFlavorFor:
     @pytest.mark.parametrize("name, cls", [("browser", flavors.Browser), ("vm", flavors.Vm), ("device", flavors.Device)])
     def test_names_the_flavor(self, name, cls):
@@ -148,8 +160,8 @@ class FakeSession:
 
 
 class FakeBoard:
-    def __init__(self, restores: bool = True):
-        self.calls, self.restores = [], restores
+    def __init__(self, restores: bool = True, fail_install: bool = False):
+        self.calls, self.restores, self.fail_install = [], restores, fail_install
 
     def check_kiosk(self):
         self.calls.append("check_kiosk")
@@ -164,6 +176,8 @@ class FakeBoard:
 
     def install(self, conf, tunnel):
         self.calls.append(f"install {conf}")
+        if self.fail_install:
+            raise TimeoutError("did not load")
 
     def restore(self):
         self.calls.append("restore")
