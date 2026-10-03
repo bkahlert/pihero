@@ -1,5 +1,4 @@
 import http.server
-import socket
 import struct
 import sys
 import threading
@@ -32,10 +31,8 @@ class TestVmSession:
 
         assert kiosk.inspector_url(listing, f"127.0.0.1:{port}") is not None
 
-    def test_the_kiosk_loaded_the_page_from_the_mac(self, session):
-        count = session.vm.ssh("sudo journalctl -u pihero-kiosk -b --no-pager | grep -c 'Loaded successfully'").stdout
-
-        assert kiosk.loaded(count)
+    def test_the_guest_fetched_the_page_from_the_macs_server(self, session, page):
+        assert "/" in page.requests
 
 
 class TestRecovery:
@@ -46,6 +43,11 @@ class TestRecovery:
         rec.claim(stop_backend=lambda: None, restore_board=lambda t: None)
 
         assert session.vm.process.poll() is not None
+
+
+class Page:
+    def __init__(self, port: int, requests: list[str]):
+        self.port, self.requests = port, requests
 
 
 class StaticApp:
@@ -73,22 +75,31 @@ class StaticApp:
 def page(tmp_path_factory):
     directory = tmp_path_factory.mktemp("page")
     (directory / "index.html").write_text("<h1>preview</h1>")
-    handler = lambda *args, **kwargs: http.server.SimpleHTTPRequestHandler(*args, directory=str(directory), **kwargs)
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    requests = []
+
+    class Recording(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=str(directory), **kwargs)
+
+        def do_GET(self):
+            requests.append(self.path)
+            super().do_GET()
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Recording)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield server.server_address[1]
+    yield Page(server.server_address[1], requests)
     server.shutdown()
 
 
 @pytest.fixture(scope="module")
-def session(tmp_path_factory, page):
-    app = StaticApp(tmp_path_factory.mktemp("root"), page)
+def session(request, tmp_path_factory, page):
+    app = StaticApp(tmp_path_factory.mktemp("root"), page.port)
     started = vm.Session(layer.ensure(app), app.root / "dist" / "preview" / "session", app.display)
+    request.addfinalizer(started.stop)
     started.start()
     started.place_window()
     started.configure_kiosk(app.page_url(None, flavors.VmServed()))
-    yield started
-    started.stop()
+    return started
 
 
 def picture_size(session) -> tuple[int, int]:
