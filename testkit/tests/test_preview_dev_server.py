@@ -96,6 +96,27 @@ class TestStop:
 
         assert calls == [signal.SIGTERM, signal.SIGKILL]
 
+    def test_is_done_when_the_group_ended_before_sigterm(self):
+        def killpg(pgid, sig):
+            raise ProcessLookupError
+
+        dev_server.stop(SimpleNamespace(pid=77, poll=lambda: None, wait=lambda t: pytest.fail("waited")), killpg=killpg)
+
+    def test_is_done_when_the_group_ended_before_sigkill(self):
+        sent = []
+
+        def killpg(pgid, sig):
+            sent.append(sig)
+            if sig == signal.SIGKILL:
+                raise ProcessLookupError
+
+        def wait(timeout):
+            raise subprocess.TimeoutExpired("gradle", timeout)
+
+        dev_server.stop(SimpleNamespace(pid=77, poll=lambda: None, wait=wait), killpg=killpg)
+
+        assert sent == [signal.SIGTERM, signal.SIGKILL]
+
     def test_does_nothing_for_an_ended_process(self):
         dev_server.stop(SimpleNamespace(pid=77, poll=lambda: 0), killpg=lambda pgid, sig: pytest.fail("killed"))
 

@@ -32,14 +32,17 @@ def wait_until_serving(proc, port: int, log: Path, timeout: float = 900, answers
 
 
 def stop(proc: subprocess.Popen, killpg=os.killpg, timeout: float = 30) -> None:
-    """End the process group of `proc` with SIGTERM, then SIGKILL after `timeout` seconds; nothing for an ended process."""
+    """End the process group of `proc` with SIGTERM, then SIGKILL after `timeout` seconds; nothing for an ended process or group."""
     if proc.poll() is not None:
         return
-    killpg(proc.pid, signal.SIGTERM)
     try:
-        proc.wait(timeout)
-    except subprocess.TimeoutExpired:
-        killpg(proc.pid, signal.SIGKILL)
+        killpg(proc.pid, signal.SIGTERM)
+        try:
+            proc.wait(timeout)
+        except subprocess.TimeoutExpired:
+            killpg(proc.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return
 
 
 def ensure(server: DevServer, root: Path, log: Path, *, answers=process.answers, start=start, wait=wait_until_serving, stop=stop, on_start=None) -> subprocess.Popen:
