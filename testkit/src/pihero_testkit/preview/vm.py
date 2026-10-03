@@ -71,18 +71,20 @@ class Session:
         self.tunnel = self._popen(self.ssh_argv(None, "-N", "-L", forward), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def stop(self) -> None:
-        """Close the tunnel, power the guest off (or end QEMU), and delete the session directory."""
+        """Close the tunnel, power the guest off (or end QEMU), and delete the session directory even when QEMU will not end, raising then."""
         if self.tunnel and self.tunnel.poll() is None:
             self.tunnel.terminate()
         vm = self.vm
-        if vm and vm.process and vm.process.poll() is None:
-            try:
-                vm.ssh("sudo poweroff", timeout=15)
-                vm.wait_exit(timeout=30)
-            except subprocess.TimeoutExpired:
-                pass
-            vm.stop()
-        shutil.rmtree(self.directory, ignore_errors=True)
+        try:
+            if vm and vm.process and vm.process.poll() is None:
+                try:
+                    vm.ssh("sudo poweroff", timeout=15)
+                    vm.wait_exit(timeout=30)
+                except subprocess.TimeoutExpired:
+                    pass
+                vm.stop()
+        finally:
+            shutil.rmtree(self.directory, ignore_errors=True)
 
     def ssh_argv(self, command: str | None, *options: str) -> list[str]:
         """Return the ssh command for the guest with `options`, running `command` if given."""

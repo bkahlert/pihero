@@ -1,4 +1,5 @@
 import re
+import subprocess
 from pathlib import Path
 from subprocess import CompletedProcess
 from types import SimpleNamespace
@@ -125,10 +126,30 @@ class TestStop:
         assert fake.stopped
         assert not (tmp_path / "session").exists()
 
+    def test_ends_qemu_and_deletes_the_directory_when_the_guest_ignores_poweroff(self, tmp_path):
+        fake = FakeVm(hangs=True)
+        session = session_with(fake, tmp_path)
+        (tmp_path / "session").mkdir(exist_ok=True)
+
+        session.stop()
+
+        assert fake.stopped
+        assert not (tmp_path / "session").exists()
+
+    def test_deletes_the_directory_and_raises_when_qemu_will_not_end(self, tmp_path):
+        fake = FakeVm(stop_fails=True)
+        session = session_with(fake, tmp_path)
+        (tmp_path / "session").mkdir(exist_ok=True)
+
+        with pytest.raises(subprocess.TimeoutExpired):
+            session.stop()
+
+        assert not (tmp_path / "session").exists()
+
 
 class FakeVm:
-    def __init__(self, conf: str = "URL=http://localhost/\n", loaded=None, ssh_fails: bool = False):
-        self.conf, self.loaded, self.ssh_fails = conf, loaded or iter(["1\n"]), ssh_fails
+    def __init__(self, conf: str = "URL=http://localhost/\n", loaded=None, ssh_fails: bool = False, hangs: bool = False, stop_fails: bool = False):
+        self.conf, self.loaded, self.ssh_fails, self.hangs, self.stop_fails = conf, loaded or iter(["1\n"]), ssh_fails, hangs, stop_fails
         self.commands = []
         self.waited_ssh = self.stopped = False
         self.process = SimpleNamespace(pid=4242, poll=lambda: None)
@@ -154,10 +175,13 @@ class FakeVm:
         return CompletedProcess(command, 0, "", "")
 
     def wait_exit(self, timeout=180):
-        pass
+        if self.hangs:
+            raise subprocess.TimeoutExpired("qemu", timeout)
 
     def stop(self):
         self.stopped = True
+        if self.stop_fails:
+            raise subprocess.TimeoutExpired("qemu", 15)
 
 
 def session_with(fake: FakeVm, tmp_path: Path, **injected) -> preview_vm.Session:
