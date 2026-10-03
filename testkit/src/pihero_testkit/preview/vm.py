@@ -71,15 +71,15 @@ class Session:
         self.tunnel = self._popen(self.ssh_argv(None, "-N", "-L", forward), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def stop(self) -> None:
-        """Close the tunnel, power the guest off (or end QEMU), and delete the session directory even when QEMU will not end, raising then."""
+        """Close the tunnel, power the guest off (or end QEMU at once when the guest does not answer), and delete the session directory even when QEMU will not end, raising then."""
         if self.tunnel and self.tunnel.poll() is None:
             self.tunnel.terminate()
         vm = self.vm
         try:
             if vm and vm.process and vm.process.poll() is None:
                 try:
-                    vm.ssh("sudo poweroff", timeout=15)
-                    vm.wait_exit(timeout=30)
+                    if vm.ssh("sudo poweroff", timeout=15).returncode == 0:
+                        vm.wait_exit(timeout=30)
                 except subprocess.TimeoutExpired:
                     pass
                 vm.stop()

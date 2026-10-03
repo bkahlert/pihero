@@ -136,6 +136,15 @@ class TestStop:
         assert fake.stopped
         assert not (tmp_path / "session").exists()
 
+    def test_ends_qemu_at_once_when_the_guest_does_not_answer_poweroff(self, tmp_path):
+        fake = FakeVm(poweroff_status=255)
+        session = session_with(fake, tmp_path)
+
+        session.stop()
+
+        assert fake.waited_exit == []
+        assert fake.stopped
+
     def test_deletes_the_directory_and_raises_when_qemu_will_not_end(self, tmp_path):
         fake = FakeVm(stop_fails=True)
         session = session_with(fake, tmp_path)
@@ -148,9 +157,9 @@ class TestStop:
 
 
 class FakeVm:
-    def __init__(self, conf: str = "URL=http://localhost/\n", loaded=None, ssh_fails: bool = False, hangs: bool = False, stop_fails: bool = False):
-        self.conf, self.loaded, self.ssh_fails, self.hangs, self.stop_fails = conf, loaded or iter(["1\n"]), ssh_fails, hangs, stop_fails
-        self.commands = []
+    def __init__(self, conf: str = "URL=http://localhost/\n", loaded=None, ssh_fails: bool = False, hangs: bool = False, stop_fails: bool = False, poweroff_status: int = 0):
+        self.conf, self.loaded, self.ssh_fails, self.hangs, self.stop_fails, self.poweroff_status = conf, loaded or iter(["1\n"]), ssh_fails, hangs, stop_fails, poweroff_status
+        self.commands, self.waited_exit = [], []
         self.waited_ssh = self.stopped = False
         self.process = SimpleNamespace(pid=4242, poll=lambda: None)
         self.serial_log = Path("/nonexistent/serial.log")
@@ -172,9 +181,12 @@ class FakeVm:
             return CompletedProcess(command, 0, next(self.loaded), "")
         if command == f"cat {kiosk.CONF}":
             return CompletedProcess(command, 0, self.conf, "")
+        if command == "sudo poweroff":
+            return CompletedProcess(command, self.poweroff_status, "", "")
         return CompletedProcess(command, 0, "", "")
 
     def wait_exit(self, timeout=180):
+        self.waited_exit.append(timeout)
         if self.hangs:
             raise subprocess.TimeoutExpired("qemu", timeout)
 
