@@ -8,12 +8,17 @@ import testinfra
 from . import deploy
 
 
+# A device that reboots or drops off Wi-Fi mid-run would hang a session for the kernel's TCP timeout, two hours by
+# default; three unanswered keepalives 15 s apart end it instead. testinfra adds its own ConnectTimeout.
+KEEPALIVE = ["-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3"]
+
+
 def command(uri: str, remote: str) -> list[str]:
     """Returns the ssh command that runs remote at uri (user@host[:port]) without prompting; exits on an empty uri."""
     if not uri:
         raise SystemExit("--target=ssh needs --target-uri=user@host[:port]")
     user_host, _, port = uri.partition(":")
-    return ["ssh", "-o", "BatchMode=yes", *(["-p", port] if port else []), user_host, remote]
+    return ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", *KEEPALIVE, *(["-p", port] if port else []), user_host, remote]
 
 
 def installed_version(uri: str) -> str:
@@ -37,7 +42,7 @@ class SshTarget:
             raise SystemExit("--target=ssh needs --target-uri=user@host[:port]")
         self.uri = uri
         self.debs = debs
-        self.host = testinfra.get_host(f"ssh://{uri}", sudo=True)
+        self.host = testinfra.get_host(f"ssh://{uri}", sudo=True, ssh_extra_args=" ".join(KEEPALIVE))
 
     def install_extra(self, names: list[str]) -> None:
         self.host.check_output("sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q " + " ".join(names))

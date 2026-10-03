@@ -133,7 +133,9 @@ testinfra's own plugin registers after the testkit's, and its local-host `host` 
 `--target=ssh --target-uri=pi@host[:port]` builds nothing. It compares against the version installed on the device, because
 the git-derived version only matches a device at a tag, and asks the device which packages it has, as `make deploy` does:
 the installed tests of the others are skipped as "not installed on pi@host". The Avahi browse tests need `avahi-utils` on
-the device and skip without it, so a checkpoint's device file installs it.
+the device and skip without it, so a checkpoint's device file installs it. Every ssh session connects within 10 s and ends
+after three unanswered keepalives 15 s apart, so a device that reboots or loses its Wi-Fi mid-run fails the test instead
+of hanging it.
 
 Neither tier is a Raspberry Pi, so a release is proven on two real boards, the checkpoints, one per image. A 64-bit Zero 2 W
 on Wi-Fi with `pihero-usb-gadget` is the gadget's board: only a fresh card there shows its postinst turning `rpi-usb-gadget`

@@ -15,14 +15,16 @@ class TestInstalledPackages:
 
         ssh.installed_packages("pi@host")
 
-        assert calls == [["ssh", "-o", "BatchMode=yes", "pi@host", deploy.STATUS_QUERY]]
+        assert calls == [["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3", "pi@host", deploy.STATUS_QUERY]]
 
     def test_passes_the_port_of_the_uri(self, monkeypatch):
         calls = fake_ssh(monkeypatch, STATUS)
 
         ssh.installed_packages("pi@host:2222")
 
-        assert calls == [["ssh", "-o", "BatchMode=yes", "-p", "2222", "pi@host", deploy.STATUS_QUERY]]
+        assert calls == [
+            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3", "-p", "2222", "pi@host", deploy.STATUS_QUERY]
+        ]
 
     def test_returns_the_names_dpkg_reports_installed(self, monkeypatch):
         fake_ssh(monkeypatch, STATUS)
@@ -40,6 +42,26 @@ class TestInstalledPackages:
     def test_exits_without_a_uri(self):
         with pytest.raises(SystemExit, match="--target-uri"):
             ssh.installed_packages("")
+
+
+class TestSshTarget:
+    def test_gives_up_on_a_device_that_stops_answering(self, monkeypatch):
+        hosts = fake_testinfra(monkeypatch)
+
+        ssh.SshTarget("pi@host", [])
+
+        assert hosts == [("ssh://pi@host", {"sudo": True, "ssh_extra_args": "-o ServerAliveInterval=15 -o ServerAliveCountMax=3"})]
+
+
+def fake_testinfra(monkeypatch) -> list[tuple[str, dict]]:
+    hosts: list[tuple[str, dict]] = []
+
+    def get_host(hostspec, **kwargs):
+        hosts.append((hostspec, kwargs))
+        return object()
+
+    monkeypatch.setattr(ssh.testinfra, "get_host", get_host)
+    return hosts
 
 
 def fake_ssh(monkeypatch, stdout: str, returncode: int = 0, stderr: str = "") -> list[list[str]]:
