@@ -40,13 +40,21 @@ def parse_display(display: str) -> tuple[int, int] | None:
     return int(match["width"]), int(match["height"])
 
 
-def qemu_command(base: prepare.BaseImage, overlay: Path, bootfs: Path, serial_log: Path, append: str, accel: str, memory_mb: int, port: int, qmp_port: int, display: tuple[int, int] | None) -> list[str]:
-    """The qemu-system-aarch64 argument list for one boot: the headless virt machine, the disks, the network, the serial log, the QMP port, and the virtual display if any."""
+def qemu_command(base: prepare.BaseImage, overlay: Path, bootfs: Path, serial_log: Path, append: str, accel: str, memory_mb: int, port: int, qmp_port: int, display: tuple[int, int] | None, window: bool = False) -> list[str]:
+    """The qemu-system-aarch64 argument list for one boot: the headless virt machine, the disks, the network, the serial log, the QMP port, and the virtual display if any.
+
+    With `window`, the display is shown in a macOS window that scales it. The guest is not told the window's size (no EDID) and gets its mode from the kernel command line, so resizing the window never changes what the guest draws.
+    """
+    if window and not display:
+        raise ValueError("a window needs a display")
     cpu = ["-cpu", "host"] if accel == "hvf" else ["-cpu", "cortex-a72"]
-    gpu = ["-device", f"virtio-gpu-pci,xres={display[0]},yres={display[1]}"] if display else []
+    gpu = ["-device", f"virtio-gpu-pci,xres={display[0]},yres={display[1]}{',edid=off' if window else ''}"] if display else []
+    shown = ["-display", "cocoa,zoom-to-fit=on"] if window else ["-display", "none"]
+    if window:
+        append = f"{append} video=Virtual-1:{display[0]}x{display[1]}M@60e"
     return [
         "qemu-system-aarch64", "-M", "virt", "-accel", accel, *cpu, "-m", str(memory_mb), "-smp", "2",
-        "-no-reboot", "-display", "none", "-monitor", "none",
+        "-no-reboot", *shown, "-monitor", "none",
         "-kernel", str(base.kernel), "-initrd", str(base.initrd), "-append", append,
         "-drive", f"if=none,file={overlay},format=qcow2,id=root", "-device", "virtio-blk-pci,drive=root",
         "-drive", f"if=none,file={bootfs},format=raw,id=boot", "-device", "virtio-blk-pci,drive=boot",
@@ -65,7 +73,7 @@ class QemuExited(RuntimeError):
 
 
 class Vm:
-    def __init__(self, base: prepare.BaseImage, bootfs: Path, workdir: Path, accel: str = "hvf", user: str = "pihero", memory_mb: int = 1024, debs: list[Path] = (), display: str = DEFAULT_DISPLAY, *, repo_port: int):
+    def __init__(self, base: prepare.BaseImage, bootfs: Path, workdir: Path, accel: str = "hvf", user: str = "pihero", memory_mb: int = 1024, debs: list[Path] = (), display: str = DEFAULT_DISPLAY, *, repo_port: int, window: bool = False, backing: Path | None = None):
         self.base, self.bootfs, self.workdir, self.accel, self.user, self.memory_mb, self.debs = base, bootfs, workdir, accel, user, memory_mb, list(debs)
         self.repo_port = repo_port
         self.overlay = workdir / "overlay.qcow2"
@@ -77,13 +85,16 @@ class Vm:
         self.port = _free_port()
         self.qmp_port = _free_port()
         self.display = parse_display(display)
+        if window and not self.display:
+            raise ValueError("a window needs a display")
+        self.window = window
         self.process: subprocess.Popen | None = None
         self.boots = 0
-        subprocess.run(["qemu-img", "create", "-q", "-f", "qcow2", "-b", str(base.rootfs), "-F", "qcow2", str(self.overlay)], check=True)
+        subprocess.run(["qemu-img", "create", "-q", "-f", "qcow2", "-b", str(backing or base.rootfs), "-F", "qcow2", str(self.overlay)], check=True)
 
     def start(self) -> "Vm":
         append = bootfs_mod.kernel_args(bootfs_mod.read_cmdline(self.bootfs))
-        command = qemu_command(self.base, self.overlay, self.bootfs, self.serial_log, append, self.accel, self.memory_mb, self.port, self.qmp_port, self.display)
+        command = qemu_command(self.base, self.overlay, self.bootfs, self.serial_log, append, self.accel, self.memory_mb, self.port, self.qmp_port, self.display, window=self.window)
         self.boots += 1
         with self.serial_log.open("a") as log:
             log.write(f"\n===== boot {self.boots}: {append}\n")
