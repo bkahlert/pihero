@@ -20,7 +20,8 @@ SOURCE = """\
 
 def block(text: str, start: str) -> str:
     """Return the line equal to `start` and every following line indented deeper than it, with the blank and comment lines
-    between them; blank and comment lines after the last such line belong to what follows. Raise ValueError without the line."""
+    between them. A trailing comment belongs to the block when indented deeper than `start`; trailing blank lines and
+    comments at or above that indent belong to what follows. Raise ValueError without the line."""
     lines = text.splitlines(keepends=True)
     try:
         begin = next(i for i, line in enumerate(lines) if line.rstrip("\n") == start)
@@ -30,9 +31,12 @@ def block(text: str, start: str) -> str:
     end = begin + 1
     for i in range(begin + 1, len(lines)):
         stripped = lines[i].strip()
-        if not stripped or stripped.startswith("#"):
+        if not stripped:
             continue
-        if len(lines[i]) - len(lines[i].lstrip(" ")) <= indent:
+        deeper = len(lines[i]) - len(lines[i].lstrip(" ")) > indent
+        if stripped.startswith("#") and not deeper:
+            continue
+        if not deeper:
             break
         end = i + 1
     return "".join(lines[begin:end])

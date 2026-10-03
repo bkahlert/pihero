@@ -57,6 +57,16 @@ class TestBlock:
         assert not text.endswith("  # the app's own repository\n")
         assert text.endswith("      Suites: ./\n")
 
+    def test_keeps_a_trailing_comment_indented_deeper_than_the_block(self):
+        text = device_file.block(SAMPLE.replace("      URL=http://localhost/\n", "      URL=http://localhost/\n      # trailing\n"), "  - path: /etc/pihero/kiosk.conf")
+
+        assert text.endswith("      URL=http://localhost/\n      # trailing\n")
+
+    def test_leaves_blank_lines_after_the_last_content_line_to_what_follows(self):
+        text = device_file.block(SAMPLE.replace("      URL=http://localhost/\n", "      URL=http://localhost/\n\n"), "  - path: /etc/pihero/kiosk.conf")
+
+        assert text.endswith("      URL=http://localhost/\n")
+
     def test_on_a_missing_line_raises(self):
         with pytest.raises(ValueError, match="no line 'nope:'"):
             device_file.block(SAMPLE, "nope:")
