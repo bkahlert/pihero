@@ -42,12 +42,14 @@ def stop(proc: subprocess.Popen, killpg=os.killpg, timeout: float = 30) -> None:
         killpg(proc.pid, signal.SIGKILL)
 
 
-def ensure(server: DevServer, root: Path, log: Path, *, answers=process.answers, start=start, wait=wait_until_serving, stop=stop) -> subprocess.Popen:
-    """Start `server` and return its process once it serves; raise RuntimeError when something already answers on its port."""
+def ensure(server: DevServer, root: Path, log: Path, *, answers=process.answers, start=start, wait=wait_until_serving, stop=stop, on_start=None) -> subprocess.Popen:
+    """Start `server`, hand its process to `on_start` before waiting, and return it once it serves; raise RuntimeError when something already answers on its port."""
     if answers("127.0.0.1", server.port):
         raise RuntimeError(f"something already answers on port {server.port}; end it first")
     proc = start(server, root, log)
     try:
+        if on_start:
+            on_start(proc)
         wait(proc, server.port, log)
     except BaseException:
         stop(proc)

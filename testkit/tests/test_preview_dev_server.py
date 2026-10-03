@@ -56,6 +56,14 @@ class TestEnsure:
         assert result is proc
         assert waited == [8081]
 
+    def test_hands_the_process_to_on_start_before_waiting(self, tmp_path):
+        proc = SimpleNamespace(poll=lambda: None)
+        calls = []
+
+        dev_server.ensure(SERVER, tmp_path, tmp_path / "log", answers=lambda h, p: False, start=lambda *a, **k: proc, wait=lambda p, port, log: calls.append("wait"), on_start=lambda p: calls.append(p))
+
+        assert calls == [proc, "wait"]
+
     def test_stops_the_process_when_the_wait_fails(self, tmp_path):
         proc = SimpleNamespace(poll=lambda: None)
         stopped = []

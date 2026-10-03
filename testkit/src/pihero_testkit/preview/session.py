@@ -42,9 +42,8 @@ def run(app: KioskApp, settings: Settings, *, ensure_dev_server=dev_server.ensur
             backend.start()
         log = state / dev_server.LOG_NAME
         print(f"dev server: {shlex.join(dev.argv)} on port {dev.port}, log in {log}", file=out, flush=True)
-        server = ensure_dev_server(dev, app.root, log)
+        server = ensure_dev_server(dev, app.root, log, on_start=lambda proc: rec.update(dev_server=entry(proc.pid)))
         cleanup.callback(stop_dev_server, server)
-        rec.update(dev_server=entry(server.pid))
         shown = flavor_for(settings.flavor).show(app, settings, backend, dev, cleanup, rec)
         opened = wait_for_inspector(shown.inspector) if shown.inspector else shown.page
         if settings.inspect:

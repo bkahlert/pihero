@@ -46,6 +46,15 @@ class TestRun:
         assert seen["dev_server"] == [77, "T"]
         assert "owner" in seen
 
+    def test_records_the_dev_server_while_waiting_for_it_to_serve(self, tmp_path):
+        log = []
+        seen = {}
+        harness = Harness(log, on_serving_wait=lambda: seen.update(json.loads((tmp_path / "dist" / "preview" / "session.json").read_text())))
+
+        session.run(App(tmp_path, log), Settings("vm", None, None, {}), **harness.injected)
+
+        assert seen["dev_server"] == [77, "T"]
+
     def test_opens_the_page_itself_in_the_browser_flavor(self, tmp_path):
         log = []
 
@@ -216,8 +225,8 @@ class App:
 
 
 class Harness:
-    def __init__(self, log: list, flavor: str = "vm", on_wait=lambda: None):
-        self.log, self.flavor_name, self.on_wait = log, flavor, on_wait
+    def __init__(self, log: list, flavor: str = "vm", on_wait=lambda: None, on_serving_wait=lambda: None):
+        self.log, self.flavor_name, self.on_wait, self.on_serving_wait = log, flavor, on_wait, on_serving_wait
         self.open_status, self.show_error, self.watch, self.waited_with = 0, None, None, None
 
     @property
@@ -228,9 +237,12 @@ class Harness:
             entry=lambda pid: [pid, "T"],
         )
 
-    def ensure(self, dev, root, log):
+    def ensure(self, dev, root, log, *, on_start):
         self.log.append(f"ensure {dev.port}")
-        return SimpleNamespace(pid=77)
+        proc = SimpleNamespace(pid=77)
+        on_start(proc)
+        self.on_serving_wait()
+        return proc
 
     def show(self, app, settings, backend, dev, cleanup, rec):
         self.log.append(f"show {settings.flavor}")
