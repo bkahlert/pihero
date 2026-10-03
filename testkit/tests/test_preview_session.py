@@ -1,0 +1,187 @@
+import json
+from pathlib import Path
+from subprocess import CompletedProcess
+from types import SimpleNamespace
+
+import pytest
+
+from pihero_testkit.preview import flavors, session
+from pihero_testkit.preview.api import DevServer, Settings
+
+pytestmark = pytest.mark.tier0
+
+
+class TestRun:
+    def test_starts_the_backend_and_the_dev_server_shows_the_flavor_and_cleans_up_in_reverse(self, tmp_path):
+        log = []
+        app = App(tmp_path, log, managed=True)
+        harness = Harness(log)
+
+        status = session.run(app, Settings("vm", None, "Safari", {}), **harness.injected)
+
+        assert status == 0
+        assert log == [
+            "backend", "dev_server", "backend.start", "ensure 8081", "show vm",
+            "wait_for_inspector 127.0.0.1:54321", "open Safari http://127.0.0.1:54321/Main.html", "until_interrupted",
+            "stop dev server", "backend.stop",
+        ]
+        assert not (tmp_path / "dist" / "preview" / "session.json").exists()
+
+    def test_leaves_an_unmanaged_backend_alone(self, tmp_path):
+        log = []
+
+        session.run(App(tmp_path, log, managed=False), Settings("browser", None, None, {}), **Harness(log).injected)
+
+        assert "backend.start" not in log and "backend.stop" not in log
+
+    def test_records_the_backend_and_the_dev_server_while_running(self, tmp_path):
+        log = []
+        app = App(tmp_path, log, managed=True)
+        seen = {}
+        harness = Harness(log, on_wait=lambda: seen.update(json.loads((tmp_path / "dist" / "preview" / "session.json").read_text())))
+
+        session.run(app, Settings("vm", None, None, {}), **harness.injected)
+
+        assert seen["backend"] is True
+        assert seen["dev_server"] == [77, "T"]
+        assert "owner" in seen
+
+    def test_opens_the_page_itself_in_the_browser_flavor(self, tmp_path):
+        log = []
+
+        session.run(App(tmp_path, log), Settings("browser", None, "Safari", {}), **Harness(log, flavor="browser").injected)
+
+        assert "open Safari http://localhost:8081/?x=1" in log
+
+    def test_goes_on_when_the_application_to_open_is_missing(self, tmp_path):
+        log = []
+        harness = Harness(log)
+        harness.open_status = 1
+
+        status = session.run(App(tmp_path, log), Settings("vm", None, "Nope", {}), **harness.injected)
+
+        assert status == 0 and "until_interrupted" in log
+
+    def test_prints_the_ready_message(self, tmp_path, capsys):
+        log = []
+
+        session.run(App(tmp_path, log, managed=True), Settings("vm", None, None, {}), **Harness(log).injected)
+
+        err = capsys.readouterr().err
+        assert "preview ready (vm)\n  page       http://localhost:8081/\n  backend    fake on localhost:8080\n  inspector  http://127.0.0.1:54321/\nCtrl-C ends it." in err
+
+    def test_fails_before_claiming_when_the_apps_variables_are_bad(self, tmp_path):
+        log = []
+        app = App(tmp_path, log)
+        app.bad_backend = True
+
+        with pytest.raises(ValueError, match="BROKER must be"):
+            session.run(app, Settings("vm", None, None, {}), **Harness(log).injected)
+
+        assert not (tmp_path / "dist" / "preview").exists()
+
+    def test_stops_the_dev_server_and_backend_when_the_flavor_fails(self, tmp_path):
+        log = []
+        harness = Harness(log)
+        harness.show_error = RuntimeError("no kiosk")
+
+        with pytest.raises(RuntimeError, match="no kiosk"):
+            session.run(App(tmp_path, log, managed=True), Settings("vm", None, None, {}), **harness.injected)
+
+        assert log[-2:] == ["stop dev server", "backend.stop"]
+
+
+class TestMain:
+    def test_returns_2_with_the_message_for_a_variable_that_does_not_fit(self, tmp_path, capsys):
+        status = session.main(App(tmp_path, []), ["--on", "device"], {})
+
+        assert status == 2
+        assert "preview-device needs TARGET=user@host" in capsys.readouterr().err
+
+    def test_refuses_an_unknown_flavor(self, tmp_path):
+        with pytest.raises(SystemExit) as exit_:
+            session.main(App(tmp_path, []), ["--on", "tv"], {})
+
+        assert exit_.value.code == 2
+
+    def test_returns_2_with_the_apps_own_message(self, tmp_path, capsys):
+        app = App(tmp_path, [])
+        app.bad_backend = True
+
+        status = session.main(app, ["--on", "vm"], {})
+
+        assert status == 2
+        assert "BROKER must be" in capsys.readouterr().err
+
+    def test_is_exported_by_the_package(self):
+        from pihero_testkit import preview
+
+        assert preview.main is session.main
+
+
+class TestStateDir:
+    def test_is_dist_preview_under_the_apps_root(self):
+        assert session.state_dir(SimpleNamespace(root=Path("/repo"))) == Path("/repo/dist/preview")
+
+
+class App:
+    name = "probe"
+    display = (800, 480)
+
+    def __init__(self, root: Path, log: list, managed: bool = False):
+        self.root, self.log, self.managed, self.bad_backend = root, log, managed, False
+
+    def user_data(self):
+        return "#cloud-config\npackages:\n  - pihero-kiosk\n"
+
+    def dev_server(self, settings):
+        self.log.append("dev_server")
+        return DevServer(["serve"], 8081)
+
+    def backend(self, settings):
+        self.log.append("backend")
+        if self.bad_backend:
+            raise ValueError("BROKER must be fake, device or HOST:PORT")
+        log = self.log
+        return SimpleNamespace(managed=self.managed, mac_port=8080, start=lambda: log.append("backend.start"), stop=lambda: log.append("backend.stop"), describe=lambda: "fake on localhost:8080")
+
+    def page_url(self, backend, served):
+        return f"http://{served.address(8081)}/?x=1"
+
+
+class Harness:
+    def __init__(self, log: list, flavor: str = "vm", on_wait=lambda: None):
+        self.log, self.flavor_name, self.on_wait = log, flavor, on_wait
+        self.open_status, self.show_error = 0, None
+
+    @property
+    def injected(self) -> dict:
+        return dict(
+            ensure_dev_server=self.ensure, stop_dev_server=lambda proc: self.log.append("stop dev server"), flavor_for=lambda name: self,
+            wait_for_inspector=self.wait_for_inspector, open_=self.open_, until_interrupted=self.until_interrupted, arm_sigterm=lambda: None,
+            entry=lambda pid: [pid, "T"],
+        )
+
+    def ensure(self, dev, root, log):
+        self.log.append(f"ensure {dev.port}")
+        return SimpleNamespace(pid=77)
+
+    def show(self, app, settings, backend, dev, cleanup, rec):
+        self.log.append(f"show {settings.flavor}")
+        if self.show_error:
+            raise self.show_error
+        if self.flavor_name == "browser":
+            return flavors.Shown(app.page_url(backend, flavors.BrowserServed()))
+        return flavors.Shown("http://localhost:8081/", "127.0.0.1:54321")
+
+    def wait_for_inspector(self, address):
+        self.log.append(f"wait_for_inspector {address}")
+        return f"http://{address}/Main.html"
+
+    def open_(self, argv, check):
+        self.log.append(f"open {argv[2]} {argv[3]}")
+        return CompletedProcess(argv, self.open_status, "", "")
+
+    def until_interrupted(self, watch):
+        self.on_wait()
+        self.log.append("until_interrupted")
