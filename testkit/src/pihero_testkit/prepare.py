@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
 
-from . import tools
+from . import locks, tools
 
 PACKAGE_DIR = Path(str(files("pihero_testkit")))
 LOCK = PACKAGE_DIR / "images.lock"
@@ -46,20 +46,29 @@ def download(url: str, sha256: str) -> Path:
     return dest
 
 
+def key() -> str:
+    """Return the cache key of the tier-2 base image: the image checksum, the kernel package and the prepare script."""
+    config = lock()
+    return hashlib.sha256((config[TIER2_IMAGE]["sha256"] + config["kernel"]["package"] + SCRIPT.read_text()).encode()).hexdigest()[:12]
+
+
 def prepare(force: bool = False) -> BaseImage:
+    """Return the cached base image, building it under a lock when it is missing or `force` is set."""
     config = lock()
     raspios = config[TIER2_IMAGE]
-    key = hashlib.sha256((raspios["sha256"] + config["kernel"]["package"] + SCRIPT.read_text()).encode()).hexdigest()[:12]
-    out = CACHE / "base" / key
+    name = key()
+    out = CACHE / "base" / name
     if force or not (out / "done").exists():
-        image = download(raspios["url"], raspios["sha256"])
-        out.mkdir(parents=True, exist_ok=True)
-        tools.run(
-            ["/testkit/prepare-rootfs", "--image", f"/cache/downloads/{image.name}", "--out", f"/cache/base/{key}", "--kernel-package", config["kernel"]["package"]],
-            privileged=True,
-            mounts=[f"{CACHE}:/cache", f"{PACKAGE_DIR}:/testkit:ro"],
-        )
-        (out / "done").touch()
+        with locks.held(CACHE / "base" / f"{name}.lock"):
+            if force or not (out / "done").exists():
+                image = download(raspios["url"], raspios["sha256"])
+                out.mkdir(parents=True, exist_ok=True)
+                tools.run(
+                    ["/testkit/prepare-rootfs", "--image", f"/cache/downloads/{image.name}", "--out", f"/cache/base/{name}", "--kernel-package", config["kernel"]["package"]],
+                    privileged=True,
+                    mounts=[f"{CACHE}:/cache", f"{PACKAGE_DIR}:/testkit:ro"],
+                )
+                (out / "done").touch()
     return BaseImage(out / "rootfs.qcow2", out / "vmlinuz", out / "initrd.img", out / "boot")
 
 
