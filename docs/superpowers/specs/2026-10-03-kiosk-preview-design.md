@@ -28,9 +28,10 @@ VM, with Ctrl-C leaving no QEMU, dev server, container, tunnel, `/run/<app>-prev
 
 | Decision | Choice | Why |
 |---|---|---|
-| Shape | A library: the app implements `KioskApp` and calls `preview.main(app)` from its `tests/preview.py`; the make targets stay `python tests/preview.py --on browser\|vm\|device` | A CLI driven by configuration cannot start a Mosquitto container or seed a Node-RED flow; code can. The entry point stays where it is today, so the Makefiles do not change |
+| Shape | A library: the app implements `KioskApp` and calls `preview.main(app)` from its `tests/preview.py`; the make targets stay `python tests/preview.py --on browser\|vm\|board` | A CLI driven by configuration cannot start a Mosquitto container or seed a Node-RED flow; code can. The entry point stays where it is today, so the Makefiles do not change |
 | Name | `KioskApp`, in `pihero_testkit.preview` | Not every Pi Hero app shows a page; the protocol describes one that does, and the subpackage exists only for the kiosk. The device-file rendering, which every app's tier 2 needs, is top-level as `pihero_testkit.device_file` |
-| Words | The server a session starts on the Mac is the app's *fake*: the real software, seeded (Mosquitto with retained scans, Node-RED with a status). The seeded data is the *fixture*. The API's generic word is *backend*. The app's variable keeps its name (`BROKER`, `BACKEND`) and the recommended value grammar is `fake \| device \| HOST:PORT` | "Fixture" named both the server and its data. "Mock" verifies interactions, "virtual" collides with the VM, "simulated" is wrong for the real software |
+| Words | The server a session starts on the Mac is the app's *fake*: the real software, seeded (Mosquitto with retained scans, Node-RED with a status). The seeded data is the *fixture*. The API's generic word is *backend*. The app's variable keeps its name (`BROKER`, `BACKEND`) and the recommended value grammar is `fake \| board \| HOST:PORT` | "Fixture" named both the server and its data. "Mock" verifies interactions, "virtual" collides with the VM, "simulated" is wrong for the real software |
+| Words for the Pi | `board` is the real Raspberry Pi in every name (`--on board`, `preview-board`, the record's `board`, `board.Session`); `device` stays for device files and directories | The repository already uses the two words that way; netmon's `preview-device` and `BROKER=device` are renamed when it moves onto the library, with `device` accepted for one release |
 | Reaching the Mac | The app names the Mac ports its page needs: the dev server's and, when the backend runs on the Mac, the backend's. The session forwards them per flavor and hands the app `Served.address(mac_port)`: `localhost:P` in a browser, `10.0.2.2:P` in the VM, `127.0.0.1:(10000+P)` on a board through `ssh -R` | One rule for every flavor replaces netmon's `guest_host`, `forwards` and `on_the_mac`. The board rule keeps netmon's 18080 and 18081 exactly and is deterministic, so a dead tunnel's forwards can be ended by port |
 | Inspector ports | 2999 in the guest and on the board; a free port on the Mac per session, recorded, printed and opened by `INSPECT` | One kiosk per machine on the far side; two sessions on the Mac must not share the near side |
 | Concurrency | Everything on the Mac is scoped by the app's name or root, or allocated: record under `root/dist/preview`, container and `/run` names by the app, inspector and VM ports free, windows placed by QEMU's pid and cascaded, layer builds and the base image build under a lock. One preview per app (Gradle allows one build per project directory) and one per board (one kiosk) | The user runs netmon and busy-screen side by side |
@@ -56,10 +57,10 @@ from typing import Protocol
 
 @dataclass(frozen=True)
 class Settings:
-    """What every flavor takes: the flavor, TARGET for the device, INSPECT, and the environment the app's own variables come from."""
+    """What every flavor takes: the flavor, TARGET for the board, INSPECT, and the environment the app's own variables come from."""
 
-    flavor: str  # "browser", "vm" or "device"
-    target: str | None  # user@host[:port]; required by "device", refused elsewhere
+    flavor: str  # "browser", "vm" or "board"
+    target: str | None  # user@host[:port]; required by "board", refused elsewhere
     inspect: str | None  # the application INSPECT names; None for "0" or ""
     environ: Mapping[str, str]
 
@@ -74,7 +75,7 @@ class DevServer:
 
 
 class Backend(Protocol):
-    """The app's backend as one session sees it: a fake the session starts, the device's own, or an address given."""
+    """The app's backend as one session sees it: a fake the session starts, the board's own, or an address given."""
 
     managed: bool  # whether start() starts something the session must stop
     mac_port: int | None  # the Mac port the kiosk must reach, None when the backend is not on the Mac
@@ -113,7 +114,7 @@ class KioskApp(Protocol):
 def main(app: KioskApp, argv: list[str] | None = None, environ: Mapping[str, str] | None = None) -> int: ...
 ```
 
-`main` parses `--on browser|vm|device`, builds `Settings` from `TARGET` and `INSPECT` (default `Safari`), and returns 2
+`main` parses `--on browser|vm|board`, builds `Settings` from `TARGET` and `INSPECT` (default `Safari`), and returns 2
 with the message on `ValueError`, `RuntimeError` or `TimeoutError`, 130 on Ctrl-C. `backend()` and `dev_server()` are
 called before anything starts, so a bad variable fails before the record is claimed. The ready message names the page
 (`page_url` in the browser flavor, `http://localhost:<dev port>/` in the others, as netmon prints today),
@@ -121,10 +122,10 @@ called before anything starts, so a bad variable fails before the record is clai
 
 netmon's `tests/preview.py` under this API: `name="netmon"`, `display=(800, 480)`, `user_data()` is today's
 `preview_device.render` on top of `device_file`, `dev_server()` is Gradle on 8081 with `NETMON_STATS_PROXY` set for the
-device flavor, `backend()` parses `BROKER` and `SCAN` into its Mosquitto container (`mac_port` 8080 for the fake and a
-loopback `HOST:PORT`, `None` for `device` and a remote host), and `page_url()` is
+board flavor, `backend()` parses `BROKER` and `SCAN` into its Mosquitto container (`mac_port` 8080 for the fake and a
+loopback `HOST:PORT`, `None` for `board` and a remote host), and `page_url()` is
 `http://{served.address(8081)}/?broker.host=…&broker.port=…` with the broker's address from `served.address(mac_port)`,
-`127.0.0.1:8080` for `device`, or the given `HOST:PORT`. busy-screen's: `(480, 320)`, Node-RED from the vendored server
+`127.0.0.1:8080` for `board`, or the given `HOST:PORT`. busy-screen's: `(480, 320)`, Node-RED from the vendored server
 directory on a Mac port with the repository's flow and a seeded status as the fake, `?address=http://{served.address(1880)}`.
 
 ## Components
@@ -136,12 +137,12 @@ All new modules are tier-0 tested; the subpackage is `testkit/src/pihero_testkit
   is free and starts it, shows the flavor, waits for the inspector's page list to name a target (30 s, else the list's own
   address), runs `open -a INSPECT`, prints the ready message and waits for Ctrl-C, asking the flavor's `watch` every second.
 - `preview/record.py`: the record `root/dist/preview/session.json` with `owner`, `dev_server`, `qemu`, `tunnel` as
-  `[pid, started]`, `backend` (bool), `device` (the target), `inspector` (the Mac port); `claim()` ends what a killed
+  `[pid, started]`, `backend` (bool), `board` (the target), `inspector` (the Mac port); `claim()` ends what a killed
   session left (terminate, terminate the dev server's process group, restore the board, stop the backend, wait until gone)
   and raises `AlreadyRunning` next to a live owner; `update(**fields)`; `forget()` keeps only a board whose restore failed.
 - `preview/process.py`: `answers(host, port)`, `info(pid) -> (started, state) | None` from `ps`, `raise_on_sigterm()`,
   `until_interrupted(watch)`, `free_port()`.
-- `preview/flavors.py`: `Shown(page, inspector, watch)`, `Browser`, `Vm`, `Device`, and the `Served` implementations
+- `preview/flavors.py`: `Shown(page, inspector, watch)`, `Browser`, `Vm`, `Board`, and the `Served` implementations
   (`localhost:P`, `10.0.2.2:P`, `127.0.0.1:(10000+P)`; a Mac port above 55535 is a `ValueError`).
 - `preview/kiosk.py`, pure: `session_conf(current, url, inspector_port=2999)`, `inspector_url(listing, address)`,
   `inspect_app(value)`, `open_command(app, url)`, `parse_conf(text)` (the `EnvironmentFile` parser both apps copy).
@@ -156,7 +157,7 @@ All new modules are tier-0 tested; the subpackage is `testkit/src/pihero_testkit
 - `preview/window.py`: `place(pid, size, origin)` through `osascript` and System Events, 20 attempts; `cascade_origin(n)`;
   `other_windows()` counts other `qemu-system-aarch64` processes with `-display cocoa`; a refusal prints the Accessibility
   hint once and goes on.
-- `preview/board.py`: `Board(target, name)`: `check_kiosk()`, `session_conf()`, `forwards(mac_ports, inspector_local)`,
+- `preview/board.py`: `Session(target, name)`: `check_kiosk()`, `session_conf()`, `forwards(mac_ports, inspector_local)`,
   `tunnel_command(...)` (`-N -4`, `BatchMode`, `ExitOnForwardFailure`, `ssh.KEEPALIVE`), `open_tunnel()` after ending the
   board's stale `sshd` forwards on the session's remote ports, log at `root/dist/preview/tunnel.log`, `install(conf,
   tunnel)` to `/run/<name>-preview/kiosk.conf` and `/run/systemd/system/pihero-kiosk.service.d/<name>-preview.conf`,
@@ -174,7 +175,7 @@ All new modules are tier-0 tested; the subpackage is `testkit/src/pihero_testkit
   the marker in "Writing tests", the board flavor's manual check in "Real devices". [app-conventions.md](../app-conventions.md):
   a "Kiosk preview" section with the `KioskApp` contract, the make targets, the dev-server requirements (bound to
   `127.0.0.1` on a port of the app's own, `allowedHosts: 'all'`, `client.webSocketURL: 'auto://0.0.0.0:0/ws'`), the
-  `fake | device | HOST:PORT` grammar, one preview per app and per board. [design.md](../design.md): a paragraph under
+  `fake | board | HOST:PORT` grammar, one preview per app and per board. [design.md](../design.md): a paragraph under
   "Applications" and the kiosk section's pointer to it.
 - `testkit/pyproject.toml`: `version = "2.8.0"`.
 
@@ -242,7 +243,7 @@ testing.md "Real devices": the page shows, a CSS edit reaches the panel, the ins
    to `tests/preview.py` (the `KioskApp`), `preview_broker.py` and `scan_fixtures.py`; its `vm_device.py` and
    busy-screen's build on `device_file`. busy-screen adds `webpack.config.d/dev-server.js` on a port other than 8081,
    the three make targets, and reruns its tier 2 after the jump from v2.4.0.
-3. Verification, both at once: netmon `make test-preview`, `make preview-vm`, `make preview-device TARGET=pi@netmon.local`;
+3. Verification, both at once: netmon `make test-preview`, `make preview-vm`, `make preview-board TARGET=pi@netmon.local`;
    busy-screen the same against `pi@busy-screen.local`; nothing left behind on either side after Ctrl-C.
 
 ## Follow-ups

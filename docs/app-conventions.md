@@ -45,7 +45,7 @@ An app with a page previews it from the Mac with `pihero_testkit.preview`: the p
 browser tab, in the kiosk of a short-lived QEMU VM (WPE WebKit in a window, exact rendering) or in the kiosk of a real
 board, each with a Web Inspector, each ended by Ctrl-C with nothing left behind. The app implements `KioskApp` in
 `tests/preview.py` and ends the file with `sys.exit(main(App()))`; its make targets are `preview-browser`, `preview-vm` and
-`preview-device TARGET=user@host`, each `uv run --frozen python tests/preview.py --on <flavor>`.
+`preview-board TARGET=user@host`, each `uv run --frozen python tests/preview.py --on <flavor>`.
 
 - `name` scopes the record, the board's `/run/<name>-preview` and its drop-in. `root` is the repository; the record and
   logs live under `root/dist/preview`. `display` is the panel's size, the VM's display and the window's size in points.
@@ -58,15 +58,15 @@ board, each with a Web Inspector, each ended by Ctrl-C with nothing left behind.
   'auto://0.0.0.0:0/ws'`). `settings.flavor` and `settings.target` are there for what differs per flavor, such as a proxy
   to the board's own files.
 - `backend(settings)` parses the app's own variables from `settings.environ` and raises `ValueError` naming the grammar.
-  The recommended grammar is `fake | device | HOST:PORT`: the *fake* is the real backend software seeded with a fixture
-  (Mosquitto with retained scans, Node-RED with a status), started and stopped by the session (`managed`); `device` is the
-  board's own, `preview-device` only; `HOST:PORT` attaches to one that runs. `mac_port` is the backend's port on the Mac,
+  The recommended grammar is `fake | board | HOST:PORT`: the *fake* is the real backend software seeded with a fixture
+  (Mosquitto with retained scans, Node-RED with a status), started and stopped by the session (`managed`); `board` is the
+  board's own, `preview-board` only; `HOST:PORT` attaches to one that runs. `mac_port` is the backend's port on the Mac,
   or `None`; the session forwards it. `stop()` ends the fake wherever a session left it, from any process, so a killed
   session is cleaned up by the next.
 - `page_url(backend, served)` returns the URL the kiosk or browser loads, with `served.address(port)` for every Mac port
   the page needs: `localhost:P` in a browser, `10.0.2.2:P` in the VM, `127.0.0.1:(10000+P)` on a board.
 - Every flavor takes `INSPECT` (the application that opens the page or the kiosk's Web Inspector, default `Safari`, `0`
-  opens nothing) and `preview-device` takes `TARGET=user@host[:port]`.
+  opens nothing) and `preview-board` takes `TARGET=user@host[:port]`.
 - One preview per app (Gradle allows one build per project directory) and one per board (one kiosk); two apps preview side
   by side, each in its VM or on its board.
 

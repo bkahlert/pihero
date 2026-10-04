@@ -156,7 +156,7 @@ peripheral mode claims the Zero's one USB controller and leaves a board on a hub
 is proven in tier 2 and on application boards. The checkpoints are disposable: their device directories live outside this
 checkout, a release reflashes both, and nothing is kept on them.
 
-The kiosk preview's device flavor (`preview-device` in an app, [app-conventions.md](app-conventions.md) "Kiosk preview") has
+The kiosk preview's board flavor (`preview-board` in an app, [app-conventions.md](app-conventions.md) "Kiosk preview") has
 no VM counterpart: it is proven by hand on an application board. The check: the page shows the app's fixture; a CSS edit
 reaches the panel within seconds; the Web Inspector shows the live DOM; Ctrl-C leaves `/run/<app>-preview` and the drop-in
 under `/run/systemd/system/pihero-kiosk.service.d/` gone and the kiosk on its own `URL`; `kill -9` of the session and the
