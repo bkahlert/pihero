@@ -118,6 +118,12 @@ class TestWithUser:
         with pytest.raises(ValueError, match="one user"):
             device_file.with_user(two, KEY)
 
+    def test_on_a_second_user_without_a_name_raises(self):
+        nameless = SAMPLE.replace("packages:\n", "  - groups: users\n    shell: /bin/bash\npackages:\n")
+
+        with pytest.raises(ValueError, match="one user"):
+            device_file.with_user(nameless, KEY)
+
     def test_on_a_users_block_without_a_key_raises(self):
         keyless = SAMPLE.replace("    ssh_authorized_keys:\n      - ssh-ed25519 AAAA...your public key... you@mac\n", "")
 
