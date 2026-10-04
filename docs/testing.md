@@ -162,8 +162,9 @@ reaches the panel within seconds; the Web Inspector shows the live DOM; Ctrl-C l
 under `/run/systemd/system/pihero-kiosk.service.d/` gone and the kiosk on its own `URL`; `kill -9` of the session and the
 next start recovers both. Last run: netmon on `netmon.local`, 2026-10-03, with netmon's own implementation. On 2026-10-04 netmon (`netmon.local`) and
 busy-screen (`busy-screen.local`) ran `preview-board` side by side on this library, and Ctrl-C left no `/run/*-preview`, no drop-in,
-no process on the Mac and no container, with both kiosks active; the panel, a CSS edit, the Web Inspector and `kill -9` recovery
-were not rechecked then.
+no process on the Mac and no container, with both kiosks active. With 2.8.1, `kill -9` of busy-screen's session left its dev
+server, tunnel and the board's files; the next start replaced all three and Ctrl-C then left nothing. The panel, a CSS edit
+and the Web Inspector were not rechecked.
 
 A gitignored `.env` at the repository root, which `make` reads, names the directories and the boards:
 
