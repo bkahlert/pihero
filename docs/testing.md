@@ -160,7 +160,10 @@ The kiosk preview's board flavor (`preview-board` in an app, [app-conventions.md
 no VM counterpart: it is proven by hand on an application board. The check: the page shows the app's fixture; a CSS edit
 reaches the panel within seconds; the Web Inspector shows the live DOM; Ctrl-C leaves `/run/<app>-preview` and the drop-in
 under `/run/systemd/system/pihero-kiosk.service.d/` gone and the kiosk on its own `URL`; `kill -9` of the session and the
-next start recovers both. Last run: netmon on `netmon.local`, 2026-10-03, with netmon's own implementation.
+next start recovers both. Last run: netmon on `netmon.local`, 2026-10-03, with netmon's own implementation. On 2026-10-04 netmon (`netmon.local`) and
+busy-screen (`busy-screen.local`) ran `preview-board` side by side on this library, and Ctrl-C left no `/run/*-preview`, no drop-in,
+no process on the Mac and no container, with both kiosks active; the panel, a CSS edit, the Web Inspector and `kill -9` recovery
+were not rechecked then.
 
 A gitignored `.env` at the repository root, which `make` reads, names the directories and the boards:
 
