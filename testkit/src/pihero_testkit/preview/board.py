@@ -13,6 +13,8 @@ from . import kiosk, process
 LOG_NAME = "tunnel.log"
 DROPIN_DIR = f"/run/systemd/system/{kiosk.UNIT}.service.d"
 REMOTE_OFFSET = 10000
+# Longer than the kiosk unit's 90 s stop timeout: a loaded Zero took 43 s to daemon-reload and restart it.
+RESTORE_TIMEOUT = 120
 CHANNEL_NOISE = re.compile(r"channel \d+: open failed")
 APP_NAME = re.compile(r"[A-Za-z0-9._-]+")
 
@@ -114,7 +116,7 @@ class Session:
     def restore(self) -> bool:
         """Remove the session's files and restart the kiosk; return whether the board answered, else warn."""
         try:
-            result = self.ssh(self.restore_command(), timeout=30)
+            result = self.ssh(self.restore_command(), timeout=RESTORE_TIMEOUT)
         except (OSError, TimeoutError) as error:
             self._report(f"could not restore the kiosk on {self.target}: {error}; a reboot of the board removes the session's files")
             return False
