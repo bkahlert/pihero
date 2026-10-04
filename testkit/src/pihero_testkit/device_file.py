@@ -50,10 +50,10 @@ def drop(text: str, start: str) -> str:
 def with_user(text: str, key: str, user: str = USER) -> str:
     """Return `text` with its one user renamed to `user` and that user's first authorized key replaced by `key`.
 
-    Raise ValueError without a users block, with more or fewer than one user, or without an ssh_authorized_keys entry.
+    Raise ValueError without a users block, with more or fewer than one user entry or an entry without a name, or without an ssh_authorized_keys entry.
     """
     users = block(text, "users:")
-    if users.count("  - name: ") != 1:
+    if len(re.findall(r"^  - ", users, flags=re.M)) != 1 or users.count("  - name: ") != 1:
         raise ValueError("expected one user in the device file")
     renamed = re.sub(r"^(?P<prefix>  - name: ).*$", lambda m: m["prefix"] + user, users, count=1, flags=re.M)
     rekeyed, keys = re.subn(r"^(?P<prefix>    ssh_authorized_keys:\n      - ).*$", lambda m: m["prefix"] + key, renamed, count=1, flags=re.M)

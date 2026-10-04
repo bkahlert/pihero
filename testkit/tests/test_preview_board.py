@@ -174,6 +174,17 @@ class TestRestore:
         assert b.restore() is False
         assert warned == ["could not restore the kiosk on pi@netmon.local: no route; a reboot of the board removes the session's files"]
 
+    def test_waits_as_long_as_the_kiosk_unit_may_take_to_stop(self, tmp_path):
+        """A loaded Zero took 43 s to daemon-reload and restart, so 30 s warned of a restore that had worked."""
+        timeouts = []
+
+        def run(argv, **kwargs):
+            timeouts.append(kwargs["timeout"])
+            return CompletedProcess(argv, 0, "", "")
+
+        board.Session(TARGET, "netmon", tmp_path / "t", run=run).restore()
+
+        assert len(timeouts) == 1 and timeouts[0] >= 90
 
     def test_warns_and_returns_false_when_it_hangs(self, tmp_path):
         warned = []
@@ -184,7 +195,7 @@ class TestRestore:
         b = board.Session(TARGET, "netmon", tmp_path / "t", run=run, report=warned.append)
 
         assert b.restore() is False
-        assert warned == ["could not restore the kiosk on pi@netmon.local: pi@netmon.local did not answer within 30 s; a reboot of the board removes the session's files"]
+        assert warned == ["could not restore the kiosk on pi@netmon.local: pi@netmon.local did not answer within 120 s; a reboot of the board removes the session's files"]
 
 
 class TestOpenTunnel:
