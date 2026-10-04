@@ -16,11 +16,11 @@ class TestStaleActions:
             record.stale_actions({"owner": [100, STARTED]}, alive=lambda entry: entry[0] == 100)
 
     def test_ends_what_a_killed_preview_left_behind(self):
-        stale = {"owner": [100, STARTED], "qemu": [200, STARTED], "dev_server": [300, STARTED], "tunnel": [400, STARTED], "device": "pi@host", "backend": True}
+        stale = {"owner": [100, STARTED], "qemu": [200, STARTED], "dev_server": [300, STARTED], "tunnel": [400, STARTED], "board": "pi@host", "backend": True}
 
         actions = record.stale_actions(stale, alive=lambda entry: entry[0] != 100)
 
-        assert actions == [("terminate", 200), ("terminate-group", 300), ("terminate", 400), ("restore-device", "pi@host"), ("stop-backend", None)]
+        assert actions == [("terminate", 200), ("terminate-group", 300), ("terminate", 400), ("restore-board", "pi@host"), ("stop-backend", None)]
 
     def test_leaves_alone_a_process_that_reuses_the_recorded_id(self):
         actions = record.stale_actions({"owner": [100, STARTED], "qemu": [200, STARTED]}, alive=lambda entry: False)
@@ -59,7 +59,7 @@ class TestCarryOut:
     def test_restores_the_board_and_stops_the_backend(self):
         calls = []
 
-        record.carry_out([("restore-device", "pi@host"), ("stop-backend", None)], stop_backend=lambda: calls.append("stop"), restore_board=calls.append, info=lambda pid: None)
+        record.carry_out([("restore-board", "pi@host"), ("stop-backend", None)], stop_backend=lambda: calls.append("stop"), restore_board=calls.append, info=lambda pid: None)
 
         assert calls == ["pi@host", "stop"]
 
@@ -74,12 +74,12 @@ class TestCarryOut:
         assert waited == []
 
     def test_returns_the_board_whose_restore_failed(self):
-        failed = record.carry_out([("restore-device", "pi@host")], stop_backend=lambda: None, restore_board=lambda t: False, info=lambda pid: None)
+        failed = record.carry_out([("restore-board", "pi@host")], stop_backend=lambda: None, restore_board=lambda t: False, info=lambda pid: None)
 
         assert failed == "pi@host"
 
     def test_returns_none_when_the_board_was_restored(self):
-        failed = record.carry_out([("restore-device", "pi@host")], stop_backend=lambda: None, restore_board=lambda t: True, info=lambda pid: None)
+        failed = record.carry_out([("restore-board", "pi@host")], stop_backend=lambda: None, restore_board=lambda t: True, info=lambda pid: None)
 
         assert failed is None
 
@@ -105,15 +105,15 @@ class TestRecord:
 
     def test_claim_keeps_a_board_whose_restore_failed_next_to_the_new_owner(self, tmp_path):
         rec = record.Record(tmp_path)
-        rec.path.write_text(json.dumps({"device": "pi@host"}))
+        rec.path.write_text(json.dumps({"board": "pi@host"}))
 
         rec.claim(stop_backend=lambda: None, restore_board=lambda t: False, alive=lambda entry: False, info=lambda pid: (STARTED, "S"))
 
-        assert rec.read() == {"owner": [os.getpid(), STARTED], "device": "pi@host"}
+        assert rec.read() == {"owner": [os.getpid(), STARTED], "board": "pi@host"}
 
     def test_claim_drops_a_board_whose_restore_succeeded(self, tmp_path):
         rec = record.Record(tmp_path)
-        rec.path.write_text(json.dumps({"device": "pi@host"}))
+        rec.path.write_text(json.dumps({"board": "pi@host"}))
 
         rec.claim(stop_backend=lambda: None, restore_board=lambda t: True, alive=lambda entry: False, info=lambda pid: (STARTED, "S"))
 
@@ -180,11 +180,11 @@ class TestRecord:
 
     def test_forget_keeps_only_a_board_that_still_runs_the_session(self, tmp_path):
         rec = record.Record(tmp_path)
-        rec.path.write_text(json.dumps({"owner": [1, STARTED], "device": "pi@host"}))
+        rec.path.write_text(json.dumps({"owner": [1, STARTED], "board": "pi@host"}))
 
         rec.forget()
 
-        assert rec.read() == {"device": "pi@host"}
+        assert rec.read() == {"board": "pi@host"}
 
     def test_forget_is_done_on_a_missing_record(self, tmp_path):
         rec = record.Record(tmp_path)

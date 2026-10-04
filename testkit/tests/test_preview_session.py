@@ -115,7 +115,7 @@ class TestRun:
         log = []
         state = tmp_path / "dist" / "preview"
         state.mkdir(parents=True)
-        (state / "session.json").write_text(json.dumps({"owner": [999999, "gone"], "backend": True, "device": "pi@old"}))
+        (state / "session.json").write_text(json.dumps({"owner": [999999, "gone"], "backend": True, "board": "pi@old"}))
         made = []
 
         def make_board(*args):
@@ -167,10 +167,10 @@ class TestRun:
 
 class TestMain:
     def test_returns_2_with_the_message_for_a_variable_that_does_not_fit(self, tmp_path, capsys):
-        status = session.main(App(tmp_path, []), ["--on", "device"], {})
+        status = session.main(App(tmp_path, []), ["--on", "board"], {})
 
         assert status == 2
-        assert "preview-device needs TARGET=user@host" in capsys.readouterr().err
+        assert "preview-board needs TARGET=user@host" in capsys.readouterr().err
 
     def test_refuses_an_unknown_flavor(self, tmp_path):
         with pytest.raises(SystemExit) as exit_:
@@ -239,7 +239,7 @@ class App:
     def backend(self, settings):
         self.log.append("backend")
         if self.bad_backend:
-            raise ValueError("BROKER must be fake, device or HOST:PORT")
+            raise ValueError("BROKER must be fake, board or HOST:PORT")
         log = self.log
 
         def start():

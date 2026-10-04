@@ -16,22 +16,22 @@ class TestSettingsFromEnviron:
 
         assert settings.environ["BROKER"] == "fake"
 
-    def test_on_the_device_takes_target(self):
-        settings = api.Settings.from_environ("device", {"TARGET": "pi@host"})
+    def test_on_the_board_takes_target(self):
+        settings = api.Settings.from_environ("board", {"TARGET": "pi@host"})
 
         assert settings.target == "pi@host"
 
-    def test_on_the_device_without_target_raises(self):
-        with pytest.raises(ValueError, match="preview-device needs TARGET=user@host"):
-            api.Settings.from_environ("device", {})
+    def test_on_the_board_without_target_raises(self):
+        with pytest.raises(ValueError, match="preview-board needs TARGET=user@host"):
+            api.Settings.from_environ("board", {})
 
     @pytest.mark.parametrize("flavor", ["browser", "vm"])
     def test_refuses_target_elsewhere(self, flavor):
-        with pytest.raises(ValueError, match="TARGET is only for preview-device"):
+        with pytest.raises(ValueError, match="TARGET is only for preview-board"):
             api.Settings.from_environ(flavor, {"TARGET": "pi@host"})
 
     def test_refuses_an_unknown_flavor(self):
-        with pytest.raises(ValueError, match="browser, vm or device"):
+        with pytest.raises(ValueError, match="browser, vm or board"):
             api.Settings.from_environ("tv", {})
 
     @pytest.mark.parametrize("value", ["", "0"])
@@ -54,5 +54,5 @@ class TestDevServer:
 
 
 class TestFlavors:
-    def test_are_browser_vm_and_device(self):
-        assert api.FLAVORS == ("browser", "vm", "device")
+    def test_are_browser_vm_and_board(self):
+        assert api.FLAVORS == ("browser", "vm", "board")

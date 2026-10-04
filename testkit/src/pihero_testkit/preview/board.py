@@ -38,8 +38,8 @@ def tunnel_command(target: str, forward_args: list[str]) -> list[str]:
     return ["ssh", "-N", "-4", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes", "-o", "ConnectTimeout=10", *ssh.KEEPALIVE, *(["-p", port] if port else []), *forward_args, user_host]
 
 
-class Board:
-    """A real board reached over ssh, with the session's kiosk files and tunnel on it; the app's `name` is letters, digits, '-', '_' or '.'."""
+class Session:
+    """One preview session on a real board reached over ssh, with its kiosk files and tunnel on it; the app's `name` is letters, digits, '-', '_' or '.'."""
 
     def __init__(self, target: str, name: str, tunnel_log: Path, *, run=subprocess.run, popen=subprocess.Popen, answers=process.answers, sleep=time.sleep, clock=time.monotonic, report: Callable[[str], None] = lambda message: print(message, file=sys.stderr)):
         if not APP_NAME.fullmatch(name):

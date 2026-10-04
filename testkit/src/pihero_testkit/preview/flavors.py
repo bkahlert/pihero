@@ -41,7 +41,7 @@ class VmServed:
 class BoardServed:
     """Serve the kiosk of a real board, which reaches the Mac through an SSH reverse forward."""
 
-    flavor = "device"
+    flavor = "board"
 
     def address(self, mac_port: int) -> str:
         """Return the address of `mac_port` as the board reaches it, on its reverse port."""
@@ -80,10 +80,10 @@ class Vm:
         return Shown(f"http://localhost:{dev.port}/", f"127.0.0.1:{local}", lambda: f"the VM's QEMU ended; see {session.keep_serial_log()}" if session.vm.process.poll() is not None else None)
 
 
-class Device:
+class Board:
     """Show the page in the kiosk of a real board reached over SSH."""
 
-    def __init__(self, make_board=board.Board, free_port=process.free_port, entry=process.entry):
+    def __init__(self, make_board=board.Session, free_port=process.free_port, entry=process.entry):
         self._make_board, self._free_port, self._entry = make_board, free_port, entry
 
     def show(self, app: KioskApp, settings: Settings, backend: Backend, dev: DevServer, cleanup: ExitStack, rec: Record) -> Shown:
@@ -95,17 +95,17 @@ class Device:
         local = self._free_port()
         tunnel = target.open_tunnel(board.forwards(ports, local), local, [board.remote_port(port) for port in ports])
         cleanup.callback(target.close_tunnel, tunnel)
-        rec.update(tunnel=self._entry(tunnel.pid), device=settings.target, inspector=local)
+        rec.update(tunnel=self._entry(tunnel.pid), board=settings.target, inspector=local)
 
         def restore() -> None:
             if target.restore():
-                rec.update(device=None)
+                rec.update(board=None)
 
         cleanup.callback(restore)
         target.install(conf, tunnel)
         return Shown(f"http://localhost:{dev.port}/", f"127.0.0.1:{local}", lambda: target.tunnel_problem(tunnel))
 
 
-def flavor_for(flavor: str) -> Browser | Vm | Device:
+def flavor_for(flavor: str) -> Browser | Vm | Board:
     """Return the flavor object for `flavor`; raise KeyError for an unknown flavor."""
-    return {"browser": Browser, "vm": Vm, "device": Device}[flavor]()
+    return {"browser": Browser, "vm": Vm, "board": Board}[flavor]()

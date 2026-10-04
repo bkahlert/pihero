@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
-FLAVORS = ("browser", "vm", "device")
+FLAVORS = ("browser", "vm", "board")
 
 
 def inspect_app(value: str) -> str | None:
@@ -15,7 +15,7 @@ def inspect_app(value: str) -> str | None:
 
 @dataclass(frozen=True)
 class Settings:
-    """What every flavor takes: the flavor, TARGET for the device, INSPECT, and the environment the app's own variables come from."""
+    """What every flavor takes: the flavor, TARGET for the board, INSPECT, and the environment the app's own variables come from."""
 
     flavor: str
     target: str | None
@@ -26,12 +26,12 @@ class Settings:
     def from_environ(flavor: str, environ: Mapping[str, str]) -> "Settings":
         """Return the settings for `flavor` from `environ`; raise ValueError for an unknown flavor or a TARGET that does not fit it."""
         if flavor not in FLAVORS:
-            raise ValueError(f"flavor must be browser, vm or device, not {flavor!r}")
+            raise ValueError(f"flavor must be browser, vm or board, not {flavor!r}")
         target = environ.get("TARGET") or None
-        if flavor == "device" and not target:
-            raise ValueError("preview-device needs TARGET=user@host")
-        if flavor != "device" and target:
-            raise ValueError("TARGET is only for preview-device")
+        if flavor == "board" and not target:
+            raise ValueError("preview-board needs TARGET=user@host")
+        if flavor != "board" and target:
+            raise ValueError("TARGET is only for preview-board")
         return Settings(flavor, target, inspect_app(environ.get("INSPECT", "Safari")), environ)
 
 
@@ -45,7 +45,7 @@ class DevServer:
 
 
 class Backend(Protocol):
-    """The app's backend as one session sees it: a fake the session starts, the device's own, or an address given."""
+    """The app's backend as one session sees it: a fake the session starts, the board's own, or an address given."""
 
     managed: bool
     """Whether start() starts something the session must stop."""

@@ -22,7 +22,7 @@ class TestServed:
         assert flavors.BoardServed().address(8081) == "127.0.0.1:18081"
 
     def test_each_names_its_flavor(self):
-        assert [served.flavor for served in (flavors.BrowserServed(), flavors.VmServed(), flavors.BoardServed())] == ["browser", "vm", "device"]
+        assert [served.flavor for served in (flavors.BrowserServed(), flavors.VmServed(), flavors.BoardServed())] == ["browser", "vm", "board"]
 
 
 class TestMacPorts:
@@ -89,7 +89,7 @@ class TestVm:
         assert session.calls[-1] == "stop"
 
 
-class TestDevice:
+class TestBoard:
     def test_checks_tunnels_installs_and_restores_at_the_end(self, tmp_path):
         b = FakeBoard()
         rec = record.Record(tmp_path)
@@ -101,16 +101,16 @@ class TestDevice:
             return b
 
         with ExitStack() as cleanup:
-            shown = flavors.Device(make_board=make_board, free_port=lambda: 54321, entry=lambda pid: [pid, "T"]).show(app(), Settings("device", "pi@host", None, {}), backend(mac_port=8080), DEV, cleanup, rec)
+            shown = flavors.Board(make_board=make_board, free_port=lambda: 54321, entry=lambda pid: [pid, "T"]).show(app(), Settings("board", "pi@host", None, {}), backend(mac_port=8080), DEV, cleanup, rec)
 
             assert made == {"target": "pi@host", "name": "probe", "log": tmp_path / "tunnel.log"}
             assert b.calls[:3] == ["check_kiosk", "session_conf http://127.0.0.1:18081/?x=1", "open_tunnel ['-R', '127.0.0.1:18081:127.0.0.1:8081', '-R', '127.0.0.1:18080:127.0.0.1:8080', '-L', '127.0.0.1:54321:127.0.0.1:2999'] 54321 [18081, 18080]"]
             assert b.calls[3] == "install CONF"
-            assert rec.read() == {"tunnel": [9, "T"], "device": "pi@host", "inspector": 54321}
+            assert rec.read() == {"tunnel": [9, "T"], "board": "pi@host", "inspector": 54321}
             assert shown.page == "http://localhost:8081/" and shown.inspector == "127.0.0.1:54321"
             assert shown.watch() == "problem"
         assert b.calls[4:] == ["restore", "close_tunnel"]
-        assert rec.read()["device"] is None
+        assert rec.read()["board"] is None
 
     def test_keeps_the_board_in_the_record_when_restore_fails(self, tmp_path):
         b = FakeBoard(restores=False)
@@ -118,9 +118,9 @@ class TestDevice:
         rec.update()
 
         with ExitStack() as cleanup:
-            flavors.Device(make_board=lambda *a: b, free_port=lambda: 1, entry=lambda pid: [pid, "T"]).show(app(), Settings("device", "pi@host", None, {}), backend(), DEV, cleanup, rec)
+            flavors.Board(make_board=lambda *a: b, free_port=lambda: 1, entry=lambda pid: [pid, "T"]).show(app(), Settings("board", "pi@host", None, {}), backend(), DEV, cleanup, rec)
 
-        assert rec.read()["device"] == "pi@host"
+        assert rec.read()["board"] == "pi@host"
 
 
     def test_restores_the_board_and_closes_the_tunnel_when_install_fails(self, tmp_path):
@@ -129,14 +129,14 @@ class TestDevice:
         rec.update()
 
         with pytest.raises(TimeoutError), ExitStack() as cleanup:
-            flavors.Device(make_board=lambda *a: b, free_port=lambda: 1, entry=lambda pid: [pid, "T"]).show(app(), Settings("device", "pi@host", None, {}), backend(), DEV, cleanup, rec)
+            flavors.Board(make_board=lambda *a: b, free_port=lambda: 1, entry=lambda pid: [pid, "T"]).show(app(), Settings("board", "pi@host", None, {}), backend(), DEV, cleanup, rec)
 
         assert b.calls[-2:] == ["restore", "close_tunnel"]
-        assert rec.read()["device"] is None
+        assert rec.read()["board"] is None
 
 
 class TestFlavorFor:
-    @pytest.mark.parametrize("name, cls", [("browser", flavors.Browser), ("vm", flavors.Vm), ("device", flavors.Device)])
+    @pytest.mark.parametrize("name, cls", [("browser", flavors.Browser), ("vm", flavors.Vm), ("board", flavors.Board)])
     def test_names_the_flavor(self, name, cls):
         assert isinstance(flavors.flavor_for(name), cls)
 

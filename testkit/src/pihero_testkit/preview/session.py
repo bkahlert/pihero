@@ -25,7 +25,7 @@ def ready_message(settings: Settings, shown: flavors.Shown, backend: Backend) ->
     return f"preview ready ({settings.flavor})\n  page       {shown.page}\n  backend    {backend.describe()}{inspector}\nCtrl-C ends it."
 
 
-def run(app: KioskApp, settings: Settings, *, ensure_dev_server=dev_server.ensure, stop_dev_server=dev_server.stop, flavor_for=flavors.flavor_for, wait_for_inspector=kiosk.wait_for_inspector, open_=subprocess.run, until_interrupted=process.until_interrupted, arm_sigterm=process.raise_on_sigterm, entry=process.entry, make_board=board.Board, out=None) -> int:
+def run(app: KioskApp, settings: Settings, *, ensure_dev_server=dev_server.ensure, stop_dev_server=dev_server.stop, flavor_for=flavors.flavor_for, wait_for_inspector=kiosk.wait_for_inspector, open_=subprocess.run, until_interrupted=process.until_interrupted, arm_sigterm=process.raise_on_sigterm, entry=process.entry, make_board=board.Session, out=None) -> int:
     """Run the preview until Ctrl-C and return 0, printing progress to `out` (stderr by default); raise RuntimeError when the flavor reports a problem or the dev server exits meanwhile; everything started is ended on the way out."""
     out = sys.stderr if out is None else out
     backend = app.backend(settings)
@@ -62,7 +62,7 @@ def run(app: KioskApp, settings: Settings, *, ensure_dev_server=dev_server.ensur
 
 
 def main(app: KioskApp, argv: list[str] | None = None, environ: Mapping[str, str] | None = None) -> int:
-    """Run the app's preview for `--on browser|vm|device`; return 0 when Ctrl-C ends a ready preview, 130 when Ctrl-C lands before it is ready, and 2 with the message on a bad variable or a failure."""
+    """Run the app's preview for `--on browser|vm|board`; return 0 when Ctrl-C ends a ready preview, 130 when Ctrl-C lands before it is ready, and 2 with the message on a bad variable or a failure."""
     parser = argparse.ArgumentParser(prog="preview.py", description=f"Show {app.name}'s page from the dev server in a browser, a VM's kiosk or a board's kiosk until Ctrl-C.")
     parser.add_argument("--on", required=True, choices=FLAVORS, help="where to show the page")
     flavor = parser.parse_args(argv).on

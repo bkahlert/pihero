@@ -27,8 +27,8 @@ def stale_actions(record: dict, alive=process.alive) -> list[tuple[str, object]]
         entry = record.get(key)
         if entry and alive(entry):
             actions.append((action, entry[0]))
-    if record.get("device"):
-        actions.append(("restore-device", record["device"]))
+    if record.get("board"):
+        actions.append(("restore-board", record["board"]))
     if record.get("backend"):
         actions.append(("stop-backend", None))
     return actions
@@ -46,7 +46,7 @@ def carry_out(actions, stop_backend: Callable[[], None], restore_board: Callable
             elif action == "terminate-group":
                 killpg(getpgid(subject), signal.SIGTERM)
                 ended.append(subject)
-            elif action == "restore-device":
+            elif action == "restore-board":
                 if not restore_board(subject):
                     failed = subject
             elif action == "stop-backend":
@@ -76,12 +76,12 @@ class Record:
     def claim(self, stop_backend: Callable[[], None], restore_board: Callable[[str], bool], *, alive=process.alive, info=process.info, kill=os.kill, killpg=os.killpg, getpgid=os.getpgid, sleep=time.sleep, clock=time.monotonic) -> None:
         """End what a killed preview left behind, delete its session directory, and record this process as the owner, keeping a board whose restore failed; raise AlreadyRunning next to a live one."""
         self.directory.mkdir(parents=True, exist_ok=True)
-        device = None
+        board = None
         if self.path.exists():
-            device = carry_out(stale_actions(self.read(), alive), stop_backend, restore_board, kill=kill, killpg=killpg, getpgid=getpgid, info=info, sleep=sleep, clock=clock)
+            board = carry_out(stale_actions(self.read(), alive), stop_backend, restore_board, kill=kill, killpg=killpg, getpgid=getpgid, info=info, sleep=sleep, clock=clock)
             shutil.rmtree(self.session_dir, ignore_errors=True)
         owner = {"owner": process.entry(os.getpid(), info)}
-        self._write({**owner, "device": device} if device else owner)
+        self._write({**owner, "board": board} if board else owner)
 
     def update(self, **fields) -> None:
         """Add `fields` to the record."""
@@ -89,9 +89,9 @@ class Record:
 
     def forget(self) -> None:
         """Delete the record, keeping only a board that still runs the session so the next start retries its restore."""
-        device = self.read().get("device")
-        if device:
-            self._write({"device": device})
+        board = self.read().get("board")
+        if board:
+            self._write({"board": board})
         else:
             self.path.unlink(missing_ok=True)
 
