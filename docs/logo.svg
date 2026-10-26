@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc" color="#24243b">
+  <title id="title">Pi Hero</title>
+  <desc id="desc">
+    A yellow rectangular superhero with a confident smile flies toward the viewer, with a pink cape, two wind lines,
+    and an outstretched fist.
+  </desc>
+  <path d="M21 178l13-9M47 199l10-13" fill="none" stroke="#9aa2b2" stroke-width="4.5" stroke-linecap="round"/>
+  <g transform="translate(0 -19)">
+    <path d="M92 94C63 100 57 122 54 151Q52 175 36 180C58 208 103 222 143 205L174 182 105 147Z" fill="#f50883"/>
+    <path d="M36 180C67 203 99 207 138 194L143 205C103 222 58 208 36 180Z" fill="#cc1a75"/>
+  </g>
+  <path d="m207 77 17-13 12 11-14 13Z" fill="#f7d83d" stroke="#d99d23" stroke-width="5.5" stroke-linejoin="round"/>
+  <g transform="translate(64 42)">
+    <rect y="19" width="152" height="114" rx="16" fill="#f7d83d"/>
+    <path d="M25 35h-9v82h9m102-82h9v82h-9" fill="none" stroke="#d99d23" stroke-width="5.5" stroke-linejoin="round"/>
+    <path d="m41 48 18 7m36 0 18-7" fill="none" stroke="currentColor" stroke-width="6.8" stroke-linecap="round"/>
+    <circle cx="52" cy="73" r="8" fill="currentColor"/>
+    <circle cx="102" cy="73" r="8" fill="currentColor"/>
+    <path d="M64 100q16 14 32-7" fill="none" stroke="currentColor" stroke-width="6.8" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(184 29.3) scale(1.06)" stroke="#d99d23" stroke-width="5.18867924528" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M7 28V18Q7 11 14 11H18Q18 7 24 7H28Q34 7 35 12H42Q49 12 50 18H51Q58 18 58 25V31Q58 39 50 43L30 47Q15 49 9 39Z" fill="#f7d83d"/>
+    <path d="M18 17v10m17-9v10m13-4v7" fill="none"/>
+    <path d="m49 34-17-7q-6-2-9 3l-1 4q-2 5 4 8l11 3q10-2 12-11Z" fill="#f7d83d"/>
+  </g>
+</svg>
